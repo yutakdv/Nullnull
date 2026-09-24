@@ -35,6 +35,10 @@ public final class SeoulLiveCollectMain {
             Function<String, CompletableFuture<SeoulLiveAreaGateway.Collection>> collector, PrintStream out) {
         SeoulLiveAreaGateway.Collection collected = collector.apply(areaName).join();
         if (!collected.accepted()) {
+            // Why, in two fixed words - the validator's outcome and the check that fired - and nothing the provider
+            // sent: the scheduler's failure line below names only the exception, which is the same for every refusal.
+            collected.refusal().ifPresent(refusal -> out.println("seoul_live_validation outcome="
+                    + refusal.outcome().name() + " rule=" + refusal.rule().token()));
             throw new IllegalStateException("Seoul live observation was refused");
         }
         out.println(collected.live() ? "seoul_live_collect live=true" : "seoul_live_collect stale=true");

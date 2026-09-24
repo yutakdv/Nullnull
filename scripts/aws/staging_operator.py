@@ -156,6 +156,13 @@ OPS_INPUT['post_id'] = PLACE_ID.pattern
 # Every task above writes. From the release carrying OperationsContext (#183) a writing tool in staging runs only
 # when this names the database its datasource URL points to; an older image ignores it.
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
+# The Seoul refusal line's two words (SeoulLiveCollectMain, BA-091-T27): ProviderResponseValidator.Outcome without
+# OK, and SeoulCityDataValidator.Rule in lower case with hyphens. Listed by name, not matched by shape: a line of that
+# form carrying any other word is not echoed (test_seoul_refusal_log_parity holds both lists to the Java enums).
+SEOUL_VALIDATION_OUTCOMES = ('SCHEMA_DRIFT', 'ENUM_DRIFT', 'RANGE', 'TIME_SKEW', 'PROVIDER_ERROR', 'MAPPING_UNCERTAIN')
+SEOUL_VALIDATION_RULES = ('json-unreadable', 'result-missing', 'result-code', 'area-missing', 'area-mismatch',
+                          'live-empty', 'replace-unknown', 'level-unknown', 'time-format', 'fcst-yn-unknown',
+                          'forecast-empty', 'fcst-level-unknown', 'fcst-time-format', 'replace-substituted')
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
 OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
@@ -180,6 +187,11 @@ OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()
                           r'|kto_inventory operations=[0-9]{1,4} counts_as_evidence=(true|false reason=[a-z-]{1,60})'
                           r'|seoul_live_collect live=true'
                           r'|seoul_live_collect_failed reason=[A-Za-z_]{1,80}'
+                          # Why a Seoul collection was refused (SeoulLiveCollectMain): the validator's outcome and the
+                          # check that fired, two fixed vocabularies named above. Never the provider's code, area or
+                          # message.
+                          r'|seoul_live_validation outcome=(' + '|'.join(SEOUL_VALIDATION_OUTCOMES) + ') rule=('
+                          + '|'.join(SEOUL_VALIDATION_RULES) + ')'
                           # The quarantine release (SourceQuarantineReleaseMain): the source, the run it released and
                           # when that run started, or why it released nothing. Source codes and ids only.
                           r'|source_quarantine_released source=[A-Z][A-Z0-9_]{1,63} run=[0-9a-f-]{36} run_started=[0-9T:.-]{10,40}Z'

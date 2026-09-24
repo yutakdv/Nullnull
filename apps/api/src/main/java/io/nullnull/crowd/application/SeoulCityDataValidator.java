@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -36,7 +37,26 @@ public final class SeoulCityDataValidator {
 
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public record Validation(ProviderResponseValidator.Verdict verdict, SeoulLiveAreaObservation observation) {
+    /**
+     * Which check refused a response. The outcome alone does not say whether the provider sent a page that is not
+     * JSON or answered for another area, and both quarantine the source, so the refusal log names the check as well
+     * (BA-091-T27). A fixed vocabulary on purpose: that line is built from this and the outcome, never from the
+     * response.
+     */
+    public enum Rule {
+        JSON_UNREADABLE, RESULT_MISSING, RESULT_CODE, AREA_MISSING, AREA_MISMATCH, LIVE_EMPTY, REPLACE_UNKNOWN,
+        LEVEL_UNKNOWN, TIME_FORMAT, FCST_YN_UNKNOWN, FORECAST_EMPTY, FCST_LEVEL_UNKNOWN, FCST_TIME_FORMAT,
+        REPLACE_SUBSTITUTED;
+
+        /** The word the log carries: {@code AREA_MISMATCH} is {@code area-mismatch}. */
+        public String token() {
+            return name().toLowerCase(Locale.ROOT).replace('_', '-');
+        }
+    }
+
+    /** {@code rule} names the check that refused the response; it is null when the response was accepted. */
+    public record Validation(ProviderResponseValidator.Verdict verdict, SeoulLiveAreaObservation observation,
+            Rule rule) {
         public boolean accepted() {
             return verdict.outcome() == ProviderResponseValidator.Outcome.OK && observation != null;
         }
@@ -47,7 +67,7 @@ public final class SeoulCityDataValidator {
         try {
             root = json.readTree(response);
         } catch (RuntimeException failure) {
-            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.JSON_UNREADABLE);
         }
         JsonNode result = root.path("RESULT");
         // Citydata success responses use the literal key "RESULT.CODE" inside RESULT.
@@ -62,20 +82,23 @@ public final class SeoulCityDataValidator {
         // refusal that is retried on the next tick (A-065), so it must mean what it says: a code the
         // provider sent that is not success.
         if ((!hasCode && !hasDottedCode) || (hasCode && code == null) || (hasDottedCode && dottedCode == null)) {
-            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.RESULT_MISSING);
         }
         if ((hasCode && !"INFO-000".equals(code)) || (hasDottedCode && !"INFO-000".equals(dottedCode))) {
-            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
+            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR, Rule.RESULT_CODE);
         }
         JsonNode city = root.path("CITYDATA");
         String areaName = text(city, "AREA_NM");
         String areaCode = text(city, "AREA_CD");
-        if (areaName == null || areaCode == null || !areaName.equals(expectedAreaName)) {
-            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+        if (areaName == null || areaCode == null) {
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.AREA_MISSING);
+        }
+        if (!areaName.equals(expectedAreaName)) {
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.AREA_MISMATCH);
         }
         JsonNode live = city.path("LIVE_PPLTN_STTS");
         if (!live.isArray() || live.isEmpty()) {
-            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.LIVE_EMPTY);
         }
         JsonNode population = live.get(0);
 
@@ -98,7 +121,7 @@ public final class SeoulCityDataValidator {
         // than guessed at.
         String replaced = text(population, "REPLACE_YN");
         if (replaced == null || !("Y".equals(replaced) || "N".equals(replaced))) {
-            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT, Rule.REPLACE_UNKNOWN);
         }
         // REMEMBERED, NOT ANSWERED YET. A substitute is the provider's own word and is retried rather than
         // quarantined (A-065), so it may only be the verdict once everything below has passed: a substitute whose
@@ -107,13 +130,13 @@ public final class SeoulCityDataValidator {
 
         String level = text(population, "AREA_CONGEST_LVL");
         if (level == null || !CONGESTION_LEVELS.contains(level)) {
-            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT, Rule.LEVEL_UNKNOWN);
         }
         Instant observedAt;
         try {
             observedAt = providerInstant(text(population, "PPLTN_TIME"));
         } catch (DateTimeParseException | NullPointerException failure) {
-            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.TIME_FORMAT);
         }
 
         List<SeoulLiveAreaObservation.ForecastPoint> points = new ArrayList<>();
@@ -121,25 +144,25 @@ public final class SeoulCityDataValidator {
         // provider change would have quietly removed a whole class of data instead of failing.
         String hasForecast = text(population, "FCST_YN");
         if (hasForecast == null || !("Y".equals(hasForecast) || "N".equals(hasForecast))) {
-            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+            return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT, Rule.FCST_YN_UNKNOWN);
         }
         if ("Y".equals(hasForecast)) {
             JsonNode forecast = population.path("FCST_PPLTN");
             // An empty array while the flag says Y is a contradiction, not an empty forecast: the
             // provider is claiming points it did not send.
             if (!forecast.isArray() || forecast.isEmpty()) {
-                return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+                return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.FORECAST_EMPTY);
             }
             for (JsonNode point : forecast) {
                 String forecastLevel = text(point, "FCST_CONGEST_LVL");
                 if (forecastLevel == null || !CONGESTION_LEVELS.contains(forecastLevel)) {
-                    return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
+                    return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT, Rule.FCST_LEVEL_UNKNOWN);
                 }
                 try {
                     points.add(new SeoulLiveAreaObservation.ForecastPoint(
                             providerInstant(text(point, "FCST_TIME")), forecastLevel));
                 } catch (DateTimeParseException | NullPointerException failure) {
-                    return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+                    return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT, Rule.FCST_TIME_FORMAT);
                 }
             }
         }
@@ -149,11 +172,11 @@ public final class SeoulCityDataValidator {
             // the next tick instead of quarantined (A-065, owner decision 2026-09-24). No eighth outcome:
             // that would move ProviderResponseValidator.Outcome, IngestAudit.ValidationResult and the
             // api_ingest_validation_check CHECK together, and PROVIDER_ERROR already says what happened.
-            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
+            return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR, Rule.REPLACE_SUBSTITUTED);
         }
         return new Validation(new ProviderResponseValidator.Verdict(ProviderResponseValidator.Outcome.OK, 0),
                 new SeoulLiveAreaObservation(areaCode, areaName, level, observedAt,
-                        issueId(areaCode, observedAt, points), points));
+                        issueId(areaCode, observedAt, points), points), null);
     }
 
     /**
@@ -208,7 +231,7 @@ public final class SeoulCityDataValidator {
         return normalized.isEmpty() || normalized.length() > 300 ? null : normalized;
     }
 
-    private static Validation rejected(ProviderResponseValidator.Outcome outcome) {
-        return new Validation(new ProviderResponseValidator.Verdict(outcome, 1), null);
+    private static Validation rejected(ProviderResponseValidator.Outcome outcome, Rule rule) {
+        return new Validation(new ProviderResponseValidator.Verdict(outcome, 1), null, rule);
     }
 }
