@@ -2,6 +2,8 @@ package io.nullnull.live.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.nullnull.crowd.application.CollectorRunRecorder;
 import io.nullnull.crowd.application.QuotaExhaustedException;
@@ -17,12 +19,19 @@ import io.nullnull.crowd.domain.SourceState;
 import io.nullnull.crowd.infrastructure.seoul.SeoulCityDataClient;
 import io.nullnull.crowd.infrastructure.seoul.SeoulCityDataProperties;
 import io.nullnull.crowd.application.SeoulGatewayException;
+import io.nullnull.crowd.application.SeoulCityDataValidator;
 import io.nullnull.crowd.domain.SeoulLiveAreaObservation;
 import io.nullnull.operations.application.IngestAudit;
 import io.nullnull.shared.provider.CircuitBreaker;
 import io.nullnull.shared.provider.ProviderHttpClient;
 import io.nullnull.shared.provider.RetryPolicy;
+import io.nullnull.live.infrastructure.SeoulLiveRefreshScheduler;
+import io.nullnull.live.infrastructure.persistence.JdbcSeoulLiveRefreshClaim;
+import io.nullnull.testsupport.SeoulCityDataResponses;
 import io.nullnull.testsupport.StubProviderServer;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
@@ -344,6 +353,87 @@ class SeoulLiveAreaGatewayTest {
                 assertThat(audit.starts).as("%s: no run is opened either", condition).isEmpty();
             }
         }
+    }
+
+    /**
+     * The collection carries what the validator said, whichever rule that was. Compared with the validator's own
+     * answer rather than the table's: which rule each response trips is BA-090-T23's, and this one would otherwise
+     * go red with it for a change in the validator.
+     */
+    @Test
+    @DisplayName("BA-090-T24 거절된 서울 응답의 결과와 규칙이 수집 결과에 실린다")
+    void theRefusalTravelsWithTheCollection() throws Exception {
+        for (SeoulCityDataResponses.Refused example : SeoulCityDataResponses.refusedByEachRule(AREA, "marker-7f3e9a")) {
+            SeoulCityDataValidator.Validation said = new SeoulCityDataValidator()
+                    .validate(example.body().getBytes(StandardCharsets.UTF_8), AREA);
+            try (StubProviderServer stub = new StubProviderServer()
+                    .enqueue(new StubProviderServer.Response(200, example.body()))) {
+                SeoulLiveAreaGateway.Collection collection = gateway(stub, new RecordingAudit(), new FixedQuota(false),
+                        new SourceRegistryStore.SourceCondition(false, false)).collect(AREA).join();
+
+                assertThat(collection.accepted()).as(example.rule().token()).isFalse();
+                assertThat(collection.refusal()).as(example.rule().token())
+                        .contains(new SeoulLiveAreaGateway.Refusal(said.verdict().outcome(), said.rule()));
+            }
+        }
+        try (StubProviderServer stub = new StubProviderServer()
+                .enqueue(new StubProviderServer.Response(200, SeoulCityDataResponses.accepted(AREA)))) {
+            SeoulLiveAreaGateway.Collection collection = gateway(stub, new RecordingAudit(), new FixedQuota(false),
+                    new SourceRegistryStore.SourceCondition(false, false)).collect(AREA).join();
+
+            assertThat(collection.accepted()).isTrue();
+            assertThat(collection.refusal()).isEmpty();
+        }
+    }
+
+    /**
+     * The area the scheduler collects. Its constant is private; if it moves, every case below stops reaching its
+     * own rule and the line assertion fails rather than passing on an area mismatch.
+     */
+    private static final String SCHEDULED_AREA = "서울숲공원";
+
+    /**
+     * Everything the scheduled collection prints for a refused response, through the real scheduler, gateway and
+     * validator. Every response carries the marker - in the value its rule judged, or in the provider's message -
+     * so a line that quoted the code, the area or the value it refused would carry it. The two lines are asserted
+     * first: without them the marker's absence would also hold for a run that printed nothing. Only the refusal
+     * line's prefix - its words are BA-091-T27's.
+     */
+    @Test
+    @DisplayName("BA-091-T28 거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다")
+    void noProviderTextReachesTheCollectionLog() throws Exception {
+        String marker = "marker-7f3e9a";
+        for (SeoulCityDataResponses.Refused example
+                : SeoulCityDataResponses.refusedByEachRule(SCHEDULED_AREA, marker)) {
+            String log;
+            try (StubProviderServer stub = new StubProviderServer()
+                    .enqueue(new StubProviderServer.Response(200, example.body()))) {
+                SeoulLiveAreaGateway gateway = gateway(stub, new RecordingAudit(), new FixedQuota(false),
+                        new SourceRegistryStore.SourceCondition(false, false));
+                JdbcSeoulLiveRefreshClaim claims = mock(JdbcSeoulLiveRefreshClaim.class);
+                when(claims.claim(SCHEDULED_AREA)).thenReturn(true);
+
+                log = printed(() -> new SeoulLiveRefreshScheduler(claims, gateway, CLOCK).refresh());
+            }
+
+            List<String> lines = log.lines().toList();
+            assertThat(lines).as(example.rule().token()).hasSize(2);
+            assertThat(lines.get(0)).as(example.rule().token()).startsWith("seoul_live_validation outcome=");
+            assertThat(lines.get(1)).isEqualTo("seoul_live_collect_failed reason=IllegalStateException");
+            assertThat(log).as(example.rule().token()).doesNotContain(marker);
+        }
+    }
+
+    private static String printed(Runnable run) {
+        PrintStream original = System.out;
+        ByteArrayOutputStream printed = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(printed, true, StandardCharsets.UTF_8));
+        try {
+            run.run();
+        } finally {
+            System.setOut(original);
+        }
+        return printed.toString(StandardCharsets.UTF_8);
     }
 
     private static SeoulLiveAreaGateway gateway(StubProviderServer stub, RecordingAudit audit,

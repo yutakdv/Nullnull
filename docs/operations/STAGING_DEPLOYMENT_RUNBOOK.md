@@ -189,7 +189,7 @@ Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_
 
 1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
 2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
-3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, 정상 제공자 응답과 validator 수정을 검증한 뒤 ops task `release-source-quarantine`으로 푼다. 해제 후 수동 수집과 다음 자동 수집을 확인한다.
+3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 멈추지 않으면 바로 앞의 `seoul_live_validation outcome=… rule=…` 줄이 어느 검사가 거절했는지 말한다(검사 목록은 `docs/data/SOURCE_CATALOG.md`). 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, 정상 제공자 응답과 validator 수정을 검증한 뒤 ops task `release-source-quarantine`으로 푼다. 해제 후 수동 수집과 다음 자동 수집을 확인한다.
 
 **KTO 키처럼 문자열 통째로 넣지 않는다.** `put-secret-value --secret-string <키>` 모양은 JSON을 덮어 `proxyToken`을 지운다. 그러면 proxy가 `seoul_proxy_secret_incomplete`로 모든 요청을 거절하고, 고치려던 hop을 고치는 명령이 부순다. `secrets --seoul`은 키를 명령 인자로 받지 않고 로컬 파일에서 읽어 이 문제를 피한다. **`proxyToken`은 바꾸지 않는다.** API task는 task 시작 시 ECS secret 주입으로 그 값을 읽으므로, 바꾸면 API를 다시 배포할 때까지 proxy가 API를 거절한다.
 
@@ -725,6 +725,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - **사건 검증:** (1) 요청한 post ID의 성공 결과와 `cover` 상태·`versions` 수를 남긴다. (2) 새 요청의 getPost 404·feed 제외·새 POST 출처 후보 404를 확인한다. (3) 승인된 조사자가 그 게시물의 정확한 S3 key에 대해 `ListObjectVersions`를 끝까지 조회해 객체 버전과 삭제 마커가 모두 0임을 확인하고, 인접 key는 남아 있음을 확인한다. (4) 공개 URL에서 새 요청이 더 이상 이미지를 받지 않는지 확인한다. CloudFront 404만으로 S3 이전 버전 삭제를 증명할 수 없고, DB의 HIDDEN만으로도 표지 회수를 증명할 수 없다. 사건 기록에는 이미 전달된 사본을 회수할 수 없다는 한계를 적는다. 이 문단은 운영 적용의 증거가 아니며 실제 삭제·검증 결과는 사건별로 남긴다.
 
 - ops task의 로그는 이제 `get-log-events`를 끝까지 넘겨 읽는다. 한 페이지(500건)만 읽으면 기동 로그가 긴 task에서 맨 끝에 찍히는 결과 줄이 잘린다. 끝은 CloudWatch가 같은 token을 돌려줄 때이고, 200페이지 안에 그러지 않으면 다 읽었다고 치지 않고 `task-log-not-fully-read`로 멈춘다.
+- KTO ops task의 줄은 main이 찍는 정확한 모양과 고정 어휘(실패 코드, place 목록 거절 사유)로만 옮긴다(#375). 실패 예외는 JVM이 쓰는 두 모양(`Exception in thread "main"`으로 시작하는 줄과 staging의 `Caused by:` 줄)만 받는다. 모양에 맞지 않는 `KTO_` 줄은 출력하지 않고 개수만 `ops_log_withheld kto_lines=<n>`으로 찍는다. 이 줄이 보이면 main의 줄 모양과 operator의 모양이 어긋난 것이므로 그 결과를 증거로 쓰기 전에 `scripts/tests/test_kto_log_shapes.py`와 main을 대조한다.
 - `Staging OIDC negative` workflow(`staging-oidc-negative.yml`, 손으로 dispatch)는 BA-006-T3을 잰다. `staging-build` job은 publish role을, `staging` job은 deploy role을 먼저 받아들여진 대조군으로 확인한 뒤 **다른** environment의 role을 요청해 `AccessDenied`를 받아야 통과한다(`oidc_negative=rejected role=… subject_environment=…`). 대조군이 거절되거나 다른 오류면 `oidc_probe=no-verdict`로 실패한다. 아무것도 배포하지 않고 자격 증명을 출력하지 않는다.
 - 상태 저장 리소스(RDS·Secrets Manager·S3 bucket·VPC·subnet·DynamoDB)의 속성이 배포된 template과 다르면 stack을 배포하기 전에 `stateful-change-requires-separate-review`로 멈춘다. **예외는 CDK가 BucketDeployment마다 대상 bucket에 붙이는 `aws-cdk:cr-owned:` 태그 하나뿐이다** — 표지 배포(#300)가 web bucket에 그 태그를 더해 run 35461072422가 여기서 멈췄다. 다른 태그·속성 변경은 그대로 멈춘다.
 - `docs/contest/covers/`의 **모든 jpg가 공개로 배포된다.** plan 단계가 그 폴더의 jpg를 전부 assembly에 넣고 `prune: false`라 한 번 올라간 사진은 지워지지 않는다. 게시물이 쓰지 않는 사진을 두지 않는다(`scripts/tests/test_curated_post_covers.py`가 사진 목록과 게시물의 표지 목록이 같음을 확인한다).

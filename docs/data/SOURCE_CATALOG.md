@@ -284,6 +284,8 @@ KTO 관광정보·집중률 예측과 서울 실시간 관측이 한 카드에 �
 - `REPLACE_YN`이 `Y`여도 나머지 모양 검사를 먼저 한다. 단계·시각·예보가 어긋나 있으면 대체 표시와 무관하게 drift로 격리한다.
 - KTO source는 바뀌지 않았다. 제공자 오류도 격리한다.
 
+**거절은 원인을 한 줄로 남긴다**(#64·#334). 수집 로그의 `seoul_live_collect_failed` 앞에 `seoul_live_validation outcome=<판정> rule=<검사>`가 찍힌다. 판정은 위 어휘(`SCHEMA_DRIFT`·`ENUM_DRIFT`·`PROVIDER_ERROR`)이고, 검사는 `SeoulCityDataValidator.Rule`의 값이다. 지금 14개이고 `test_seoul_refusal_log_parity.py`가 센다: `json-unreadable`, `result-missing`, `result-code`, `area-missing`, `area-mismatch`, `live-empty`, `replace-unknown`, `level-unknown`, `time-format`, `fcst-yn-unknown`, `forecast-empty`, `fcst-level-unknown`, `fcst-time-format`, `replace-substituted`. 제공자의 코드·구역 이름·메시지·거절한 값은 담지 않는다(BA-090-T23·T24, BA-091-T27·T28).
+
 **이 source는 1차 출처 확인 비용이 구조적으로 높다.** 필드 표가 이미지라 새 필드를 만나도 문서로
 확답할 수 없으므로, §8의 *provider drift는 추측 대신 quarantine/degraded* 규칙이 여기서는 더 자주
 발동한다고 보고 설계한다.

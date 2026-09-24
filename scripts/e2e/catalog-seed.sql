@@ -15,8 +15,14 @@
 -- exists because trip-create.spec searches "서울" and searchPlaces matches on the name alone.
 -- Coordinates are null except on 서울숲, because searchPlaces only returns a place that has a pin
 -- (JdbcCatalogPlaceQuery.search). Its (37.5, 127.0) is a round stand-in chosen to look synthetic,
--- not an observed location. No place_external_refs row is written, so no place claims a provider's
--- attribution.
+-- not an observed location.
+--
+-- One place claims a provider's attribution, and only one: 명동 carries a place_external_refs row
+-- naming KTO_KOR_SERVICE_2 at revision 4, the revision the migrations already hold (V012), so the
+-- credit the API returns is that revision's own wording (BA-073-T4, #53). The row is as synthetic
+-- as the rest - its external id is invented and no provider call stands behind it. 명동 has no
+-- coordinates and belongs to no post, so searchPlaces, the draft pool (activePool) and the feed
+-- never return it: only the attribution spec draws it, by naming it in createTrip.
 
 BEGIN;
 
@@ -29,6 +35,14 @@ INSERT INTO places (id, canonical_name, category_code, region_code, status, lati
                     created_at, updated_at)
 VALUES ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b04', '서울숲', 'HS', '11', 'ACTIVE', 37.5, 127.0,
         now(), now());
+
+INSERT INTO places (id, canonical_name, category_code, region_code, status, created_at, updated_at)
+VALUES ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b02', '명동', 'HS', '11', 'ACTIVE', now(), now());
+
+INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version, external_id,
+                                 external_type, verified_at)
+VALUES ('018f5c00-0000-7000-8000-0000000000a1', '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02',
+        'KTO_KOR_SERVICE_2', 4, 'e2e-seed-myeongdong', 'KTO_CONTENT_TYPE:12', now());
 
 -- A published post needs a 1st-party cover asset (V021), on the licence V021 itself seeds.
 INSERT INTO media_assets (id, asset_license_id, source_external_id, origin_url, served_url, checksum,
@@ -61,4 +75,10 @@ SELECT 'e2e_catalog_seed=places:' || (SELECT count(*) FROM places WHERE id IN
            ('018f4b20-1a44-7e11-9c02-5d7e3f1a2b01', '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03',
             '018f4b20-1a44-7e11-9c02-5d7e3f1a2b04'))
     || ',published_posts:' || (SELECT count(*) FROM posts WHERE id = '018f5b00-0000-7000-8000-000000000001'
-                                AND status = 'PUBLISHED');
+                                AND status = 'PUBLISHED')
+    || ',attributed_places:' || (SELECT count(*) FROM place_external_refs ref
+                                   JOIN places place ON place.id = ref.place_id
+                                  WHERE ref.place_id = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b02'
+                                    AND ref.source_code = 'KTO_KOR_SERVICE_2'
+                                    AND ref.source_registry_version = 4
+                                    AND place.status = 'ACTIVE');
