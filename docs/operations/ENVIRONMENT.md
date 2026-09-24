@@ -190,6 +190,7 @@ tombstone과 owner 행은 `retain_until`을 지났더라도 30일 revoked sessio
 | `KTO_SERVICE_KEY` | 예 | 공공데이터포털 KTO **decoding key**; runtime에만 주입 |
 | `KTO_BASE_URL` | 아니오 | C2 exact `https://apis.data.go.kr/B551011/KorService2`; contest profile에서는 다른 path/host 거부 |
 | `KTO_FORECAST_BASE_URL` | 아니오 | C4 exact `https://apis.data.go.kr/B551011/TatsCnctrRateService`; KorService2의 하위 경로가 아닌 별도 승인 endpoint이며 contest profile에서는 다른 path/host 거부 |
+| `KTO_ENG_BASE_URL` | 아니오 | BA-086 exact `https://apis.data.go.kr/B551011/EngService2`. 영문 텍스트 refresh 만 읽고, 비어 있으면 그 명령이 `KTO_NOT_CONFIGURED` 로 멈춘다. host 는 `KTO_ALLOWED_HOST` 를 국문과 함께 쓴다 |
 | `KTO_MOBILE_APP`, `KTO_MOBILE_OS` | 아니오 | C2 `detailCommon2` request metadata; 기본 `Nullnull`/`ETC` |
 | `APP_RELEASE_VERSION` | 아니오 | safe `api_ingest_logs.release_version`; credential나 URL이 아님 |
 | `APP_CONTEST_PROFILE` | 아니오 | `2026_KTO_WEBAPP`이면 KTO key와 exact base가 startup invariant |
@@ -334,6 +335,79 @@ NULLNULL_KTO_INTRO_PROBE_CONTENT_TYPE_ID=12 \
 ```
 
   출력은 `KTO_INTRO_PROBE_FIELD name=... type=... length=...` 한 줄씩이고, `usetime`·`restdate`만 앞 40자 미리보기와 줄 수·markup 여부가 붙는다. **원문 body는 찍지 않는다**(`CMP-KTO-008`). 이 probe는 `SOURCE_CATALOG`의 승인 범위를 넓히지 않는다 — 채택은 응답을 본 뒤의 별도 결정이고, 자유 텍스트로 판명되면 파싱하지 않는다(불변식 9).
+
+  **영문 `EngService2` probe 둘도 같은 모양이다(`BA-086`).** DB에 쓰지 않고 field 모양만 출력하며, 승인 변수는 shell이 갖는다. 쿼터는 operation 단위라 영문 호출이 국문 operation의 일일 트래픽을 먹지 않는다(`D-003`).
+
+  첫째 `ktoEngServiceProbe`는 국문 contentId가 영문 `detailCommon2`에서 풀리는지 묻는다. 2026-09-21 오너 실행에서 `126508`은 `resultCode=0000 totalCount=0`, `verdict=NO_ITEM`이었다 — **한 건에 대한 답**이고, 영문 dataset 전체의 ID 체계에 대한 결론이 아니다.
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+NULLNULL_KTO_ENG_PROBE_APPROVED=true \
+NULLNULL_KTO_ENG_PROBE_CONTENT_ID=126508 \
+  ./gradlew ktoEngServiceProbe --console=plain
+```
+
+  둘째 `ktoEngServiceMatchProbe`는 ID가 안 풀릴 때 **무엇으로 매칭할 수 있는지**를 잰다. 우리가 가진 장소 좌표를 중심으로 `locationBasedList2`를 place당 1회 부른다(최대 5곳). **반경 1,000m는 관측 반경이지 매칭 임계값이 아니다** — 같은 장소로 볼 거리는 이 출력을 읽은 뒤 결정으로 정한다. 중심 좌표는 catalog에 저장된 POI 좌표이고 사용자 위치가 아니다(불변식 10 무관). 출력은 후보마다 계산한 거리, 식별자·코드 값(`contentid`·`contenttypeid`·법정동·분류 코드), 필드 이름 목록, 제목의 길이와 ASCII 글자 비율이고, **이름·주소·설명 원문은 찍지 않는다**(`CMP-KTO-008`). 우리 국문 이름을 `contentId=이름` 으로 주면(순서가 아니라 id 로 대응하고, 빠지거나 겹치면 거절한다) 후보마다 `hangulSegmentEqualsName`(제목의 한글 구간이 우리 이름과 정확히 같다)과 `nameInTitle`(단순 포함)을 boolean으로만 덧붙인다. **증거는 앞의 것뿐이다** — 포함은 그 장소 이름을 딴 다른 항목(예: 그곳에서 열리는 의식)에서도 참이 된다. 이 probe는 어느 후보가 그 장소인지 **판정하지 않는다** — 영문 텍스트를 응답에 싣는 연결은 operator가 검토한 plan으로만 들어간다.
+
+  입력 5곳은 catalog에서 고른다(읽기만 한다):
+
+```sql
+SELECT string_agg(picked.entry, ',' ORDER BY picked.external_id) AS places,
+       string_agg(picked.external_id || '=' || picked.name, '|' ORDER BY picked.external_id) AS names
+  FROM (SELECT r.external_id, p.canonical_name AS name,
+               r.external_id || ':' || p.latitude || ':' || p.longitude AS entry
+          FROM place_external_refs r
+          JOIN places p ON p.id = r.place_id
+         WHERE r.source_code = 'KTO_KOR_SERVICE_2'
+           AND p.status = 'ACTIVE'
+           AND p.latitude IS NOT NULL
+         ORDER BY r.external_id
+         LIMIT 5) picked;
+```
+
+```bash
+cd "$(git rev-parse --show-toplevel)/apps/api"
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+NULLNULL_KTO_ENG_MATCH_PROBE_APPROVED=true \
+NULLNULL_KTO_ENG_MATCH_PROBE_PLACES='<위 SELECT 의 places>' \
+NULLNULL_KTO_ENG_MATCH_PROBE_NAMES='<위 SELECT 의 names>' \
+  ./gradlew ktoEngServiceMatchProbe --console=plain
+```
+
+  **셋째와 넷째가 영문 텍스트를 실제로 붙인다.** 둘 다 `BA-086` 명령이다.
+
+  **셋째 `ktoEngLinkImport` 는 오너가 검토한 결정만 들인다.** plan 을 만드는 것은 probe 출력을 읽은 오너다. plan 은 장소마다 다음을 적는다:
+
+- `placeId`
+- 영문 `contentId`·`contentTypeId`
+- 검토 시각 `reviewedAt`
+- 검토한 HTTPS 페이지 `evidenceUrl`
+
+  이 명령은 provider 를 부르지 않고 plan 을 한 transaction 으로 들인다. 근거 URL 은 검증만 하고 저장·출력하지 않는다. 다음 경우는 plan 전체를 거절한다:
+
+- 더 오래된 검토가 더 최신 연결을 덮으려 할 때
+- 이미 다른 장소에 연결된 영문 record 를 지목할 때
+- 국문 KTO record 가 없는 장소를 지목할 때
+
+  다른 record 로 다시 연결하면 이전 record 의 영문 텍스트를 같은 transaction 에서 지운다.
+
+  **넷째 `ktoEngTextRefresh` 는 연결마다 `detailCommon2` 를 한 번 부른다.** 국문 실호출 명령처럼 자기 승인 변수가 필요하다. 출력은 장소 id 와 결과 값(`UPDATED`·`WITHDRAWN_GONE`·`WITHDRAWN_RULE`·`DISCARDED_LINK_CHANGED`·`DISCARDED_REVISION_CHANGED`·`KEPT_OTHER_SOURCE_TEXT`)과 실패 코드뿐이다. 영문 텍스트·record id·키는 찍지 않는다. 결과별 처리는 이렇다:
+
+- 오너 규칙(100 m·분류·법정동)을 만족하면 영문 이름·주소를 쓴다.
+- record 가 사라졌거나 규칙을 어기면 그 텍스트를 내린다.
+- 격리·비활성 source 를 만나면 그 자리에서 멈춘다.
+
+```bash
+NULLNULL_ENG_LINK_PLAN=<검토된 plan.json 경로> \
+  ./gradlew ktoEngLinkImport --console=plain
+
+NULLNULL_KTO_ENG_REFRESH_APPROVED=true \
+KTO_ENG_BASE_URL=https://apis.data.go.kr/B551011/EngService2 \
+  ./gradlew ktoEngTextRefresh --console=plain
+```
+
+  **staging 에서는 운영 task 로 돌린다.** 두 명령의 등록(`kto-eng-link-import`: plan 은 `NULLNULL_ENG_LINK_PLAN_GZIP_BASE64` + `_SHA256` inline 형태, `kto-eng-text-refresh`: 자기 승인 변수)과 ops task definition 의 `KTO_ENG_BASE_URL` 은 #367 이 싣는다. 명령과 성공 조건은 [staging runbook](STAGING_DEPLOYMENT_RUNBOOK.md) §11 에 있다. #367 이 들어가기 전에는 staging 에서 돌릴 수 없다.
 
   **0단계를 `up -d`만으로 끝내지 않는 이유(실측 2026-09-13).** 이 기기에서 `docker compose up -d postgres`는 실패했다 — `bind: address already in use`. **Docker가 아닌 host PostgreSQL이 127.0.0.1:5433을 이미 잡고 있었고**, `compose.yml`의 주석이 5433을 고른 이유가 바로 그 충돌 회피였는데 그 자리가 이미 점유돼 있었다. `nullnull-local-postgres-1`은 그때까지 `Created` 상태로 **한 번도 뜬 적이 없었다.** 오너 결정으로 host port를 **5434**로 옮겼다.
 

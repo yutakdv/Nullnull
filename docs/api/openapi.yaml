@@ -1348,7 +1348,10 @@ paths:
                     because the collector requests `overviewYN=N` and `firstImageYN=N`, so overview text and
                     images are never stored. `categoryName` and `regionName` stay null until a reviewed
                     code-to-label mapping exists; render those, never the opaque `categoryCode`/`regionCode`.
-                    `sourceAttribution.attribution` is displayed verbatim.
+                    `sourceAttribution.attribution` is displayed verbatim. `textProvenance` separately credits
+                    the localization row for each non-null field; this synthetic example has Korean name
+                    and address from the same reviewed KTO source. A mixed-locale fallback is tested by
+                    CatalogPlaceApiIT rather than invented as a captured provider response.
                   value:
                     id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
                     name: "경복궁"
@@ -1375,6 +1378,28 @@ paths:
                       officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                       licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                       license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                    textProvenance:
+                      name:
+                        locale: "ko-KR"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      address:
+                        locale: "ko-KR"
+                        sourceAttribution:
+                          source: "KTO_KOR_SERVICE_2"
+                          sourceDisplayName: "한국관광공사 국문 관광정보"
+                          sourceRegistryVersion: 4
+                          attribution: "출처: ⓒ한국관광공사"
+                          officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                          licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                          license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                      description: null
         "503":
           $ref: "#/components/responses/SourceUnavailable"
         "404":
@@ -7384,9 +7409,9 @@ components:
       type: object
       additionalProperties: false
       description: |
-        Where this place record came from and the credit text approved for it. The server projects
-        the reviewed source registry revision that the place was collected under, so the client never
-        decides which provider to credit and never hardcodes a provider name.
+        The approved credit for a place record or a localization text. The server projects the
+        reviewed source registry revision of the item being credited, so the client never chooses
+        a provider from another field or hardcodes a provider name.
       required: [source, sourceDisplayName, sourceRegistryVersion, attribution, officialUrl, licenseUrl, license]
       properties:
         source:
@@ -7419,6 +7444,45 @@ components:
         license:
           type: [string, "null"]
           maxLength: 200
+
+    TextFieldProvenance:
+      type: object
+      additionalProperties: false
+      required: [locale, sourceAttribution]
+      properties:
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 35
+          description: Locale of the localization row that supplied this field, not the requested locale.
+        sourceAttribution:
+          oneOf:
+            - $ref: "#/components/schemas/SourceAttribution"
+            - type: "null"
+          description: |
+            Credit from that same localization row's reviewed source revision. Null when an older
+            row has no text source provenance; never copy the place record's credit into this field.
+
+    PlaceTextProvenance:
+      type: object
+      additionalProperties: false
+      required: [name, address, description]
+      properties:
+        name:
+          oneOf:
+            - $ref: "#/components/schemas/TextFieldProvenance"
+            - type: "null"
+          description: Null when the canonical name is used without a localization row.
+        address:
+          oneOf:
+            - $ref: "#/components/schemas/TextFieldProvenance"
+            - type: "null"
+          description: Null when address is absent.
+        description:
+          oneOf:
+            - $ref: "#/components/schemas/TextFieldProvenance"
+            - type: "null"
+          description: Null for summaries and when description is absent.
 
     PlaceSummary:
       type: object
@@ -7459,6 +7523,9 @@ components:
             - $ref: "#/components/schemas/SourceAttribution"
             - type: "null"
           description: Null only for records with no external source, such as a user-created place.
+        textProvenance:
+          $ref: "#/components/schemas/PlaceTextProvenance"
+          description: Field-specific locale and text credit. It accompanies, rather than replaces, the place credit.
         thumbnailUrl:
           type: [string, "null"]
           format: uri
@@ -7507,6 +7574,8 @@ components:
           oneOf:
             - $ref: "#/components/schemas/SourceAttribution"
             - type: "null"
+        textProvenance:
+          $ref: "#/components/schemas/PlaceTextProvenance"
         thumbnailUrl:
           type: [string, "null"]
           format: uri

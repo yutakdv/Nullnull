@@ -87,14 +87,20 @@ public interface CatalogPlaceQuery {
      */
     record CatalogPlaceSummary(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, String thumbnailAttribution,
-            String address, CatalogSourceAttribution sourceAttribution) {
+            String address, CatalogSourceAttribution sourceAttribution, CatalogPlaceTextProvenance textProvenance) {
     }
 
     record CatalogPlaceDetail(UUID id, String name, String categoryCode, String regionCode,
             String categoryName, String regionName, String thumbnailUrl, String address, String description,
             BigDecimal latitude, BigDecimal longitude, List<CatalogExternalReferenceView> externalReferences,
-            CatalogMediaAsset thumbnailAsset, CatalogSourceAttribution sourceAttribution) {
+            CatalogMediaAsset thumbnailAsset, CatalogSourceAttribution sourceAttribution,
+            CatalogPlaceTextProvenance textProvenance) {
     }
+
+    record CatalogPlaceTextProvenance(CatalogTextFieldProvenance name, CatalogTextFieldProvenance address,
+            CatalogTextFieldProvenance description) { }
+
+    record CatalogTextFieldProvenance(String locale, CatalogSourceAttribution sourceAttribution) { }
 
     /**
      * The approved credit for the source this place was collected from, read from the reviewed

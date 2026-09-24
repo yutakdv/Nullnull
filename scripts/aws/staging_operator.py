@@ -58,6 +58,13 @@ OPS_TASKS = {
                         {'NULLNULL_DEMO_PLACES': 'places'}),
     'kto-demo-forecast': ('io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain',
                           'NULLNULL_KTO_FORECAST_SMOKE_APPROVED', {'NULLNULL_DEMO_PLACES': 'places'}),
+    # BA-086 (#60), English place text. The link import stores the owner's reviewed "this EngService record is that
+    # place" decisions and calls no provider, so the owner approves the plan bytes instead (CURATION_PLANS). The
+    # refresh calls EngService2 detailCommon2 once per link, so it takes its own approval variable: the Korean
+    # calls' approval is not this one. Both mains arrive with #360; an older image has neither.
+    'kto-eng-link-import': ('io.nullnull.catalog.infrastructure.kto.KtoEngLinkImportMain', None, {}),
+    'kto-eng-text-refresh': ('io.nullnull.catalog.infrastructure.kto.KtoEngTextRefreshMain',
+                             'NULLNULL_KTO_ENG_REFRESH_APPROVED', {}),
     # Curated opening hours (A-031/A-032). No KTO call, so no KTO approval variable: the owner approves the exact
     # plan bytes instead (CURATION_PLANS below), and records who did with --owner-approval.
     'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
@@ -116,6 +123,15 @@ CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 
                                        'done': r'curated_live_maps_processed={n}',
                                        'failed': 'curated_live_maps_failed ',
                                        'incomplete': 'curation-not-all-live-maps-processed'},
+                  # One line per reviewed place, by id, as the live maps: the English text is written by the
+                  # refresh, not by this import, so "processed" is the only outcome it reports.
+                  'kto-eng-link-import': {'inline': 'NULLNULL_ENG_LINK_PLAN_GZIP_BASE64',
+                                          'sha256': 'NULLNULL_ENG_LINK_PLAN_SHA256',
+                                          'echo': 'eng_link_plan', 'lines': 'eng_link', 'items': 'links',
+                                          'entry': r'eng_link ([0-9a-f-]{36}) (PROCESSED)$',
+                                          'done': r'eng_links_processed={n}',
+                                          'failed': 'eng_links_failed ',
+                                          'incomplete': 'eng-links-not-all-processed'},
                   'capture-live-replay': {'inline': 'NULLNULL_REPLAY_PLAN_GZIP_BASE64',
                                           'sha256': 'NULLNULL_REPLAY_PLAN_SHA256',
                                           'echo': 'replay_capture_plan', 'lines': 'replay_',
@@ -142,7 +158,7 @@ OPS_INPUT['post_id'] = PLACE_ID.pattern
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
-OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
+OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
                           # The hours import (CuratedHoursImportMain): the sha it imported, ids and counts, a failure's
                           # code. Never the evidence URL, which stays in the plan file (CuratedHoursImportMainTest mirrors
                           # these four and prints the lines the tests below feed back).
@@ -172,6 +188,19 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_live_map [0-9a-f-]{36} PROCESSED'
                           r'|curated_live_maps_processed=[0-9]{1,4}|curated_live_maps_failed reason=[A-Za-z_]{1,80}'
+                          # The English link import (KtoEngLinkImportMain, BA-086): the sha it imported, place ids and
+                          # counts, a failure's code. Never the evidence URL, which stays in the plan file.
+                          r'|eng_link_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|eng_link [0-9a-f-]{36} PROCESSED'
+                          r'|eng_links_processed=[0-9]{1,4}|eng_links_failed reason=[A-Za-z_]{1,80}'
+                          # The English text refresh (KtoEngTextRefreshMain, BA-086): where each setting came from, one
+                          # line per link with its place id and an enum word, and the totals. Never a value, a title, an
+                          # address or a URL. The generic KTO_ shape above leaves this prefix out, so nothing looser
+                          # passes for it (EnglishTextTaskRegressions feeds these back).
+                          r'|KTO_ENG_TEXT_REFRESH_SETTINGS [A-Z][A-Z0-9_]{0,63} <- '
+                          r'(process env \(overrides \.env\.local\)|process env|\.env\.local|absent)'
+                          r'|KTO_ENG_TEXT_REFRESH placeId=[0-9a-f-]{36} (outcome|failure)=[A-Z][A-Z_]{0,63}'
+                          r'|KTO_ENG_TEXT_REFRESH_DONE links=[0-9]{1,4} attempted=[0-9]{1,4} failed=[0-9]{1,4}'
                           r'|replay_capture_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|replay_snapshot [0-9a-f-]{36} CAPTURED'
                           r'|replay_snapshots_captured=[0-9]{1,3}|replay_capture_failed reason=[A-Za-z_]{1,80}'
@@ -358,6 +387,8 @@ def rollback_plan(args):
     previous.update(action='rollback',createdAt=now.isoformat(),rolledBackFromPlanSha256=args.previous_plan_sha256,
                     expiresAt=min(now+dt.timedelta(days=14),EXPIRY).isoformat(),verifierTokenSha256=verifier_hash(),
                     acceptNewerSchema=bool(args.accept_newer_schema))
+    # A rollback runs no migration and closes the edge: the migrations the returned-to release appended are not its own.
+    previous.pop('acceptAdditiveSchema',None)
     write_private(directory/'plan.json',previous)
     print('rollback_action=plan aws_writes=0 database_down_migration=false')
     print('plan_path='+str(directory/'plan.json'))
@@ -378,7 +409,14 @@ def stage_covers(target):
         shutil.copyfile(source, target/source.name)
     return [p.name for p in files]
 
+def named_migrations(value):
+    """--accept-additive-schema: comma-separated migration file names."""
+    return [name.strip() for name in (value or '').split(',') if name.strip()]
+
 def plan(args):
+    # A-067: the migrations a preserve-open deploy may append are named here, so the reviewer approves them by hash.
+    additive = named_migrations(getattr(args, 'accept_additive_schema', None))
+    require(not additive or args.action == 'deploy', 'accept-additive-schema-deploy-only')
     if args.action=='rollback':
         return rollback_plan(args)
     bootstrap = args.action == 'bootstrap'
@@ -387,6 +425,8 @@ def plan(args):
     require(len(account)==12 and account.isdigit(), 'invalid-account-id')
     manifest = {'kind':'foundation-bootstrap'} if bootstrap else validate_manifest(args.manifest)
     if not bootstrap: check_artifacts(manifest, args.web_dir)
+    require(set(additive) <= {entry.split(':')[0] for entry in manifest.get('flywayChecksums') or []},
+            'accept-additive-schema-not-in-release')
     require(1 <= args.days <= 14, 'invalid-operating-days')
     now = dt.datetime.now(dt.timezone.utc)
     ends = min(now + dt.timedelta(days=args.days), EXPIRY)
@@ -416,8 +456,12 @@ def plan(args):
             'costBasisSha256':digest(directory/'cost-basis.txt'),
             'toolchainSha256':digest(ROOT/'infra/package-lock.json'),
             'verifierTokenSha256':'' if bootstrap else verifier_hash()}
+    if additive:
+        data['acceptAdditiveSchema'] = additive
     write_private(directory/'plan.json', data)
     print('deployment_action=plan aws_writes=0 traffic_enabled=false')
+    if additive:
+        print('accept_additive_schema=' + ','.join(additive))
     print('plan_path='+str(directory/'plan.json'))
     print('approved_plan_sha256='+digest(directory/'plan.json'))
 
@@ -668,6 +712,22 @@ def preserve_open_template_findings(directory, bodies):
         return findings
     return findings + ['template-changed-WebEdge']
 
+def preserve_open_schema_allowed(deployed, target, additive):
+    """Whether a --preserve-open-edge deploy may move the schema from `deployed` to `target` (flywayChecksums lists).
+
+    The edge stays open for the whole deploy, and the old API keeps serving between the migration task and the
+    Services update, so it reads the new schema. Without names in the plan (--accept-additive-schema when the plan
+    was made) the schema must not move at all. With them (A-067), the deployed list must be an exact prefix of the
+    release's - every entry the same name and checksum, in the same order - and what the release appends must be
+    exactly the named files, each named once. Whether the old code tolerates those files is the reviewer's question,
+    not this function's: the name is the operator saying it was asked and answered."""
+    if not additive:
+        return deployed == target
+    appended = [entry.split(':')[0] for entry in target[len(deployed):]]
+    # The name comparison is a multiset one: it also refuses a name given twice, and a named file on a schema that
+    # did not grow, since `appended` is then empty.
+    return target[:len(deployed)] == deployed and sorted(appended) == sorted(additive)
+
 def classify_findings(directory, manifest, bodies=None):
     """Fail-closed: any difference that is not the release's own digests/version/web bundle is infra."""
     current = read_current_release(release_bucket())
@@ -734,6 +794,8 @@ def classify(args):
     print('release_kind=' + ('infra' if findings else 'app'))
     for finding in findings:
         print('infra_reason=' + finding)
+    if data.get('acceptAdditiveSchema'):
+        print('accept_additive_schema=' + ','.join(data['acceptAdditiveSchema']))
     print('template_diff=' + str(directory/'template-diff.txt') + ' lines=' + str(diff.count('\n')))
 
 def record_release(directory, data, manifest, plan_sha):
@@ -774,6 +836,11 @@ def execute(args):
     require(kind in ['app', 'infra'], 'execute-requires-kind-app-or-infra')
     preserve_open = getattr(args, 'preserve_open_edge', False)
     require(not preserve_open or args.action == 'deploy', 'preserve-open-deploy-only')
+    # A-067: the approved plan names what the schema may grow by. An execute-time name may repeat it, never widen it.
+    additive = data.get('acceptAdditiveSchema') or []
+    given = named_migrations(getattr(args, 'accept_additive_schema', None))
+    require(not given or sorted(given) == sorted(additive), 'accept-additive-schema-not-in-approved-plan')
+    require(not additive or preserve_open, 'accept-additive-schema-requires-preserve-open-edge')
     verify_images(manifest)
     require_kto_secret_provisioned()
     with DeploymentLock() as lock:
@@ -792,8 +859,12 @@ def execute(args):
         else:
             require(not rollback_findings(directory, manifest, data), 'rollback-requires-infra-approval')
         if preserve_open:
-            current = read_current_release(release_bucket()) or {}
-            require((current.get('releaseManifest') or {}).get('flywayChecksums') == manifest.get('flywayChecksums'),
+            current = read_current_release(release_bucket())
+            deployed = ((current or {}).get('releaseManifest') or {}).get('flywayChecksums')
+            # Named migrations are checked against what is deployed. Without that record every migration would read as
+            # appended, and a plan naming them all would pass.
+            require(deployed or not additive, 'accept-additive-schema-requires-deployed-release')
+            require(preserve_open_schema_allowed(deployed or [], manifest.get('flywayChecksums') or [], additive),
                     'preserve-open-schema-change')
             require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
             # The web bundle asset may change, but its edge behavior, the online services shape and
@@ -1022,6 +1093,35 @@ def provision_secrets(args):
     require_kto_secret_provisioned()
     print(f'kto_secret=provisioned changed={str(changed).lower()} value_printed=false')
 
+UTC_INSTANT = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z')
+
+def utc_instant(value):
+    """An ISO instant in UTC, the way plans write one (2026-09-21T06:00:00Z), with a real calendar date. A date alone,
+    a local time or words are not an instant, and Jackson would refuse them only after the task had started."""
+    if not isinstance(value, str) or not UTC_INSTANT.fullmatch(value):
+        return False
+    try:
+        dt.datetime.fromisoformat(value[:19])
+    except ValueError:
+        return False
+    return True
+
+def https_evidence_url(value):
+    """What EngTextLinkImporter.Link accepts: https, a host and no userinfo, and nothing URI.create cannot read. A
+    prefix check let an empty host, a user:password@ and a space through."""
+    import urllib.parse
+    # Only the characters RFC 3986 allows - unreserved, reserved and percent-encoding - since those are what
+    # URI.create reads. quote() changes anything else (|, a backslash, ^, braces, a space, a control character,
+    # non-ASCII), so a string it would change is refused here rather than by the task after launch.
+    if not isinstance(value, str) or not value or urllib.parse.quote(value, safe=":/?#[]@!$&'()*+,;=%-._~") != value:
+        return False
+    try:
+        parts = urllib.parse.urlsplit(value)
+        parts.port
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.hostname) and parts.username is None and parts.password is None
+
 def curation_plan(args):
     """The local plan file a curate task imports, checked and approved before any AWS call.
 
@@ -1067,6 +1167,16 @@ def curation_plan(args):
                     and type(i.get('confidence')) in (int, float) and 0 <= i['confidence'] <= 1
                     and isinstance(i.get('verifiedAt'), str) and i['verifiedAt']
                     for i in items), 'plan-file-live-map-invalid')
+        places = items
+    elif kind == 'links':
+        # KtoPlaceRequest and EngTextLinkImporter refuse the same things; caught here so a typo costs no approval and
+        # no task. Identifiers are KTO's stable numeric ids, one decision per place.
+        identifier = re.compile(r'[1-9][0-9]{0,29}')
+        require(all(isinstance(i.get('contentId'), str) and identifier.fullmatch(i['contentId'])
+                    and isinstance(i.get('contentTypeId'), str) and identifier.fullmatch(i['contentTypeId'])
+                    and utc_instant(i.get('reviewedAt')) and https_evidence_url(i.get('evidenceUrl'))
+                    for i in items) and len({str(i.get('placeId')) for i in items}) == len(items),
+                'plan-file-eng-link-invalid')
         places = items
     elif kind != 'snapshotIds':
         places = items
@@ -1173,6 +1283,9 @@ def ops_task(args):
         # A withdrawal needs the release that carries PostWithdrawMain; an older ops image would fail inside the task
         # after the lock was taken, so it is refused here instead.
         bound = bound or args.task == 'withdraw-post'
+        # The English refresh likewise needs the release that carries its main (#360), and its calls are credited to
+        # the release that made them.
+        bound = bound or args.task == 'kto-eng-text-refresh'
         current, expected_digest = release_binding(definition) if bound else (None, None)
         if args.task == 'kto-call-inventory':
             # Read under the lock with the binding, so the release inventoried is the one this task definition is.
@@ -1212,13 +1325,15 @@ def ops_task(args):
             # The bound is a safety stop, not an end: CloudWatch says the stream is read when the token stops moving.
             raise OpsError('task-log-not-fully-read')
         evidence, echoed, inventory, seoul, released = [], [], [], [], []
-        withdrawn = []
+        withdrawn, refreshed = [], []
         for event in events:
             line = event.get('message', '').strip()
             # Count terminal-looking lines even when they fail the safe echo allowlist: a malformed
             # second line must invalidate a success, without printing its possibly sensitive text.
             if args.task == 'withdraw-post' and line.startswith(('post_withdrawn ', 'post_withdraw_failed ')):
                 withdrawn.append(line)
+            if args.task == 'kto-eng-text-refresh' and line.startswith('KTO_ENG_TEXT_REFRESH_DONE'):
+                refreshed.append(line)
             if OPS_LOG_LINE.match(line):
                 print('ops_log ' + line)
                 if line.startswith('KTO_SMOKE_OK '):
@@ -1246,6 +1361,12 @@ def ops_task(args):
                        + r' outcome=(WITHDRAWN|ALREADY_HIDDEN)'
                        + r' cover=(DELETED versions=[1-9][0-9]{0,8}|ALREADY_ABSENT versions=0|NOT_USER_UPLOAD versions=0)')
             require(len(withdrawn) == 1 and re.fullmatch(success, withdrawn[0]), 'post-not-withdrawn')
+        # Exactly one DONE line that tried every link and failed none. The main exits zero with no links at all, and a
+        # task can end before it prints DONE; neither is a refresh, for the reason withdraw-post counts its line.
+        if args.task == 'kto-eng-text-refresh':
+            done = re.fullmatch(r'KTO_ENG_TEXT_REFRESH_DONE links=([1-9][0-9]{0,3}) attempted=([1-9][0-9]{0,3}) failed=0',
+                                refreshed[0]) if len(refreshed) == 1 else None
+            require(done is not None and done.group(1) == done.group(2), 'eng-text-not-refreshed')
         if args.task == 'kto-smoke':
             write_actual_call_report(evidence, current)
         if plan:
@@ -1714,6 +1835,9 @@ def main():
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
     parser.add_argument('--kind',choices=['app','infra'])
     parser.add_argument('--preserve-open-edge',action='store_true',help='deploy only: retain an already-open edge with unchanged schema and edge/service templates')
+    parser.add_argument('--accept-additive-schema',help='deploy plan only: the migration files, comma-separated, this release '
+                        'appends to the deployed schema; recorded in the plan for a --preserve-open-edge execute, where '
+                        'nothing else about the schema may change. At execute it may only repeat the plan\'s names')
     parser.add_argument('--days',type=int,default=14);parser.add_argument('--estimated-total',type=float)
     parser.add_argument('--cost-basis')
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')
