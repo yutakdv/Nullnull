@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { overflow } from './overflow.js';
 
 // FE-403 (#99): the Live list in LIVE and in REPLAY, at 360px and at 180px -
 // 360px at 200% zoom - in ko and en, each from the approved example in
@@ -87,8 +88,7 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
         await page.keyboard.press('Enter');
         await expect(area).toHaveAttribute('aria-expanded', 'true');
 
-        // The state stays in view at the end of a list that scrolls, and
-        // nothing scrolls sideways.
+        // The state stays in view at the end of a list that scrolls.
         const main = page.getByRole('main');
         expect(await main.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
           true,
@@ -97,9 +97,13 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
           element.scrollTop = element.scrollHeight;
         });
         await expect(state).toBeInViewport();
-        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-          await page.evaluate(() => document.documentElement.clientWidth),
-        );
+
+        // Nothing reaches past the viewport and no text is cut off. The
+        // document's scrollWidth alone missed a 300px-wide badge at 180px:
+        // the app's scroll container holds it, so the page never scrolls.
+        const measured = await overflow(page);
+        expect(measured.spilling, `spills: ${measured.widest.join(', ')}`).toEqual([]);
+        expect(measured.clipped, 'clips its own text').toEqual([]);
       });
     }
   }
