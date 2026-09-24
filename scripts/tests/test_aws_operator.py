@@ -695,7 +695,9 @@ class OpsTaskRegressions(unittest.TestCase):
             args.approved_plan_sha256=ops.digest(path)
             assert ops.curation_plan(args)['ids']==[snapshot_id]
     def test_only_redacted_evidence_lines_are_echoed(self):
-        allowed=['KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 payloadHash=abc',
+        allowed=['KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 '
+                 'snapshotId=0199a1f0-0000-7000-8000-000000000002 collectorRunId=0199a1f0-0000-7000-8000-000000000003 '
+                 'sourceRegistryVersion=4 payloadHash='+'a'*64+' fetchedAt=2026-09-18T13:00:00Z called=true',
                  'KTO_SMOKE_SETTINGS KTO_SERVICE_KEY <- process env',
                  'Exception in thread "main" java.lang.IllegalStateException: KTO smoke failed: PROVIDER_ERROR (AUTH)',
                  'operations target=postgresql://db.example.rds.amazonaws.com:5432/nullnull environment=staging access=write schema=unchecked',
@@ -896,8 +898,10 @@ class SecretProvisioningRegressions(unittest.TestCase):
             with self.assertRaisesRegex(ops.OpsError,'secret-provisioning-is-local-only'):ops.provision_secrets(None)
 
 class EvidenceRegressions(unittest.TestCase):
-    LINE=('KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 snapshotId=s-1 '
-          'collectorRunId=c-1 sourceRegistryVersion=4 payloadHash=abc fetchedAt=2026-09-18T13:00:00Z called=true')
+    # The shape KtoSmokeMain.redactedEvidence prints: the allowlist takes nothing shorter since #375.
+    LINE=('KTO_SMOKE_OK source=KTO_KOR_SERVICE_2 contentId=126508 contentTypeId=12 '
+          'snapshotId=0199a1f0-0000-7000-8000-000000000002 collectorRunId=0199a1f0-0000-7000-8000-000000000003 '
+          'sourceRegistryVersion=4 payloadHash='+'a'*64+' fetchedAt=2026-09-18T13:00:00Z called=true')
     RECORD={'releaseVersion':'v0.1.0-rc.1','gitSha':'a'*40}
     def test_report_is_what_the_repository_gate_accepts_for_this_release(self):
         with tempfile.TemporaryDirectory() as d:

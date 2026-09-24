@@ -156,9 +156,49 @@ OPS_INPUT['post_id'] = PLACE_ID.pattern
 # Every task above writes. From the release carrying OperationsContext (#183) a writing tool in staging runs only
 # when this names the database its datasource URL points to; an older image ignores it.
 OPERATIONS_TARGET = 'NULLNULL_OPERATIONS_TARGET'
+# The KTO ops-task mains' lines, each in the shape its builder prints (#375): settings origins, ids, counts, hashes,
+# instants, ratios and enum words, so a key, a title, an address or a URL has nowhere to go. Read from
+# KtoSmokeMain/KtoSmokeEnvironment, KtoCanonicalIngestMain, KtoForecastSmokeMain and KtoDemoRefreshCommand/KtoDemoRefresh
+# (test_kto_log_shapes feeds each back and checks every tag those files print has one). The probe mains are not ops
+# tasks. A tag a main adds later is dropped until it is added here, and the smoke's success gate, which reads
+# KTO_SMOKE_OK, then fails rather than passing on a looser pattern.
+_KTO_ID = r'[1-9][0-9]{0,29}'
+_UUID = r'[0-9a-f-]{36}'
+_INSTANT = r'[0-9T:.-]{10,40}Z'
+_COUNT = r'(0|[1-9][0-9]{0,6})'
+_REVISION = r'[1-9][0-9]{0,18}'
+_KTO_SNAPSHOT = (r' source=KTO_KOR_SERVICE_2 contentId=' + _KTO_ID + r' contentTypeId=' + _KTO_ID + r' snapshotId=' + _UUID
+                 + r' collectorRunId=' + _UUID + r' sourceRegistryVersion=' + _REVISION + r' payloadHash=[0-9a-f]{64}'
+                 + r' fetchedAt=' + _INSTANT)
+# KtoForecastResponseValidator names an issue after its payload: kto-tats- and the hash's first 32 digits.
+_KTO_FORECAST_SET = (r'snapshotSetId=' + _UUID + r' collectorRunId=' + _UUID)
+_KTO_FORECAST_ISSUE = r' forecastIssueId=kto-tats-[0-9a-f]{32} payloadHash=[0-9a-f]{64} fetchedAt=' + _INSTANT
+_KTO_DEMO = r' mode=(detail|forecast) source=(KTO_KOR_SERVICE_2|KTO_CONCENTRATION_FORECAST) places=' + _COUNT
+KTO_LOG_LINE = (
+    r'KTO_(SMOKE|CANONICAL_INGEST|FORECAST_SMOKE|DEMO_REFRESH)_SETTINGS [A-Z][A-Z0-9_]{0,63} <- '
+    r'(process env \(overrides \.env\.local\)|process env|\.env\.local|absent)'
+    + r'|KTO_SMOKE_OK' + _KTO_SNAPSHOT + r' called=true|KTO_SMOKE_CACHED' + _KTO_SNAPSHOT + r' called=false'
+    + r'|KTO_CANONICAL_INGEST_OK placeId=' + _UUID + r' contentId=' + _KTO_ID + r' contentTypeId=' + _KTO_ID
+    + r' sourceRegistryVersion=' + _REVISION + r' snapshotId=' + _UUID
+    + r'|KTO_FORECAST_SMOKE_OK source=KTO_CONCENTRATION_FORECAST placeId=' + _UUID
+    + r' coverage=(0|[1-9][0-9]{0,5} ' + _KTO_FORECAST_SET + r' sourceRegistryVersion=' + _REVISION
+    + _KTO_FORECAST_ISSUE + r')'
+    + r'|KTO_DEMO_REFRESH_QUOTA' + _KTO_DEMO + r' planned_calls=' + _COUNT + r' per_day=' + _COUNT
+    + r' planned_ratio=[0-9]{1,7}\.[0-9]{4} renew_before=PT[0-9]{1,5}H'
+    + r'|KTO_DEMO_REFRESH_PLACE mode=(detail|forecast) contentId=' + _KTO_ID + r' contentTypeId=' + _KTO_ID
+    + r' status=(REFRESHED|CURRENT|FAILED)( placeId=' + _UUID + r')?'
+    + r'( failure=[A-Z][A-Z_]{0,63}( \([A-Za-z0-9_]{1,80}\))?)?'
+    + r'|KTO_DEMO_REFRESH_EVIDENCE contentId=' + _KTO_ID
+    + r' (snapshotId=' + _UUID + r' collectorRunId=' + _UUID + r' payloadHash=[0-9a-f]{64} fetchedAt=' + _INSTANT
+    + r' staleAt=' + _INSTANT + r'|snapshotSetId=' + _UUID + r'|coverage=0'
+    + r'|coverage=[1-9][0-9]{0,5} ' + _KTO_FORECAST_SET + _KTO_FORECAST_ISSUE + r' staleAt=' + _INSTANT + r')'
+    + r'|KTO_DEMO_REFRESH_DONE' + _KTO_DEMO + r' refreshed=' + _COUNT + r' current=' + _COUNT + r' failed=' + _COUNT
+    + r' calls=' + _COUNT + r' per_day=' + _COUNT + r' calls_ratio=[0-9]{1,7}\.[0-9]{4}'
+    # The place-list parser's refusal, its message with spaces as underscores: words and a colon, no value.
+    + r'|KTO_DEMO_REFRESH_REFUSED reason=[a-z][A-Za-z:_]{0,79}')
 # Log lines an ops task may echo: the mains' own redacted evidence and settings-origin lines, OperationsContext's
 # target line (no user, password or query), and the failure code they throw. Anything else stays in CloudWatch.
-OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
+OPS_LOG_LINE = re.compile(r'^(' + KTO_LOG_LINE + r'|.*Exception: KTO [a-z ]+ failed: [A-Za-z_ ()]{1,80}'
                           # The hours import (CuratedHoursImportMain): the sha it imported, ids and counts, a failure's
                           # code. Never the evidence URL, which stays in the plan file (CuratedHoursImportMainTest mirrors
                           # these four and prints the lines the tests below feed back).
@@ -195,8 +235,7 @@ OPS_LOG_LINE = re.compile(r'^(KTO_(?!ENG_TEXT_REFRESH)[A-Z_]+ [A-Za-z0-9_ =:.,()
                           r'|eng_links_processed=[0-9]{1,4}|eng_links_failed reason=[A-Za-z_]{1,80}'
                           # The English text refresh (KtoEngTextRefreshMain, BA-086): where each setting came from, one
                           # line per link with its place id and an enum word, and the totals. Never a value, a title, an
-                          # address or a URL. The generic KTO_ shape above leaves this prefix out, so nothing looser
-                          # passes for it (EnglishTextTaskRegressions feeds these back).
+                          # address or a URL (EnglishTextTaskRegressions feeds these back).
                           r'|KTO_ENG_TEXT_REFRESH_SETTINGS [A-Z][A-Z0-9_]{0,63} <- '
                           r'(process env \(overrides \.env\.local\)|process env|\.env\.local|absent)'
                           r'|KTO_ENG_TEXT_REFRESH placeId=[0-9a-f-]{36} (outcome|failure)=[A-Z][A-Z_]{0,63}'
