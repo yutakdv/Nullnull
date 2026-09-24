@@ -373,7 +373,7 @@ elif 'run' in args and 'egress-denied' in args:
     print('outbound_network=denied')
 elif 'exec' in args and 'postgres' in args:
     # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
-    print('e2e_catalog_seed=places:3,published_posts:1')
+    print('e2e_catalog_seed=places:3,published_posts:1,attributed_places:1')
 elif 'run' in args and 'e2e' in args:
     # The browser suite's JUnit, in the shape Playwright 1.56 writes it: all four counts on both
     # testsuites and testsuite, and a skipped test as a <skipped/> child. The aggregator reads it
