@@ -641,11 +641,12 @@ describe('FE-301 the trip screen credits the places it shows', () => {
     expect(within(row).getByRole('link', { name: CREDIT })).toBeInTheDocument();
     const forecastUrl = forecast.provenance.officialUrl ?? '';
     expect(forecastUrl).not.toBe('');
-    expect(
-      within(row)
-        .getAllByRole('link')
-        .filter((link) => link.getAttribute('href') === forecastUrl),
-    ).toHaveLength(1);
+    const forecastLinks = within(row)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href') === forecastUrl);
+    expect(forecastLinks).toHaveLength(1);
+    // The forecast's own words, not the place credit carrying its URL.
+    expect(forecastLinks[0]).toHaveAccessibleName(forecast.provenance.attribution);
   });
 
   it('does not reserve empty rows when optional place details are absent', async () => {

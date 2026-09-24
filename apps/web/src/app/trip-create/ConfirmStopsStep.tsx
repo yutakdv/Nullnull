@@ -7,7 +7,12 @@ import {
   CrowdForecastReading,
 } from '../../shared/crowd/CrowdForecastReading.js';
 import { crowdPointForDate } from '../../shared/crowd/forecast.js';
-import { BottomCta, IconPinVisit, IconPinVisitFilled } from '../../shared/ui/index.js';
+import {
+  BottomCta,
+  DataAttribution,
+  IconPinVisit,
+  IconPinVisitFilled,
+} from '../../shared/ui/index.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ConfirmStopsStep.module.css';
 import { stopsOn, tripDays, type DraftStop, type WizardDraft } from './wizard.js';
@@ -172,6 +177,16 @@ export function ConfirmStopsStep({
                         </span>
                         {meta(stop) ? (
                           <span className={styles.meta}>{meta(stop)}</span>
+                        ) : null}
+                        {/* CMP-ATT-001: the place's own credit, verbatim. The
+                          forecast below carries a second one for its own
+                          dataset; neither stands in for the other
+                          (SOURCE_CATALOG, provenance primitives). */}
+                        {stop.place.sourceAttribution ? (
+                          <DataAttribution
+                            compact
+                            provenance={stop.place.sourceAttribution}
+                          />
                         ) : null}
                         <LazyStopCrowd date={date} placeId={stop.place.id} />
                       </span>
