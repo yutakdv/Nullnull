@@ -165,7 +165,10 @@ Fallback은 internet-facing ALB inbound를 CloudFront managed prefix list로 제
   - image가 넣는 것: `NULLNULL_AI_BIND_HOST=0.0.0.0`, `NULLNULL_AI_PORT=8090`(`apps/ai/Dockerfile`)
   - `AI_PROVIDER`는 어디서도 설정하지 않으므로 기본값 `NONE`으로 돈다(`settings.py`).
   - secret은 없다.
-  - 이 상태는 `infra/test/staging.test.ts`의 provider 가드가 고정한다. `OPENAI`를 켜는 것은 그 테스트를 바꾸는 검토된 변경이어야 한다(A-064, #337).
+  - 이 상태는 두 test가 고정한다.
+    - `infra/test/staging.test.ts`: AiService가 돌리는 task의 모든 컨테이너. 환경변수·secret에 provider·key·model이 없고, env 파일·command·entrypoint도 없다.
+    - `scripts/tests/test_ai_image_provider_off.py`: image의 ENV·ARG. infra 게이트는 `infra/`만 받으므로 image는 여기서 읽는다.
+  - `OPENAI`를 켜는 것은 둘 중 하나를 바꾸는 검토된 변경이어야 한다(A-064, #337).
 - staging desired count 1, 시작 크기 0.25 vCPU/0.5GB(측정 후 조정). readiness는 `/internal/v1/health/ready`.
 - api task는 `NULLNULL_AI_BASE_URL`로 이 DNS를 받고, ai 장애 시 api readiness는 `DEGRADED`이며 ALB health check는 실패하지 않는다.
 - rollback: ai 이전 image digest로 되돌려도 내부 계약 v1이 유지돼야 한다(계약 변경은 api·ai 동시 승격).

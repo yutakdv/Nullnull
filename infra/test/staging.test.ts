@@ -262,17 +262,33 @@ test("the AI task names no external model provider and holds no provider credent
   // (apps/ai/src/nullnull_ai/settings.py). The ai security group allows 443 out to anywhere, so this env
   // and the absent secrets are the only thing between staging and an external model call. A-064 keeps
   // the provider off until the AI-use label ships (#337): turning it on has to be a reviewed change here.
-  const ai = (Object.values(templates.services.findResources("AWS::ECS::TaskDefinition")) as any[])
-    .map((t) => t.Properties.ContainerDefinitions[0])
-    .find((c) => c.Name === "ai");
-  const env = (ai.Environment ?? []) as any[];
-  const secrets = (ai.Secrets ?? []) as any[];
-  for (const e of env.filter((e) => e.Name === "AI_PROVIDER")) assert.equal(e.Value, "NONE", "AI_PROVIDER");
-  for (const name of ["AI_API_KEY", "AI_MODEL_ID"]) {
-    assert(!env.some((e) => e.Name === name), `${name} in the ai environment`);
-    assert(!secrets.some((s) => s.Name === name), `${name} in the ai secrets`);
+  // The image half is scripts/tests/test_ai_image_provider_off.py: the container's environment also comes from
+  // the image, and the infra gate builds with infra/ alone (infra/Dockerfile), so it cannot read apps/ai.
+  //
+  // Every container of the task AiService runs, not the first one named ai: a sidecar shares the task's
+  // network and could make the call as well. And the two other ways a task definition hands a process an
+  // environment - a file from S3, and a command line that exports one - are refused outright.
+  const resources = templates.services.toJSON().Resources as Record<string, any>;
+  const services = Object.entries(resources).filter(
+    ([id, r]) => r.Type === "AWS::ECS::Service" && id.startsWith("AiService"),
+  );
+  assert.equal(services.length, 1, "exactly one AiService");
+  const containers = resources[services[0][1].Properties.TaskDefinition.Ref].Properties
+    .ContainerDefinitions as any[];
+  assert(containers.some((c) => c.Name === "ai"), "the ai container is in the task AiService runs");
+  for (const c of containers) {
+    const env = (c.Environment ?? []) as any[];
+    const secrets = (c.Secrets ?? []) as any[];
+    for (const e of env.filter((e) => e.Name === "AI_PROVIDER"))
+      assert.equal(e.Value, "NONE", `${c.Name} AI_PROVIDER`);
+    for (const name of ["AI_API_KEY", "AI_MODEL_ID"]) {
+      assert(!env.some((e) => e.Name === name), `${name} in the ${c.Name} environment`);
+      assert(!secrets.some((s) => s.Name === name), `${name} in the ${c.Name} secrets`);
+    }
+    assert(!secrets.some((s) => s.Name === "AI_PROVIDER"), `AI_PROVIDER in the ${c.Name} secrets`);
+    for (const key of ["EnvironmentFiles", "Command", "EntryPoint"])
+      assert.equal(c[key], undefined, `${c.Name} ${key}`);
   }
-  assert(!secrets.some((s) => s.Name === "AI_PROVIDER"), "AI_PROVIDER in the ai secrets");
 });
 test("only the API runs ITEM optimization, and no service turns on a capability that has no source", () => {
   // Owner decision 2026-09-19: the submission build runs ITEM optimization. The value is a literal here so
