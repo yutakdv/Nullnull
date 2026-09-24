@@ -278,8 +278,12 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 | schedule | 주기 | 승인 변수 | 왜 필요한가 |
 | --- | --- | --- | --- |
-| `nullnull-stg-forecast-refresh` | 12시간 | `NULLNULL_KTO_FORECAST_SMOKE_APPROVED` | 예보 set은 PT24H에 stale. 주기는 `KtoDemoRefresh.FORECAST_RENEW_BEFORE`(12시간)와 같다 |
-| `nullnull-stg-detail-refresh` | 5일 | `NULLNULL_KTO_SMOKE_APPROVED` | 예보 요청은 detail snapshot에서 만들어지고 그 수명은 `V007`의 604800초(7일)다. 끊기면 예보가 `NO_VERIFIED_KTO_MAPPING`으로 매번 실패한다. 5일 + `DETAIL_RENEW_BEFORE` 2일 = 7일 |
+| `nullnull-stg-forecast-refresh` | 12시간 | `NULLNULL_KTO_FORECAST_SMOKE_APPROVED` | 예보 set은 PT24H에 stale. 실행마다 시작 뒤 `KtoDemoRefresh.FORECAST_RENEW_BEFORE`(18시간) 안에 만료될 set을 갱신한다. 이 창은 주기보다 6시간 길다. 실행의 호출이 tick 뒤 늦는 정도가 직전 실행보다 6시간 넘게 커지지 않으면, 직전 실행이 받은 set을 매 실행이 갱신한다 |
+| `nullnull-stg-detail-refresh` | 5일 | `NULLNULL_KTO_SMOKE_APPROVED` | 예보 요청은 detail snapshot에서 만들어지고 그 수명은 `V007`의 604800초(7일)다. 끊기면 예보가 `NO_VERIFIED_KTO_MAPPING`으로 매번 실패한다. `DETAIL_RENEW_BEFORE`(6일)는 주기보다 하루 길다. 늦는 정도가 직전 실행보다 하루 넘게 커지지 않으면, 직전 실행이 받은 snapshot을 매 실행이 갱신한다 |
+
+두 창은 예전에 주기와 같거나(예보 12시간), 주기와 더해 수명과 같았다(detail 5일 + 2일 = 7일). 그 경우 직전 실행이 받은 것이 다음 실행의 갱신 경계에 정확히 걸린다. 그래서 두 실행 가운데 어느 쪽이 tick 뒤 더 빨리 시작했는지에 따라 갱신 여부가 갈렸다(#361). #361에 기록된 staging 로그에서 예보는 한 번 갱신하고 한 번 건너뛰기를 되풀이했다. 이 관계는 `scripts/tests/test_ops_alarm_metric_filters.py`가 잰다.
+
+여유(창 − 주기)가 덮어야 하는 늦음은 두 가지다. Scheduler의 전달은 `maxEventAge`(1시간)가 묶는다. 그보다 오래된 호출은 늦게 보내지 않고 버린다. 그 뒤의 Fargate 기동과 앞 장소 처리는 분 단위로 보지만, 여기서 막는 장치는 없고 재지도 않았다. 위 test는 여유를 전달 한도와만 대조한다.
 
 KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
 
@@ -307,6 +311,145 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 - `2026-10-25`: final snapshot과 evidence export 뒤 비상태 resource 제거
 
 이 계정에서는 AWS Budgets를 만들 수 없다(Organizations SCP). 위 금액 단계는 오너가 청구 화면을 보고 판단하며, 현재 단가로 다시 계산한 추정은 [infra/cost-basis.md](../../infra/cost-basis.md)에 있다. 자동으로 RDS/S3를 지우지 않는다.
+
+### 종료 절차(teardown, #307)
+
+**아직 실행하지 않는다.** 실행 조건은 둘이다.
+
+- 공식 공지로 심사와 결과 발표가 끝났음을 확인한다.
+- 파괴적 단계마다 오너가 승인한다.
+
+이 절의 사실은 세 등급으로 적었다.
+
+- `[읽음]`: 코드·문서를 읽어 확인했다.
+- `[합성]`: CDK를 합성해 확인했다. AWS는 호출하지 않았다.
+- `[미확인]`: AWS에서 재지 않았다.
+
+**EXPIRY 뒤 operator 동작** `[읽음]` — `staging_operator.py`의 `EXPIRY`는 2026-10-25T14:59:59Z다.
+
+- 다음은 `staging-expired`로 거부된다.
+  - deploy·bootstrap plan 생성
+  - deploy·rollback의 `classify`와 `--execute`(`verify_plan`). rollback plan은 만들어지지만 plan 만료가 EXPIRY로 잘려 실행에서 거부된다.
+  - `edge`(`verify_deployed_plan`)
+- `edge`는 이 검사를 잠금과 현재 상태 읽기보다 먼저 한다. 그래서 EXPIRY 뒤에는 *"이미 닫혀 있다"* 는 확인도 할 수 없다.
+- `task`·`unlock`·`secrets`·`secret-scan`에는 만료 검사가 없다.
+- 다음 둘도 같은 시각에 멈춘다.
+  - 예보·detail schedule(`FORECAST_SCHEDULE_END`)
+  - 서울 Live 수집(`SeoulLiveRefreshScheduler`의 `JUDGING_END`)
+- RDS·ECS·ALB 과금은 멈추지 않는다(A-050).
+
+**stack을 지우기 전에 할 것**:
+
+1. 제출 release의 최종 증거(#305)를 남긴다. release bucket에 다음이 쓰인다.
+   - `kto-smoke`: `evidence/actual-call-<release>.json`
+   - `task --task kto-call-inventory`: `evidence/kto-inventory/<release>/`
+   - `secret-scan`: `evidence/secret-exposure/<release>/`
+
+   call-audit 원본은 RDS에 있으므로 Data stack을 지우기 전에 inventory로 내보낸다.
+2. release bucket의 증거를 오너 저장소로 내려받고 sha256 목록을 남긴다.
+   - 대상: `deployed/current.json`·`previous.json`, `releases/<planSha256>/plan.tgz`, `evidence/**`
+   - operator 권한(`ReleaseRecords`)으로 읽을 수 있다.
+3. CloudFront 접근 로그는 원문 대신 집계만 남긴다(`scripts/aws/cloudfront_access_report.py`).
+   - 원문에는 viewer IP(`c-ip`)가 있고, 로그 그룹 보존은 1개월이다.
+   - 로그 그룹은 us-east-1에 있다. operator의 로그 읽기 권한(`OperatorLogs`)은 ap-northeast-2 범위라 이 그룹을 읽지 못한다. `--profile`에는 읽기 권한이 있는 다른 프로필을 준다.
+4. edge를 operator로 닫으려면 EXPIRY 전에 닫는다.
+5. staging에서만 증명할 수 있는 절을 teardown 전에 증명할지 정한다. teardown 뒤에는 증명할 수 없다. 예: `BA-071-T4`(rollback 뒤 smoke).
+6. `scripts/aws/staging-expiry-audit.sh`를 사전·사후 목록으로 쓰지 않는다.
+   - 7개 stack만 본다. Migration, GlobalWaf, 접근 로그 stack, toolkit 두 개가 빠진다.
+   - tagging API도 ap-northeast-2만 본다.
+
+   목록은 아래 표와 두 region 조회로 만든다.
+
+**stack 삭제 순서** `[합성]` — 다른 stack이 import하는 stack은 그 import가 사라진 뒤에만 지울 수 있다. 아래 순서가 그 조건을 만족한다.
+
+| 순서 | stack | region | 삭제 보호 | 먼저 사라져야 하는 것 |
+| --- | --- | --- | --- | --- |
+| 1 | `NullnullStgCloudFrontAccessLogs` | us-east-1 | 없음 | 없음. distribution ID를 parameter로 받아 로그 전달만 붙인다 |
+| 2 | `NullnullStgServices` | ap-northeast-2 | 없음 | 없음 |
+| 3 | `NullnullStgMigration` | ap-northeast-2 | 없음 | 없음. 예보·detail schedule도 이 stack에 있다 |
+| 4 | `NullnullStgWebEdge` | ap-northeast-2 | 없음 | Services, Migration의 import |
+| 5 | `NullnullStgObservability` | ap-northeast-2 | 없음 | 없음 |
+| 6 | `NullnullStgPlatform` | ap-northeast-2 | 없음 | Services, Migration, WebEdge, Observability의 import |
+| 7 | `NullnullStgData` | ap-northeast-2 | stack termination protection, RDS deletion protection | Services, Migration, Observability의 import |
+| 8 | `NullnullStgNetwork` | ap-northeast-2 | 없음 | Services, Migration, Data, Platform의 import |
+| 9 | `NullnullStgGlobalWaf` | us-east-1 | 없음 | WebEdge. import는 없지만 WebEdge가 parameter로 쓴다 |
+| 10 | `NullnullStgFoundation` | ap-northeast-2 | stack termination protection | Services, Migration의 import |
+| 11 | `NullnullStgCDKToolkit`(두 region) | 둘 다 | §11 bootstrap 명령이 `--termination-protection`을 준다 `[읽음]`. 실제 값은 `[미확인]` | 모든 `NullnullStg*` app stack. deploy 역할과 CloudFormation 실행 역할이 이 stack에 있다 |
+
+**삭제 뒤에도 남는 것** `[합성]` — `DeletionPolicy`가 `Retain`이거나 `Snapshot`인 자원, 그리고 CFN 밖에서 생긴 자원이다.
+
+- Foundation:
+  - ECR 2개(api·ai)
+  - S3 2개(`Releases`·`DeletionLedger`, 둘 다 versioning)
+  - DynamoDB 잠금 table(삭제 보호 켜짐)
+  - secret 3개(KTO·서울·verifier token)
+- Data:
+  - RDS 최종 snapshot
+  - 자동 백업(`deleteAutomatedBackups: false`)
+  - secret 3개(DB 자격 증명·cursor·deletion)
+- Platform: 로그 그룹 3개(api·ai·migration)
+- WebEdge: S3 `WebBucket`(versioning). 사용자 업로드(`quarantine/`·`covers/user/`)의 모든 version을 포함한다.
+- 접근 로그 stack: 로그 그룹 `NullnullStgCloudFrontAccessLogs`
+- CFN 밖에서 생긴 것:
+  - Lambda 로그 그룹 `[미확인]`: WebEdge의 `BucketDeployment` handler와 Services의 서울 프록시(`NullnullStgSeoulProxy`)는 CFN에 로그 그룹이 없다. 실행된 적이 있으면 Lambda가 만든 `/aws/lambda/…` 로그 그룹이 남는다.
+  - CDK staging bucket(`cdk-nnstg-assets-*`) `[읽음]`: 커밋된 bootstrap 템플릿에서 `Retain`이다.
+  - CDK container-assets 저장소: `Retain`이 아니다. 합성된 container image asset이 0개라 비어 있을 것이다 `[합성]`.
+  - 복원 drill DB(`nullnull-stg-restore-*`): `staging-restore-drill.sh`가 만들고 자동으로 지우지 않는다 `[읽음]`. 실제로 있는지는 `[미확인]`.
+
+**권한 주체** `[읽음]` — `infra/iam/operator.json`과 커밋된 bootstrap 템플릿(`infra/bootstrap/nnstg-bootstrap.yaml`)을 기준으로 했다.
+
+- **app stack 삭제**:
+  - operator 역할 자신은 `NullnullStg*` stack을 읽기만 한다(`ReadNullnullStacks`).
+  - 대신 CDK deploy 역할(`cdk-nnstg-*`)을 맡아(`DeployThroughCdkRoles`) 지운다. deploy 역할의 `CliPermissions`에 `cloudformation:DeleteStack`·`UpdateTerminationProtection`이 있다. 그 범위는 역할이 있는 region의 `NullnullStg*` stack이다. 그래서 us-east-1의 두 stack은 us-east-1 deploy 역할로 지운다.
+  - CloudFormation은 stack을 만든 실행 역할로 자원을 지운다. 그 역할의 Deny는 `Project=Nullnull` 태그가 아닌 자원에만 걸린다.
+- **toolkit stack 삭제**: deploy 역할은 toolkit stack 자신을 건드리지 못한다(`NeverTheToolkitStackItself`). 대신 operator 역할이 직접 지운다. 쓰는 권한은 셋이다.
+  - `OwnCdkToolkitStack`: 두 region의 `NullnullStgCDKToolkit`에 `cloudformation:*`
+  - `CdkBootstrapRoles`: `cdk-nnstg-*` 역할 삭제
+  - `CdkBootstrapStorage`: staging bucket과 container 저장소에 `s3:*`·`ecr:*`
+- **삭제 보호 해제**: RDS와 DynamoDB 잠금 table 둘 다 해당한다. operator에는 `rds:ModifyDBInstance`가 없고, EXPIRY 뒤에는 deploy도 거부된다. 그래서 IAM admin profile(`NULLNULL_IAM_ADMIN_PROFILE`)이나 콘솔로 푼다.
+- **남은 자원 삭제**: CDK staging bucket은 operator가 지울 수 있다. 나머지는 operator 권한 밖이라 admin profile이 필요하다.
+  - S3 3개의 모든 version과 delete marker
+  - ECR 2개, secret 6개, DynamoDB
+  - 로그 그룹
+  - RDS snapshot·자동 백업
+- **IAM 정리**: 대상은 `staging-iam.py`가 만든 정책 5개와 `nullnull-stg-operator` 역할이다.
+  - 스크립트에 삭제 경로가 없으므로 admin profile로 손으로 지운다.
+  - `NullnullStgCfnExecution*` 세 정책은 CloudFormation 실행 역할에 붙어 있다. toolkit stack을 지운 뒤에 지운다.
+- **GitHub OIDC provider는 지우지 않는다.** 이 저장소가 만든 것이 아니다(infra test *"existing GitHub OIDC provider is referenced, never created"*).
+
+**사후 확인**:
+
+- 두 region 모두에서 `NullnullStg*` stack이 0개다(toolkit 포함).
+- 두 region의 tagging API에서 `Project=Nullnull` 결과가 보존하기로 한 자원뿐이다. operator에 `tag:GetResources`가 있다. Lambda가 만든 로그 그룹은 태그가 없을 수 있어 `/aws/lambda/NullnullStg` 접두사로 따로 본다.
+- GitHub:
+  - `staging-reconcile.yml`은 15분마다 돈다(cron `7,22,37,52 * * * *`). 이것을 끈다.
+  - `STAGING_AUTO_DEPLOY`가 `true`가 아닌지 본다.
+  - `staging` environment의 secret을 정리한다.
+- 다음 달 청구는 오너가 조직 청구 화면에서 확인한다. Budgets를 쓸 수 없기 때문이다(A-050). `infra/cost-basis.md`의 추정으로는 보존 자원만 남을 때 월 3.45(세후)다.
+- 증거에는 account ID와 private IP를 적지 않는다.
+
+**실행 전 오너 결정**:
+
+- **날짜**: 공모전 일정(`docs/contest/2026-관광데이터-활용-공모전-공지-심사기준.md`)은 다음과 같다.
+  - 최종심사 대상 발표: 2026-10-21
+  - 최종 발표심사: 2026-10-28
+
+  선정되면 발표심사가 EXPIRY 뒤다. 그때까지 서비스를 둘지 정한다.
+- **EXPIRY 연장 여부**: 만료값은 코드 여러 곳에 하드코딩돼 있다.
+  - `git grep -n '2026-10-25\|2026, 10, 25' -- ':!docs'`로 찾는다.
+  - 태그의 `Expiry` 값까지 포함해 한 PR에서 바꾼다. 대표적인 것은 `staging_operator.py`의 `EXPIRY`, `FORECAST_SCHEDULE_END`, `JUDGING_END`, `scripts/aws/common.sh`의 만료 검사다.
+  - A-029(종료일)와 A-044(상시 승인)를 다시 승인한다.
+- **edge 폐쇄 방법**: 다음 셋 중 하나다.
+  - EXPIRY 전에 닫는다. 이 경우 심사 마지막 시간과 겹친다.
+  - 닫지 않고 stack 삭제로 대신한다.
+  - `closed`만 EXPIRY 뒤에도 허용하도록 operator를 고친다.
+- **데이터 보존**: 다음 셋을 각각 정한다.
+  - RDS 최종 snapshot과 자동 백업
+  - `WebBucket`의 사용자 업로드
+  - 나머지 보존 자원
+
+  삭제 원장이 없다(A-048). 그래서 snapshot을 복원하면 접수된 삭제가 되감길 수 있다.
+- **파괴적 단계의 실행 주체**: admin profile이나 콘솔을 누가 쓸지 정한다.
 
 ### 42일 비용 계획
 
@@ -406,7 +549,8 @@ python3 scripts/aws/staging_operator.py deploy --manifest .artifacts/releases/re
   --estimated-total 80 --cost-basis infra/cost-basis.md
 python3 scripts/aws/staging_operator.py classify --plan <plan.json> --approved-plan-sha256 <sha>   # kind·diff
 python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> --execute --kind infra
-# 공개 중인 #338처럼 schema·WebEdge/Services 구조가 그대로인 검토된 release에만 사용한다.
+# 공개 중인 release의 schema·보호 스택·Services가 그대로인 검토된 release에만 사용한다.
+# #312의 WebBucket 단일 CORS 추가(PUT/content-type/서비스 origin/300초)만 WebEdge 예외로 허용한다.
 # 실행 전후 공개 health=200을 확인하고, WebEdge를 먼저 배포하면서 TrafficEnabled=true를 유지한다.
 python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> \
   --execute --kind infra --preserve-open-edge
@@ -537,7 +681,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `edge`는 A-039의 전제를 운영자가 지킬 때만 쓴다. 전제는 둘이다. 배포된 release에 FE 로그인 흉내 화면이 들어 있어야 하고, 열려 있는 동안에는 DB 복원을 하지 않는다(복원 전에 닫는다). 명령은 이 전제를 검사하지 않는다.
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
-- **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·WebEdge/Services 구조 불변과 공개 health 검사를 통과해야 한다. 공개 edge 변경은 먼저 계획으로 검토한다.
+- **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·Services 구조 불변과 공개 health 검사를 통과해야 한다. WebEdge는 구조 불변이 원칙이나, #312의 WebBucket에 정확히 `PUT`·`content-type`·서비스 HTTPS origin·300초 CORS 규칙 하나를 추가하는 변경만 허용한다. 다른 WebEdge 변경은 그대로 거부하며 공개 edge 변경은 먼저 계획으로 검토한다.
 - edge를 연 뒤 `staging-flows.mjs`는 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
@@ -558,7 +702,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
 | `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
 | `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
-| `BA-073-T5` | `BA-073-T5`를 단 E2E testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T1(`location-off.spec.ts`) 제목에 그 ID가 없다(부분) |
+| `BA-073-T5` | 제출 release의 게이트 E2E report에 `BA-073-T5`를 단 testcase가 모두 통과한 기록. FE-603-T1(`location-off.spec.ts`)의 제목이 그 ID를 단다(화면마다 1건과 전체 1건) |
 | `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
 `BA-073`은 기능 선행 카드가 끝나기 전에는 harness만 준비한다. mock-only, 문서-only, 로컬-only 결과로 완료 처리하지 않는다.

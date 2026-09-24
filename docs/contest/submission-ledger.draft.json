@@ -1,0 +1,82 @@
+{
+  "submissionInventory": {
+    "releaseVersion": "<RELEASE>",
+    "features": [
+      {
+        "featureIds": ["FR-TRC-01", "FR-TRC-02"],
+        "pdfLabel": "여행 취향 입력",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-FED-01", "FR-FED-02", "FR-FED-03"],
+        "pdfLabel": "SNS형 피드 탐색",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-PST-01", "FR-PLC-01"],
+        "pdfLabel": "관광 콘텐츠 탐색",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-PST-02", "FR-CAN-01", "FR-CAN-02"],
+        "pdfLabel": "게시물·장소 저장",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-CAN-05", "FR-ITM-08"],
+        "pdfLabel": "여행별 후보 비교",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-TRC-04", "FR-CON-01"],
+        "pdfLabel": "방문 희망 명소 유지",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-DAT-05", "FR-CAN-07"],
+        "pdfLabel": "날짜별 혼잡 예측",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-OPT-01", "FR-OPT-03", "FR-OPT-04", "FR-OPT-05", "FR-OPT-06"],
+        "pdfLabel": "변경안 검토",
+        "capability": "optimization"
+      },
+      {
+        "featureIds": ["FR-PST-02", "FR-CAN-02", "FR-TRP-01"],
+        "pdfLabel": "게시물·후보·일정 분리",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-ITM-02", "FR-ITM-07", "FR-ITM-08"],
+        "pdfLabel": "일정 추가·교체",
+        "capability": null
+      },
+      {
+        "featureIds": ["FR-OPT-07", "FR-OPT-08", "FR-OPT-09"],
+        "pdfLabel": "사용자 승인형 변경",
+        "capability": "optimization"
+      }
+    ],
+    "ktoOperations": [
+      {
+        "source": "KTO_KOR_SERVICE_2",
+        "endpoint": "KOR_SERVICE_2_DETAIL_COMMON_2",
+        "pdfLabel": "한국관광공사 국문 관광정보 서비스_GW (KorService2)",
+        "usedBy": ["FR-PST-01", "FR-PLC-01", "FR-CAN-02", "FR-ITM-02"]
+      },
+      {
+        "source": "KTO_CONCENTRATION_FORECAST",
+        "endpoint": "TATS_CNCTR_RATE_LIST",
+        "pdfLabel": "한국관광공사 관광지 집중률 방문자 추이 예측 정보",
+        "usedBy": ["FR-DAT-05"]
+      },
+      {
+        "source": "KTO_ENG_SERVICE",
+        "endpoint": "ENG_SERVICE_2_DETAIL_COMMON_2",
+        "pdfLabel": "한국관광공사 영문 관광정보",
+        "usedBy": ["FR-PLC-01"]
+      }
+    ]
+  }
+}

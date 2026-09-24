@@ -545,6 +545,8 @@ def guard_stateful(stack, assembly):
         return
     if isinstance(old, str): old = json.loads(old)
     new = json.loads((assembly/(PREFIX+stack+'.template.json')).read_text())
+    if stack == 'WebEdge':
+        new = without_approved_web_bucket_cors(old, new)
     protected = ('AWS::RDS::', 'AWS::SecretsManager::', 'AWS::S3::Bucket',
                  'AWS::EC2::VPC', 'AWS::EC2::Subnet', 'AWS::DynamoDB::Table')
     resources = new.get('Resources', {})
@@ -561,6 +563,26 @@ def guard_stateful(stack, assembly):
 # tag to the web bucket. Run 35461072422 stopped there. Only that key family is ignored, and only under Tags; every
 # other tag and property still stops the deploy.
 CDK_OWNERSHIP_TAG = 'aws-cdk:cr-owned:'
+POST_UPLOAD_CORS = {'CorsRules': [{'AllowedOrigins': ['https://d54awmnmi4c3z.cloudfront.net'],
+                                   'AllowedMethods': ['PUT'], 'AllowedHeaders': ['content-type'], 'MaxAge': 300}]}
+
+def without_approved_web_bucket_cors(old, planned):
+    """Ignore only the approved first-time WebBucket CORS addition, never another bucket property."""
+    def buckets(template):
+        return [(key, resource) for key, resource in template.get('Resources', {}).items()
+                if resource.get('Type') == 'AWS::S3::Bucket']
+    existing, proposed = buckets(old), buckets(planned)
+    # Pin the synthesized WebBucket ID so a replacement requires a new review.
+    if (len(existing) != 1 or len(proposed) != 1 or
+            existing[0][0] != 'WebBucket12880F5B' or proposed[0][0] != existing[0][0]):
+        return planned
+    key, resource = proposed[0]
+    old_props = existing[0][1].get('Properties', {})
+    props = resource.get('Properties', {})
+    if 'CorsConfiguration' in old_props or props.get('CorsConfiguration') != POST_UPLOAD_CORS:
+        return planned
+    return {**planned, 'Resources': {**planned['Resources'], key: {**resource,
+            'Properties': {name: value for name, value in props.items() if name != 'CorsConfiguration'}}}}
 
 def without_cdk_ownership_tags(properties):
     if not isinstance(properties, dict) or not isinstance(properties.get('Tags'), list):
@@ -662,6 +684,18 @@ def template_findings(directory, bodies, stacks):
         elif normalize_template(bodies[stack]) != normalize_template(planned_template(directory, stack)):
             findings.append('template-changed-' + stack)
     return findings
+
+def preserve_open_template_findings(directory, bodies):
+    findings = template_findings(directory, bodies, PROTECTED+['Services'])
+    if bodies.get('WebEdge') is None:
+        return findings + ['stack-missing-WebEdge']
+    live = json.loads(normalize_template(bodies['WebEdge']))
+    planned = json.loads(normalize_template(planned_template(directory, 'WebEdge')))
+    if live == planned:
+        return findings
+    if live == without_approved_web_bucket_cors(live, planned):
+        return findings
+    return findings + ['template-changed-WebEdge']
 
 def classify_findings(directory, manifest, bodies=None):
     """Fail-closed: any difference that is not the release's own digests/version/web bundle is infra."""
@@ -793,7 +827,7 @@ def execute(args):
             require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
             # The web bundle asset may change, but its edge behavior, the online services shape and
             # every protected stack must be structurally unchanged while public traffic is open.
-            require(not template_findings(directory, live_bodies(), PROTECTED+['WebEdge','Services']),
+            require(not preserve_open_template_findings(directory, live_bodies()),
                     'preserve-open-template-change')
             url = output('WebEdge', 'PublicUrl')
             require(any(answer[:2] == (200,'application/json') for answer in

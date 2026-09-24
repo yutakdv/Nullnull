@@ -3,7 +3,12 @@ package io.nullnull.social.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
+import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.social.application.UploadIntentService.UploadRejectedException;
 import io.nullnull.social.application.UploadIntentService.UploadRejection;
 import io.nullnull.social.domain.UploadIntent;
@@ -16,8 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * BA-082: what the service refuses BEFORE it signs anything.
@@ -39,22 +47,39 @@ class UploadIntentServiceTest {
 
     private final RecordingStore store = new RecordingStore();
     private final RecordingStorage storage = new RecordingStorage();
+    private final IdempotencyGuard guard = mock(IdempotencyGuard.class);
+    private final ObjectMapper json = new ObjectMapper();
     private final UploadIntentService service = new UploadIntentService(store, storage,
             new UploadProperties(MAX_BYTES, 2048, java.util.Set.of("image/jpeg", "image/png"),
-                    Duration.ofMinutes(15)),
-            Clock.fixed(Instant.parse("2026-09-20T00:00:00Z"), ZoneOffset.UTC));
+                    Duration.ofMinutes(15), Duration.ofHours(24)),
+            Clock.fixed(Instant.parse("2026-09-20T00:00:00Z"), ZoneOffset.UTC), guard, json);
+
+    @BeforeEach
+    @SuppressWarnings("unchecked")
+    void runOneFreshReservation() {
+        // These unit tests measure validation and signing; the real guard/replay is exercised by
+        // PostAuthoringIT against PostgreSQL. Execute its prelude and command once here.
+        doAnswer(invocation -> {
+            var prelude = (IdempotencyGuard.Prelude<Object>) invocation.getArgument(4);
+            var command = (Function<Object, IdempotencyGuard.CommandOutcome<Object>>)
+                    invocation.getArgument(5);
+            var outcome = command.apply(prelude.call().get());
+            return new IdempotencyGuard.GuardedResponse(outcome.status(),
+                    json.writeValueAsString(outcome.body()), false);
+        }).when(guard).execute(any(), anyString(), anyString(), anyString(), any(), any(), any());
+    }
 
     @Test
     @DisplayName("BA-082-T10 an upload declaring more than the ceiling is refused before anything is signed")
     void anOversizeDeclarationIsRefused() {
-        assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "image/jpeg", MAX_BYTES + 1, CHECKSUM))
+        assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "unit-upload-key", "image/jpeg", MAX_BYTES + 1, CHECKSUM))
                 .isInstanceOf(UploadRejectedException.class)
                 .extracting(e -> ((UploadRejectedException) e).rejection())
                 .isEqualTo(UploadRejection.TOO_LARGE);
         assertThat(storage.signed).isEmpty();
         assertThat(store.inserted).isEmpty();
         // The ceiling itself is allowed, or "refuses everything" would pass the assertion above.
-        assertThatCode(() -> service.issue(UUID.randomUUID(), "image/jpeg", MAX_BYTES, CHECKSUM))
+        assertThatCode(() -> service.issue(UUID.randomUUID(), "unit-upload-key", "image/jpeg", MAX_BYTES, CHECKSUM))
                 .doesNotThrowAnyException();
     }
 
@@ -62,7 +87,7 @@ class UploadIntentServiceTest {
     @DisplayName("BA-082-T11 a zero or negative declared length is refused")
     void anEmptyDeclarationIsRefused() {
         for (long declared : new long[] {0L, -1L, Long.MIN_VALUE}) {
-            assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "image/jpeg", declared, CHECKSUM))
+            assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "unit-upload-key", "image/jpeg", declared, CHECKSUM))
                     .as("declared length %d", declared)
                     .isInstanceOf(UploadRejectedException.class)
                     .extracting(e -> ((UploadRejectedException) e).rejection())
@@ -75,7 +100,7 @@ class UploadIntentServiceTest {
     @Test
     @DisplayName("BA-082-T12 a format outside the offered vocabulary is refused before anything is signed")
     void anUnofferedFormatIsRefused() {
-        assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "image/webp", 1024, CHECKSUM))
+        assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "unit-upload-key", "image/webp", 1024, CHECKSUM))
                 .isInstanceOf(UploadRejectedException.class)
                 .extracting(e -> ((UploadRejectedException) e).rejection())
                 .isEqualTo(UploadRejection.UNSUPPORTED_CONTENT_TYPE);
@@ -87,7 +112,7 @@ class UploadIntentServiceTest {
     @DisplayName("BA-082-T13 a checksum that is not 64 lowercase hex characters is refused")
     void aMalformedChecksumIsRefused() {
         for (String bad : List.of("", "A".repeat(64), "a".repeat(63), "a".repeat(65), "zz" + "a".repeat(62))) {
-            assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "image/jpeg", 1024, bad))
+            assertThatThrownBy(() -> service.issue(UUID.randomUUID(), "unit-upload-key", "image/jpeg", 1024, bad))
                     .as("checksum %s", bad)
                     .isInstanceOf(UploadRejectedException.class)
                     .extracting(e -> ((UploadRejectedException) e).rejection())
@@ -101,7 +126,7 @@ class UploadIntentServiceTest {
     @DisplayName("BA-082-T14 the signed key carries the owner and an id the caller never chose")
     void theKeyIsOursNotTheCallers() {
         UUID ownerId = UUID.randomUUID();
-        var issued = service.issue(ownerId, "image/png", 2048, CHECKSUM);
+        var issued = service.issue(ownerId, "unit-upload-key", "image/png", 2048, CHECKSUM);
 
         assertThat(storage.signed).hasSize(1);
         String key = storage.signed.getFirst();

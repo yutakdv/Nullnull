@@ -22,7 +22,10 @@ export default defineConfig({
   // report gate rejects skipped JUnit cases. The real-API suite still runs all
   // non-mock specs, including session, trip creation, keyboard, responsive,
   // and API-backed seeded-trip journeys.
-  testIgnore: integration ? ['**/*.mock.spec.ts'] : [],
+  // The reverse holds for *.integration.spec.ts: they assert what only the
+  // composed API does (the first-visit 401 and the session cookie), which the
+  // default MSW handlers do not model.
+  testIgnore: integration ? ['**/*.mock.spec.ts'] : ['**/*.integration.spec.ts'],
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // JUnit alongside the readable one in CI. check_test_reports.py reads JUnit and nothing

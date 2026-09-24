@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import styles from './ConfirmDialog.module.css';
-import { canTakeFocus } from './focus-restore.js';
+import { canTakeFocus, restoreFocusTo } from './focus-restore.js';
 
 // Figma: S07-9 폐기 dialog `413:2020`, and the shape any confirm takes.
 //
@@ -43,10 +43,8 @@ const OWN_BLOCK = 'article, li, form, section, main';
 // both match FOCUSABLE, so the predicate filters them at :231 as well as
 // guarding the restore at :150.
 //
-// `restoreFocusTo` from the same module is deliberately NOT used here. It falls
-// back to the <main> landmark as soon as the target will not take focus, and
-// this dialog must first walk outward for a nearer candidate — that search is
-// #272 causes ②/⑤, and routing straight to <main> would delete it.
+// This dialog walks outward for a nearer candidate before using the shared
+// `restoreFocusTo` fallback for <main> (#272 causes ②/⑤).
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -289,11 +287,8 @@ export function ConfirmDialog({
     // detached, `display: none`, or inside an `inert` subtree simply does not
     // take focus — so landing is verified instead of assumed, and the <main>
     // landmark is the honest last resort. It keeps the traveller inside the
-    // itinerary region rather than the document, and is made programmatically
-    // focusable only for the moment it is needed, because a permanent tabIndex
-    // on a container changes tab traversal for every screen that mounts a
-    // dialog (profile.test.tsx and trip-screen.test.tsx both went red when that
-    // was tried — measured).
+    // itinerary region rather than the document. The shared helper retains
+    // its temporary tabindex until blur, so Chromium does not drop focus.
     //
     // WHAT THE SUITE PINS, stated precisely because the two differ: the tests
     // below reach this line only with `previous === null` (no candidate
@@ -306,12 +301,7 @@ export function ConfirmDialog({
     // is the same environment gap that made cause ① invisible to unit tests.
     // If this line is ever weakened, the e2e suite is where it would be caught.
     if (document.activeElement === previous) return;
-    const main = document.querySelector<HTMLElement>('main');
-    if (!main || !main.isConnected) return;
-    const hadTabIndex = main.hasAttribute('tabindex');
-    if (!hadTabIndex) main.setAttribute('tabindex', '-1');
-    main.focus();
-    if (!hadTabIndex) main.removeAttribute('tabindex');
+    restoreFocusTo(null);
   };
 
   useEffect(() => {

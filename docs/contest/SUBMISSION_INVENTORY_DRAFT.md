@@ -11,282 +11,96 @@ tags:
 
 # 제출 inventory ledger 초안
 
-`scripts/check_submission_inventory.py --ledger` 가 읽을 JSON 의 **사람이 채우는 칸** 초안이다.
-`releaseVersion` 과 `ktoOperations[].source`·`endpoint` 는 운영 절차가 kto-inventory 출력에서 뽑고,
-`features[]` 와 `usedBy` 는 사람이 적는다([제출 runbook](../contest/SUBMISSION_RUNBOOK.md)).
+`scripts/check_submission_inventory.py --ledger`가 읽는 JSON의 초안이다. 데이터는 [`submission-ledger.draft.json`](./submission-ledger.draft.json)에 있고, 이 문서는 그 근거와 남은 결정을 적는다. 쓰는 법은 [제출 runbook의 ledger 만들기](./SUBMISSION_RUNBOOK.md#ledger-만들기)에 있다.
 
-**이 문서는 주장이지 증거가 아니다.** 아래 §3 을 읽기 전에 이 JSON 을 제출에 쓰지 않는다.
+**이 문서는 주장이지 증거가 아니다.** 기능 문구와 API 목록은 PDF에서 옮겼고, 기능 문구를 기능 ID로 잇는 매핑은 이 초안의 판단이다.
 
-## 1. 기재 후보 — P0 98 개 중 83 개
+이전 판은 PDF가 아니라 기능 인벤토리를 기준으로 P0 83개를 14개 묶음으로 나눴고, `pdfLabel`은 비어 있었다. 그 판은 `b3e3d9d6`까지의 이력에 있다.
 
-> ⚠️ **이 수는 `02fdb22e` 시점의 카드 status 로 센 것이고 지금 낡았다.** `#317` 이 실어 온 `51b22e94` 가 `BA-090` 을 `planned` → `integration-ready` 로 올렸고(머지 전후 blob 으로 확인), 그 카드만 담은 `FR-LIV-08`(stale/unavailable degradation)이 제외 15개 중 하나였다. 그것을 되돌리면 제외 14 → **84 개**다.
->
-> **근본 원인은 이 문서가 측정 시점을 안 적은 것이다** — 카드 status 는 움직이는 값인데 그것으로 센 수를 시점 없이 적으면 **쓸 때는 맞고 읽을 때는 틀린다.** 다시 셀 때는 커밋 SHA 를 같이 적는다.
->
-> **84 로 올릴지 83 을 유지할지는 제품 판단이다** — 나머지 아홉 `FR-LIV-*` 는 `BA-091`·`BA-092` 가 아직 `planned` 이라 제외가 유지되고, `A-054`(Live 를 제출 전에 전면 구현한다)의 실행 여부에 따라 그 묶음 전체가 움직인다.
+## 1. 근거 PDF
 
-기능 인벤토리의 P0 는 98 개다(측정: 113 행 중 P0 98 · P1 13 · P2 2).
-그중 **15 개를 뺐다**(§2). 남은 83 개를 PDF 항목 단위로 14 개 묶음에 넣었다.
+- 파일: `Nullnull_기능설명서_상세개정본_수정본.pdf`(17쪽)
+- sha256: `16f59996732b118f9ccf856f91c2b2455c6e09bb4cad8eff4abdb0d09e859408`
+- PDF 생성 시각: 2026-09-21 15:41:30 KST(`pdfinfo`)
+- 이 파일이 접수된 첨부와 같은지는 `[미확인]`이다. 접수 증거의 PDF checksum(CMP-SUB-001)과 대조한다.
+- 옮긴 범위는 둘이다.
+  - p5~p8 "해시태그 연계 핵심기능 및 상세내용" 표의 "연계 기능" 열 12개 → `features[]`
+  - p14 "서비스 개발에 활용한 한국관광공사 OpenAPI 리스트" 3개 → `ktoOperations[]`
+- 문구는 PDF 쪽 이미지를 보고 확인했다. 텍스트 추출은 표의 열 순서를 섞기 때문이다.
 
-| 묶음 | 기능 수 | 내용 | `capability` |
-| --- | --- | --- | --- |
-| `FR-ONB` | 3 | 온보딩·언어 선택 | `null` |
-| `FR-SES` | 4 | 익명 session·보호·삭제 | `null` |
-| `FR-PRO` | 5 | 프로필·내 여행·최적화 이력 | `null` |
-| `FR-DAT` | 5 | 데이터 출처·비교 적격성·혼잡 예보 | `null` |
-| `FR-TRC` | 11 | 여행 만들기(날짜·관심사·붙여넣기·초안) | `null` |
-| `FR-FED` | 4 | 피드 | `null` |
-| `FR-PST` | 2 | 게시물 열람·저장 | `null` |
-| `FR-PLC` | 1 | 표준 장소 상세 | `null` |
-| `FR-CAN` | 7 | 여행 후보 저장·조회 | `null` |
-| `FR-TRP` | 5 | 여행 조회·수정·삭제 | `null` |
-| `FR-ITM` | 7 | 일정 항목 추가·이동·교체 | `null` |
-| `FR-CON` | 6 | 일정 잠금·충돌 복구 | `null` |
-| `FR-OPT` | 15 | AI 일정 최적화(preview→APPLY/KEEP/REVERT) | `optimization` |
-| `FR-OPS` | 8 | 운영(readiness·수집·로그·삭제 TTL·flag) | `null` |
+## 2. 기능
 
-`capability` 규칙은 runbook 이 정한다 — 그 기능이 `live`·`replay`·`optimization` 없이 동작하지 않으면 그 이름,
-아니면 `null`. `FR-OPT-*` 가 `optimization` 이다.
+p5~p8 "연계 기능" 열 12개다. `pdfLabel`은 PDF 문구를 그대로 옮겼다. 근거 문장도 PDF 원문이다.
 
-## 2. 뺀 15 개와 이유
+| 해시태그(쪽) | `pdfLabel` | `featureIds` | `capability` | 근거 문장 |
+| --- | --- | --- | --- | --- |
+| #취향기반발견(p5) | 여행 취향 입력 | FR-TRC-01, FR-TRC-02 | `null` | "여행 날짜와 관심사를 입력합니다."(p9) |
+| #취향기반발견(p5) | SNS형 피드 탐색 | FR-FED-01, FR-FED-02, FR-FED-03 | `null` | "현재 피드 정렬은 게시 시각 기준이며" |
+| #취향기반발견(p5) | 개인화 노출 고도화 | **넣지 않음** | — | "취향·일정에 따른 노출 순위 연결은 핵심 고도화 과제입니다." |
+| #자연스러운장소분산(p6) | 관광 콘텐츠 탐색 | FR-PST-01, FR-PLC-01 | `null` | "피드의 게시물에서 장소와 출처를 확인하고" |
+| #자연스러운장소분산(p6) | 게시물·장소 저장 | FR-PST-02, FR-CAN-01, FR-CAN-02 | `null` | "관심 있는 장소를 원하는 여행의 후보로 저장합니다." |
+| #자연스러운장소분산(p6) | 여행별 후보 비교 | FR-CAN-05, FR-ITM-08 | `null` | "일정 관리에서는 후보를 추가하거나 기존 장소와 비교하고"(p3) |
+| #명소유지시간분산(p7) | 방문 희망 명소 유지 | FR-TRC-04, FR-CON-01 | `null` | "꼭 방문하고 싶은 장소를 후보로 유지합니다."(p11) |
+| #명소유지시간분산(p7) | 날짜별 혼잡 예측 | FR-DAT-05, FR-CAN-07 | `null` | "한국관광공사의 날짜별 상대 집중률 예측과 출처·수집시각을 보여줍니다. 일정 조건상 선택할 수 없는 날짜는 구분하고" |
+| #명소유지시간분산(p7) | 변경안 검토 | FR-OPT-01, FR-OPT-03, FR-OPT-04, FR-OPT-05, FR-OPT-06 | `optimization` | "장소 하나의 최적화 제안을 검토하는 흐름을 제공합니다."(p8) |
+| #발견과일정연결(p8) | 게시물·후보·일정 분리 | FR-PST-02, FR-CAN-02, FR-TRP-01 | `null` | "게시물 저장은 콘텐츠를 다시 보기 위한 기능이고, 여행 후보 저장은 방문을 검토하기 위한 기능입니다." |
+| #발견과일정연결(p8) | 일정 추가·교체 | FR-ITM-02, FR-ITM-07, FR-ITM-08 | `null` | "일정 관리에서는 후보의 추가·교체와" |
+| #발견과일정연결(p8) | 사용자 승인형 변경 | FR-OPT-07, FR-OPT-08, FR-OPT-09 | `optimization` | "이미 세운 일정은 사용자가 변경을 확정하기 전까지 유지합니다." |
 
-`backend-plan.json` · `frontend-plan.json` 의 카드 status 를 기능 ID 로 join 해서 냈다
-(측정: 카드 없는 P0 **0 개**, 전부 미완 **14 개**, 일부만 완료 **1 개**).
+- **"개인화 노출 고도화"는 넣지 않았다.** PDF가 같은 칸에서 이것을 고도화 과제라고 적고, p9 2단계도 *"향후 구현 범위"* 라고 적는다. 기능 인벤토리에서 가장 가까운 행은 `FR-ML-01`(개인화 ranking, **P2**)이다. 넣으면 검사기가 CMP-SUB-008(PDF에는 P0만)로 막는다. 넣지 않은 결정은 §4의 오너 결정 대상이다.
+- **P0인데 여기 없는 기능은 PDF가 주장하지 않은 것이다.** 온보딩, session, 프로필이 그렇다. 검사기는 PDF가 적은 것만 대조하므로 빠져도 실패가 아니다.
+- p9~p12의 흐름도 문장은 기능 목록이 아니라 설명이라 항목으로 옮기지 않았다. 예외 하나는 §4에 적었다.
+- 같은 ID가 두 문구에 나오는 것(`FR-PST-02`, `FR-CAN-02`, `FR-ITM-08`)은 검사기가 허용한다.
 
-| 기능 ID | 제목 |
-| --- | --- |
-| `FR-ITM-04` | 시간/duration 수정 |
-| `FR-LIV-01` | area 목록과 capability-gated 지도 선택 유지 |
-| `FR-LIV-02` | area별 장소 조회 |
-| `FR-LIV-03` | Live 장소 상세 |
-| `FR-LIV-04` | 대체 장소 목록 |
-| `FR-LIV-05` | 유효 대안 없음 |
-| `FR-LIV-06` | 확인 중/불명 관계 |
-| `FR-LIV-07` | replay demo |
-| `FR-LIV-08` | stale/unavailable degradation |
-| `FR-LIV-09` | Live 장소를 후보로 저장 |
-| `FR-LIV-11` | 장소명 검색 후 Live coverage 조회 |
-| `FR-OPS-07` | backup/PITR/restore |
-| `FR-OPS-08` | API/web rollback |
-| `FR-OPS-11` | KTO 실제 호출과 비밀값 없는 call-audit |
-| `FR-OPS-12` | 공모전 익명 외부망 smoke와 기능설명서 정합성 |
+## 3. KTO OpenAPI
 
-- `FR-LIV-*` 10 개 — `BA-090`·`BA-091`·`BA-092` 가 전부 `planned` 이고 `FE-401`~`403` 도 `planned` 다.
-  `queryLiveAreas`·`listLiveAreaPlaces`·`getLivePlace` 는 계약에 선언만 있고 `apps/api` 구현이 0 건이며,
-  `live` flag 는 켜면 startup 이 죽는다.
-- `FR-OPS-07`·`08`·`11` — `BA-072`·`BA-071`·`BA-021` 이 `in-progress` 다.
-- `FR-OPS-12` — `BA-073` 이 `planned` 이고 `FE-604` 가 `blocked` 다.
-- `FR-ITM-04` — `BA-040` 은 `integration-ready` 인데 `FE-308` 이 `deferred` 다. 서버는 받지만 화면에 편집 수단이 없다.
+p14의 목록 3개다.
 
-## 3. 검사기가 **검증하지 않는 것** — 채우는 사람이 지켜야 한다
+| 번호 | `pdfLabel`(API명) | PDF 상세설명 | `source` / `endpoint` | `usedBy` |
+| --- | --- | --- | --- | --- |
+| 1 | 한국관광공사 국문 관광정보 서비스_GW (KorService2) | "detailCommon2: 장소명·주소 등 관광정보를 피드의 장소 연결과 여행 후보·일정에 활용" | `KTO_KOR_SERVICE_2` / `KOR_SERVICE_2_DETAIL_COMMON_2` | FR-PST-01, FR-PLC-01, FR-CAN-02, FR-ITM-02 |
+| 2 | 한국관광공사 관광지 집중률 방문자 추이 예측 정보 | "tatsCnctrRateList: 날짜별 상대 집중률 예측으로 명소 방문 날짜를 검토하는 데 활용" | `KTO_CONCENTRATION_FORECAST` / `TATS_CNCTR_RATE_LIST` | FR-DAT-05 |
+| 3 | 한국관광공사 영문 관광정보 | "국문에서 가진 장소 ID가 영문 데이터에도 있고 영어로 오는지를 detailCommon2로 한 번 측정하는 데 쓰는 API입니다." | `KTO_ENG_SERVICE` / `ENG_SERVICE_2_DETAIL_COMMON_2` | FR-PLC-01 |
 
-- **`capability: null` 은 아무것도 검사하지 않는다.** `check_submission_inventory.py:79` 가 `null` 이면
-  readiness 를 보지 않는다. 미구현 기능을 `null` 로 적은 ledger 가 exit 0 으로 통과하는 것을 실측했다.
-  **게이트 초록은 기재 내용이 참이라는 뜻이 아니다.**
-- **`pdfLabel` 은 한 번도 검증되지 않는다.** 기능 쪽은 오류 메시지 텍스트로만 읽고, operation 쪽은 아예 안 읽는다.
-  비어 있어도 통과한다. 위 `[오너 교체]` 표시를 **반드시 PDF 문구로 바꾼다.**
-- **`endpoint` 는 한국관광공사 operation 이름이 아니다.** 내부 감사 키 `api_ingest_logs.endpoint_key` 이고,
-  `apps/api` 가 실제로 내는 값은 `KOR_SERVICE_2_DETAIL_COMMON_2` 와 `TATS_CNCTR_RATE_LIST` 둘뿐이다.
-  검사기 docstring 과 그 test fixture 는 `_2` 없는 `KOR_SERVICE_2_DETAIL_COMMON` 을 보여주는데,
-  **그것을 그대로 옮기면 양방향 대조에서 실패한다.** provider 이름(`detailCommon2`)은 PDF 문구 쪽에 쓴다.
-- **오늘의 증거로는 어떤 ledger 도 통과하지 못한다.** 디스크의 유일한 inventory 가
-  `operations=0 counts_as_evidence=false reason=no-usable-call` 이다. 제출 release 에서 KTO 실호출을 먼저 하고
-  그 release 의 inventory 를 새로 뽑아야 한다.
-- **`--ledger`·`--readiness`·`--inventory` 는 셋 다 필수다.** 하나만 주면 argparse 가 exit 2 를 내는데,
-  그건 통과도 거절도 아니다.
-- **ledger 형식 자체가 draft 다.** 검사기 docstring 이 *"pending owner/FE agreement"* 라고 적고 있고,
-  그 합의가 이뤄졌다는 기록이 저장소에 없다.
-- **83 개가 배포본에서 동작한다는 것은 측정되지 않았다.** 근거는 계획 카드의 status 뿐이고,
-  그것은 JUnit 집계 상태이지 배포된 release 에 대한 관측이 아니다.
+- `source`·`endpoint`는 inventory가 찍는 값이다. 한국관광공사 operation 이름이 아니라 내부 감사 키(`api_ingest_logs.endpoint_key`)다.
+  - 1·2: `backend`의 `KtoPlaceDetailGateway`·`KtoCrowdForecastGateway`에 있다.
+  - 3: #360의 `KtoEngTextRefresh`에만 있다.
+- **3번은 지금 `backend`의 어떤 release도 inventory에 낼 수 없다.** PDF가 말하는 "한 번 측정"은 `KtoEngServiceProbeMain`이고, 그 javadoc이 *"no audit row"* 라고 적는다. 감사 행을 남기는 영문 호출은 #360(`KtoEngTextRefresh`)과 그것을 돌리는 operator task(#367)가 들어와야 생긴다. 오너 결정 (a)에 따라 최종 release에서 그 호출을 돌린다(§4).
+- **3번의 `usedBy`는 `FR-PLC-01`이다.** PDF는 이 API에 기능을 잇지 않았으므로 이 값은 PDF 문구가 아니라 오너 결정 (a)에서 왔다. #360이 받아 온 영문 텍스트는 장소 상세에 나온다.
+- p15(기타 API)는 검사기 대상이 아니다. inventory가 `KTO_` source만 센다(`JdbcKtoCallInventoryQuery`). 다만 읽다가 본 것이 하나 있다. 1번 "서울 실시간 도시데이터"의 상세설명이 2번 "카카오모빌리티 길찾기"의 상세설명과 같은 문장이다. PDF는 마감 뒤 고칠 수 없다(CMP-SUB-001).
 
-## 4. 초안 JSON
+## 4. 오너 결정
 
-`usedBy` 는 `features[]` 에 있는 ID 만 쓸 수 있고 비어 있으면 거절된다.
-아래는 `FR-PLC-01`(표준 장소 상세) 하나만 넣은 최소 형태이며, **다른 기능이 그 API 를 쓰면 오너가 추가한다.**
+1. **p14 3번(영문 API) — 결정됨: (a), A-066.** 2026-09-24 오너가 직접 정했다. 최종 release에서 영문 호출을 돌려 inventory에 나오게 하고, `usedBy`는 `FR-PLC-01`로 한다. 그래서 다음이 필요하다.
+   - 최종 release에 #360·#367이 들어 있다.
+   - 오너가 영문 연결 plan의 바이트를 승인한다(`kto-eng-link-import`).
+   - 오너가 영문 KTO 실호출을 승인한다(`kto-eng-text-refresh`).
+   - 수용안이었던 (b)는 CMP-KTO-006(공식 필수)을 알고도 미충족으로 두는 것이라 택하지 않았다.
+2. **"개인화 노출 고도화"를 원장에서 뺀 것.** 계획 기능은 PDF에 적지 않는다는 것이 CMP-SUB-008이다. 이 문구가 PDF에 있다는 사실 자체는 원장이 바꿀 수 없다.
+3. **Live 기능(`FR-LIV-*`)을 넣지 않은 것.** "연계 기능" 열에 Live가 없다. Live 쪽으로 읽힐 수 있는 문장은 p11 4단계 하나다: *"현재 관측이 없는 상태는 별도 표시합니다. 날짜 예측과 실시간 관측을 섞지 않습니다."*
+4. **§2 매핑 전체.** 검사기 docstring이 형식을 *"draft, pending owner/FE agreement"* 라고 적는다. 매핑도 오너·FE 검토 대상이다.
 
-```json
-{
-  "submissionInventory": {
-    "releaseVersion": "[오너 교체] kto-inventory 의 release= 값과 글자까지 같게",
-    "features": [
-      {
-        "featureIds": [
-          "FR-ONB-01",
-          "FR-ONB-02",
-          "FR-ONB-03"
-        ],
-        "pdfLabel": "[오너 교체] 온보딩·언어 선택",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-SES-01",
-          "FR-SES-02",
-          "FR-SES-03",
-          "FR-SES-04"
-        ],
-        "pdfLabel": "[오너 교체] 익명 session·보호·삭제",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-PRO-01",
-          "FR-PRO-02",
-          "FR-PRO-03",
-          "FR-PRO-04",
-          "FR-PRO-05"
-        ],
-        "pdfLabel": "[오너 교체] 프로필·내 여행·최적화 이력",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-DAT-01",
-          "FR-DAT-02",
-          "FR-DAT-03",
-          "FR-DAT-04",
-          "FR-DAT-05"
-        ],
-        "pdfLabel": "[오너 교체] 데이터 출처·비교 적격성·혼잡 예보",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-TRC-01",
-          "FR-TRC-02",
-          "FR-TRC-03",
-          "FR-TRC-04",
-          "FR-TRC-05",
-          "FR-TRC-06",
-          "FR-TRC-07",
-          "FR-TRC-08",
-          "FR-TRC-09",
-          "FR-TRC-10",
-          "FR-TRC-12"
-        ],
-        "pdfLabel": "[오너 교체] 여행 만들기(날짜·관심사·붙여넣기·초안)",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-FED-01",
-          "FR-FED-02",
-          "FR-FED-03",
-          "FR-FED-04"
-        ],
-        "pdfLabel": "[오너 교체] 피드",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-PST-01",
-          "FR-PST-02"
-        ],
-        "pdfLabel": "[오너 교체] 게시물 열람·저장",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-PLC-01"
-        ],
-        "pdfLabel": "[오너 교체] 표준 장소 상세",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-CAN-01",
-          "FR-CAN-02",
-          "FR-CAN-03",
-          "FR-CAN-04",
-          "FR-CAN-05",
-          "FR-CAN-06",
-          "FR-CAN-07"
-        ],
-        "pdfLabel": "[오너 교체] 여행 후보 저장·조회",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-TRP-01",
-          "FR-TRP-02",
-          "FR-TRP-03",
-          "FR-TRP-04",
-          "FR-TRP-05"
-        ],
-        "pdfLabel": "[오너 교체] 여행 조회·수정·삭제",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-ITM-01",
-          "FR-ITM-02",
-          "FR-ITM-03",
-          "FR-ITM-05",
-          "FR-ITM-06",
-          "FR-ITM-07",
-          "FR-ITM-08"
-        ],
-        "pdfLabel": "[오너 교체] 일정 항목 추가·이동·교체",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-CON-01",
-          "FR-CON-02",
-          "FR-CON-03",
-          "FR-CON-04",
-          "FR-CON-05",
-          "FR-CON-06"
-        ],
-        "pdfLabel": "[오너 교체] 일정 잠금·충돌 복구",
-        "capability": null
-      },
-      {
-        "featureIds": [
-          "FR-OPT-01",
-          "FR-OPT-03",
-          "FR-OPT-04",
-          "FR-OPT-05",
-          "FR-OPT-06",
-          "FR-OPT-07",
-          "FR-OPT-08",
-          "FR-OPT-09",
-          "FR-OPT-10",
-          "FR-OPT-11",
-          "FR-OPT-12",
-          "FR-OPT-13",
-          "FR-OPT-14",
-          "FR-OPT-15",
-          "FR-OPT-16"
-        ],
-        "pdfLabel": "[오너 교체] AI 일정 최적화(preview→APPLY/KEEP/REVERT)",
-        "capability": "optimization"
-      },
-      {
-        "featureIds": [
-          "FR-OPS-01",
-          "FR-OPS-02",
-          "FR-OPS-03",
-          "FR-OPS-04",
-          "FR-OPS-05",
-          "FR-OPS-06",
-          "FR-OPS-09",
-          "FR-OPS-10"
-        ],
-        "pdfLabel": "[오너 교체] 운영(readiness·수집·로그·삭제 TTL·flag)",
-        "capability": null
-      }
-    ],
-    "ktoOperations": [
-      {
-        "source": "KTO_KOR_SERVICE_2",
-        "endpoint": "KOR_SERVICE_2_DETAIL_COMMON_2",
-        "pdfLabel": "[오너 교체] 한국관광공사 TourAPI 관광정보 상세조회",
-        "usedBy": [
-          "FR-PLC-01"
-        ]
-      }
-    ]
-  }
-}
-```
+## 5. 합성 입력으로 돌린 결과
+
+**증거가 아니다.** `fd52d312`(`origin/backend`)에서 `check_submission_inventory.py`를 돌렸다.
+
+- readiness와 inventory는 손으로 만든 합성 입력이고, release 이름은 `v0.0.0-synthetic`이다.
+- ledger는 [ledger 만들기](./SUBMISSION_RUNBOOK.md#ledger-만들기)의 명령으로 이 초안에서 만들었다.
+
+| 경우 | 입력 | 결과 |
+| --- | --- | --- |
+| S1 | inventory에 1·2번만 있다(지금 `backend`가 낼 수 있는 모양) | exit 1. `the PDF lists KTO_ENG_SERVICE/ENG_SERVICE_2_DETAIL_COMMON_2, which the release never called usably (CMP-KTO-006)` |
+| S2 | inventory에 셋 다 있다(결정 (a)가 끝난 release의 모양) | exit 0. `submission_inventory=verified release=v0.0.0-synthetic`. §2의 ID가 모두 P0로 통과했다 |
+| S3 | S2와 같고 readiness의 `optimization`만 `UNAVAILABLE` | exit 1. "변경안 검토"·"사용자 승인형 변경" 두 줄 |
+| S4 | 초안을 명령 없이 그대로 넣었다(`releaseVersion`이 `<RELEASE>`) | exit 1. release 불일치 |
+| S5 | 예전 절차대로 `ktoOperations`를 inventory(1·2번)에서 뽑았다. PDF는 셋을 적는다 | **exit 0. `verified`** |
+
+**S5가 예전 절차의 결함이다.** 대조하는 두 목록이 같은 출처에서 오면, PDF가 적었는데 release가 부르지 않은 API가 원장에 아예 없다. 그래서 CMP-KTO-006의 *"PDF API 목록 ↔ audit operation set diff 0"* 이 공허하게 통과한다. 이 초안은 `ktoOperations`를 PDF에서 옮겼고, runbook도 그렇게 바꿨다.
+
+## 6. 검사기가 검증하지 않는 것
+
+- **`capability: null`은 아무것도 검사하지 않는다.** 검사기는 `null`인 기능의 readiness를 보지 않는다. 예보(`날짜별 혼잡 예측`)에는 readiness capability가 없으므로 `null`이다. 예보가 실제로 도는 증거는 inventory의 2번 행이다.
+- **`pdfLabel`은 검사하지 않는다.** 이 초안은 문구를 PDF에서 그대로 옮겼다. independent checker가 PDF를 옆에 두고 §2·§3과 대조한다.
+- **매핑이 맞는지는 검사하지 않는다.** 검사기는 ID가 P0인지와 capability만 본다.
+- **APPLY가 실제로 되는지는 검사하지 않는다.** `optimization` READY는 capability 플래그다. PDF p8도 *"성공 제안·적용은 별도 검증이 필요합니다"* 라고 적는다. 그 증거는 외부망 완주(`BA-073-T1`)다.
+- **`--ledger`·`--readiness`·`--inventory`는 셋 다 필수다.** 하나만 주면 argparse가 exit 2를 낸다. 그건 통과도 거절도 아니다.
