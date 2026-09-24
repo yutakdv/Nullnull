@@ -30,6 +30,7 @@ export const SCREENS: ReadonlyArray<{
   // It was absent from this list, so the feed card's controls were never
   // measured at 360px, at 200% zoom, or against the 44px touch floor.
   { path: '/feed', name: 'feed' },
+  { path: '/posts/new', name: 'post authoring' },
   { path: '/language', name: 'language' },
   { path: '/intro', name: 'intro' },
   // A-4 sign-in (#265). Added in the same commit as the route, because this

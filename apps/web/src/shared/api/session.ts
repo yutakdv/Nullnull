@@ -1680,10 +1680,18 @@ type LivePlaceDetail = components['schemas']['LivePlaceDetail'];
 
 export const liveAreasQueryKey = ['live', 'areas'] as const;
 
-/** List-first Live query with map and device location deliberately off. */
-export function useLiveAreas(): UseQueryResult<LiveAreaResult, Problem | Error> {
+/**
+ * List-first Live query with map and device location deliberately off.
+ *
+ * `enabled` is the shell's `sessionReady`: the screen reads on mount, and on a
+ * first visit a read sent before the bootstrap lands carries no cookie.
+ */
+export function useLiveAreas(
+  enabled = true,
+): UseQueryResult<LiveAreaResult, Problem | Error> {
   return useQuery({
     queryKey: liveAreasQueryKey,
+    enabled,
     queryFn: async () => {
       const request: LiveAreaQuery = {
         mode: 'AUTO',
@@ -1722,13 +1730,19 @@ export function useLiveAreaPlaces(
   });
 }
 
-/** One canonical place with its Live coverage and verified alternatives. */
+/**
+ * One canonical place with its Live coverage and verified alternatives.
+ *
+ * `enabled` is the shell's `sessionReady`, for the same first-visit reason as
+ * `useLiveAreas`.
+ */
 export function useLivePlace(
   placeId: string | null,
+  enabled = true,
 ): UseQueryResult<LivePlaceDetail, Problem | Error> {
   return useQuery({
     queryKey: ['live', 'places', placeId ?? ''],
-    enabled: placeId !== null,
+    enabled: enabled && placeId !== null,
     queryFn: async () => {
       const { data, error, response } = await getApiClient().GET(
         '/live/places/{placeId}',

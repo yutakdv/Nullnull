@@ -448,30 +448,35 @@ export function FeedScreen() {
         </aside>
       ) : selectedTrip ? (
         <div className={styles.tripFilter} ref={tripFilterRef}>
-          <button
-            aria-busy={updatePreferences.isPending}
-            aria-controls="representative-trip-list"
-            aria-expanded={isTripMenuOpen}
-            aria-label={`${t('feed.representativeTrip')}: ${selectedTrip.title}`}
-            className={styles.activeTrip}
-            data-testid="active-trip-banner"
-            disabled={updatePreferences.isPending}
-            onClick={() => {
-              setIsTripMenuOpen((open) => !open);
-            }}
-            ref={tripTriggerRef}
-            type="button"
-          >
+          <div className={styles.tripBar}>
             <span className={styles.activeTripPeriod}>{selectedTripPeriod}</span>
-            <span className={styles.activeTripChoice}>
-              <span className={styles.activeTripTitle}>{selectedTrip.title}</span>
-              <IconChevronDown
-                className={styles.activeTripChevron}
-                data-open={isTripMenuOpen}
-                size={18}
-              />
-            </span>
-          </button>
+            <Link className={styles.authorLink} to="/posts/new">
+              {t('author.entry')}
+            </Link>
+            <button
+              aria-busy={updatePreferences.isPending}
+              aria-controls="representative-trip-list"
+              aria-expanded={isTripMenuOpen}
+              aria-label={`${t('feed.representativeTrip')}: ${selectedTrip.title}`}
+              className={styles.activeTrip}
+              data-testid="active-trip-banner"
+              disabled={updatePreferences.isPending}
+              onClick={() => {
+                setIsTripMenuOpen((open) => !open);
+              }}
+              ref={tripTriggerRef}
+              type="button"
+            >
+              <span className={styles.activeTripChoice}>
+                <span className={styles.activeTripTitle}>{selectedTrip.title}</span>
+                <IconChevronDown
+                  className={styles.activeTripChevron}
+                  data-open={isTripMenuOpen}
+                  size={18}
+                />
+              </span>
+            </button>
+          </div>
 
           {isTripMenuOpen ? (
             <ul

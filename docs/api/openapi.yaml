@@ -867,12 +867,15 @@ paths:
       summary: Reserve a one-time upload slot for a post cover
       description: |
         Returns a pre-signed PUT the caller uses to place the bytes in a private quarantine
-        prefix. The signature is bound to the content type, the length and the checksum
-        declared here, so bytes that differ from the declaration are refused at the storage
-        layer before the server ever reads them; `createPost` then refuses them a second time
-        from the bytes themselves. The ticket is single use and short lived, and the offered
+        prefix. The signature is bound to the content type and length declared here. The server
+        compares the declared length and SHA-256 with the uploaded bytes before it publishes
+        anything; a changed file is refused even if it is a valid image of the same size. The ticket is
+        single use and short lived, and the offered
         formats are the ones this runtime can decode AND re-encode - stripping metadata is a
         decode/re-encode, so a format it cannot write is a format it cannot sanitise.
+        A completed retry with the same Idempotency-Key and declaration replays the same
+        ticket, including its original expiry; use a new key after that expiry. Reusing the
+        key with a different declaration returns 409.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -921,6 +924,9 @@ paths:
         only then writes the sanitised copy to the public location and deletes the original.
         An upload ticket that is expired, already consumed, another owner's or never existed
         all answer 404: it is one rule, and the four are deliberately indistinguishable.
+        A completed retry with the same Idempotency-Key and body instead replays the original
+        201 and postId without reading or publishing the image again. Reusing that key with a
+        different body answers 409.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -7278,6 +7284,7 @@ components:
           maxLength: 500
         placeIds:
           type: array
+          minItems: 1
           maxItems: 50
           items:
             type: string

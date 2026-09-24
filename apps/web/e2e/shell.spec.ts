@@ -257,9 +257,10 @@ test.describe('app shell', () => {
     await page.goto('/feed');
 
     const trip = page.getByRole('button', { name: /대표 여행|Representative trip/ });
-    await expect(trip).toHaveCSS('background-color', 'rgb(234, 242, 255)');
+    const banner = trip.locator('..');
+    await expect(banner).toHaveCSS('background-color', 'rgb(234, 242, 255)');
     await trip.hover();
-    await expect(trip).toHaveCSS('background-color', 'rgb(234, 242, 255)');
+    await expect(banner).toHaveCSS('background-color', 'rgb(234, 242, 255)');
 
     await trip.click();
     const choice = page

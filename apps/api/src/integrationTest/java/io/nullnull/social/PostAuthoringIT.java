@@ -127,6 +127,67 @@ class PostAuthoringIT {
     }
 
     @Test
+    @DisplayName("BA-082 bytes with a changed checksum cannot be published even if they decode")
+    void changedImageWithTheSameLengthIsRejected() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        byte[] declared = jpeg(64, 48);
+        byte[] changed = declared.clone();
+        changed[100] ^= 1;
+        assertThat(changed).hasSameSizeAs(declared);
+        assertThat(ImageIO.read(new java.io.ByteArrayInputStream(changed))).isNotNull();
+        UUID uploadId = issueTicket(author, declared);
+        recorder.put(quarantineKeyOf(uploadId), changed);
+
+        createPost(author, uploadId, placeId).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(recorder.published).isEmpty();
+        assertThat(postsAuthoredBy(author)).isZero();
+        assertThat(recorder.deleted).contains(quarantineKeyOf(uploadId));
+    }
+
+    @Test
+    @DisplayName("BA-082 declared upload length must match the received bytes exactly")
+    void shorterImageThanDeclaredIsRejected() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        byte[] image = jpeg(64, 48);
+        String response = createUpload(author, "upload-" + UUID.randomUUID(), image.length + 1,
+                sha256(image)).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID uploadId = uploadIdOf(response);
+        issued.add(uploadId);
+        recorder.put(quarantineKeyOf(uploadId), image);
+
+        createPost(author, uploadId, placeId).andExpect(status().isUnprocessableContent());
+        assertThat(recorder.published).isEmpty();
+        assertThat(postsAuthoredBy(author)).isZero();
+    }
+
+    @Test
+    @DisplayName("BA-082 an empty place list is refused before an upload ticket is spent")
+    void emptyPlaceListIsRejectedBeforeUploadIsSpent() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        UUID uploadId = issueTicket(author);
+        recorder.put(quarantineKeyOf(uploadId), jpeg(64, 48));
+
+        mvc.perform(post("/api/v1/posts")
+                        .cookie(new Cookie("__Host-nullnull_session", author.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", author.csrf.token)
+                        .header("Idempotency-Key", "post-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"uploadId\":\"" + uploadId + "\",\"title\":\"가을 산책\","
+                                + "\"body\":\"좋았다\",\"placeIds\":[]}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        assertThat(recorder.published).isEmpty();
+        assertThat(recorder.deleted).isEmpty();
+        createPost(author, uploadId, placeId).andExpect(status().isCreated());
+    }
+
+    @Test
     // This carried BA-082-T3 for a while and should not have: that clause was then
     // "삭제/권리 철회가 기존 cursor·cache에서도 반영된다", which this does not touch. The borrowed id
     // was wrong in both directions - T3 looked covered while nothing tested it, and this property
@@ -136,8 +197,9 @@ class PostAuthoringIT {
     void aTicketIsSpentOnce() throws Exception {
         var author = sessions.bootstrap(null, null, null);
         UUID placeId = place();
-        UUID uploadId = issueTicket(author);
-        recorder.put(quarantineKeyOf(uploadId), jpeg(32, 32));
+        byte[] image = jpeg(32, 32);
+        UUID uploadId = issueTicket(author, image);
+        recorder.put(quarantineKeyOf(uploadId), image);
 
         createPost(author, uploadId, placeId).andExpect(status().isCreated());
         // Same answer as a ticket that never existed: the contract carries one code for both.
@@ -149,6 +211,80 @@ class PostAuthoringIT {
         // about a second row that reused it. Sequential calls only - two concurrent calls race on the
         // conditional claim, and that race is not measured here.
         assertThat(postsAuthoredBy(author)).as("one post row").isOne();
+    }
+
+    @Test
+    @DisplayName("BA-082 a lost publish response replays the same post for the same key")
+    void sameKeyReplaysPublishedPost() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        byte[] image = jpeg(32, 32);
+        UUID uploadId = issueTicket(author, image);
+        recorder.put(quarantineKeyOf(uploadId), image);
+        String key = "post-" + UUID.randomUUID();
+
+        String first = createPost(author, uploadId, placeId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String replay = createPost(author, uploadId, placeId, key)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(recorder.published).hasSize(1);
+        assertThat(postsAuthoredBy(author)).isOne();
+    }
+
+    @Test
+    @DisplayName("BA-082 a publish key cannot be reused with changed text")
+    void sameKeyWithDifferentPostIsRejected() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        UUID placeId = place();
+        byte[] image = jpeg(32, 32);
+        UUID uploadId = issueTicket(author, image);
+        recorder.put(quarantineKeyOf(uploadId), image);
+        String key = "post-" + UUID.randomUUID();
+        createPost(author, uploadId, placeId, key).andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/posts")
+                        .cookie(new Cookie("__Host-nullnull_session", author.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", author.csrf.token)
+                        .header("Idempotency-Key", key)
+                        .contentType("application/json")
+                        .content("{\"uploadId\":\"" + uploadId + "\",\"title\":\"다른 글\","
+                                + "\"body\":\"좋았다\",\"altText\":\"단풍\","
+                                + "\"placeIds\":[\"" + placeId + "\"]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        assertThat(recorder.published).hasSize(1);
+        assertThat(postsAuthoredBy(author)).isOne();
+    }
+
+    @Test
+    @DisplayName("BA-082 an upload reservation retry returns the same signed ticket")
+    void sameKeyReplaysUploadTicket() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        String key = "upload-" + UUID.randomUUID();
+        String first = createUpload(author, key, 2048)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String replay = createUpload(author, key, 2048)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID firstId = uploadIdOf(first);
+        UUID replayId = uploadIdOf(replay);
+        issued.add(firstId);
+        if (!replayId.equals(firstId)) issued.add(replayId);
+        assertThat(replay).isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("BA-082 an upload reservation key cannot be reused with changed length")
+    void sameUploadKeyWithDifferentLengthIsRejected() throws Exception {
+        var author = sessions.bootstrap(null, null, null);
+        String key = "upload-" + UUID.randomUUID();
+        String first = createUpload(author, key, 2048)
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        issued.add(uploadIdOf(first));
+        createUpload(author, key, 2049).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
     }
 
     /**
@@ -186,30 +322,62 @@ class PostAuthoringIT {
     private final List<UUID> places = new ArrayList<>();
 
     private UUID issueTicket(SessionService.Bootstrap owner) throws Exception {
-        byte[] image = jpeg(64, 48);
-        String body = mvc.perform(post("/api/v1/posts/images/uploads")
-                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
-                        .header("Origin", "http://localhost:5173")
-                        .header("X-CSRF-Token", owner.csrf.token)
-                        .header("Idempotency-Key", "upload-" + UUID.randomUUID())
-                        .contentType("application/json")
-                        .content("{\"contentType\":\"image/jpeg\",\"contentLength\":" + image.length
-                                + ",\"checksumSha256\":\"" + "a".repeat(64) + "\"}"))
+        return issueTicket(owner, jpeg(64, 48));
+    }
+
+    private UUID issueTicket(SessionService.Bootstrap owner, byte[] image) throws Exception {
+        String body = createUpload(owner, "upload-" + UUID.randomUUID(), image.length,
+                sha256(image))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        UUID uploadId = UUID.fromString(
-                body.replaceAll(".*\"uploadId\"\\s*:\\s*\"([^\"]+)\".*", "$1"));
+        UUID uploadId = uploadIdOf(body);
         issued.add(uploadId);
         return uploadId;
     }
 
+    private org.springframework.test.web.servlet.ResultActions createUpload(
+            SessionService.Bootstrap owner, String key, int length) throws Exception {
+        return createUpload(owner, key, length, "a".repeat(64));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createUpload(
+            SessionService.Bootstrap owner, String key, int length, String checksum) throws Exception {
+        return mvc.perform(post("/api/v1/posts/images/uploads")
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("Idempotency-Key", key)
+                        .contentType("application/json")
+                        .content("{\"contentType\":\"image/jpeg\",\"contentLength\":" + length
+                                + ",\"checksumSha256\":\"" + checksum + "\"}"));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static UUID uploadIdOf(String body) {
+        return UUID.fromString(
+                body.replaceAll(".*\"uploadId\"\\s*:\\s*\"([^\"]+)\".*", "$1"));
+    }
+
     private org.springframework.test.web.servlet.ResultActions createPost(
             SessionService.Bootstrap owner, UUID uploadId, UUID placeId) throws Exception {
+        return createPost(owner, uploadId, placeId, "post-" + UUID.randomUUID());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createPost(
+            SessionService.Bootstrap owner, UUID uploadId, UUID placeId, String key) throws Exception {
         return mvc.perform(post("/api/v1/posts")
                 .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
                 .header("Origin", "http://localhost:5173")
                 .header("X-CSRF-Token", owner.csrf.token)
-                .header("Idempotency-Key", "post-" + UUID.randomUUID())
+                .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content("{\"uploadId\":\"" + uploadId + "\",\"title\":\"가을 산책\",\"body\":\"좋았다\","
                         + "\"altText\":\"단풍\",\"placeIds\":[\"" + placeId + "\"]}"));

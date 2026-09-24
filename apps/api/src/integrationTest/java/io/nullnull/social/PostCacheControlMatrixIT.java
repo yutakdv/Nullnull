@@ -20,7 +20,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -239,22 +241,23 @@ class PostCacheControlMatrixIT {
 
     private MvcResult issueTicketResult(SessionService.Bootstrap owner) throws Exception {
         byte[] image = jpeg(64, 48);
+        String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image));
         MvcResult result = mvc.perform(post("/api/v1/posts/images/uploads")
                 .cookie(cookie(owner)).header("Origin", ORIGIN).header("X-CSRF-Token", owner.csrf.token)
                 .header("Idempotency-Key", "upload-" + UUID.randomUUID())
                 .contentType("application/json")
                 .content("{\"contentType\":\"image/jpeg\",\"contentLength\":" + image.length
-                        + ",\"checksumSha256\":\"" + "a".repeat(64) + "\"}"))
+                        + ",\"checksumSha256\":\"" + checksum + "\"}"))
                 .andReturn();
-        uploads.add(uuidField(result, "uploadId"));
+        UUID uploadId = uuidField(result, "uploadId");
+        uploads.add(uploadId);
+        recorder.put(quarantineKeyOf(uploadId), image);
         return result;
     }
 
     private UUID issueTicket(SessionService.Bootstrap owner) throws Exception {
         issueTicketResult(owner);
-        UUID uploadId = uploads.get(uploads.size() - 1);
-        recorder.put(quarantineKeyOf(uploadId), jpeg(32, 32));
-        return uploadId;
+        return uploads.get(uploads.size() - 1);
     }
 
     private MvcResult createPost(SessionService.Bootstrap owner, UUID uploadId, UUID placeId)
