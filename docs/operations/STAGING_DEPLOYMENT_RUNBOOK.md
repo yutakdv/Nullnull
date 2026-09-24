@@ -308,6 +308,145 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 
 이 계정에서는 AWS Budgets를 만들 수 없다(Organizations SCP). 위 금액 단계는 오너가 청구 화면을 보고 판단하며, 현재 단가로 다시 계산한 추정은 [infra/cost-basis.md](../../infra/cost-basis.md)에 있다. 자동으로 RDS/S3를 지우지 않는다.
 
+### 종료 절차(teardown, #307)
+
+**아직 실행하지 않는다.** 실행 조건은 둘이다.
+
+- 공식 공지로 심사와 결과 발표가 끝났음을 확인한다.
+- 파괴적 단계마다 오너가 승인한다.
+
+이 절의 사실은 세 등급으로 적었다.
+
+- `[읽음]`: 코드·문서를 읽어 확인했다.
+- `[합성]`: CDK를 합성해 확인했다. AWS는 호출하지 않았다.
+- `[미확인]`: AWS에서 재지 않았다.
+
+**EXPIRY 뒤 operator 동작** `[읽음]` — `staging_operator.py`의 `EXPIRY`는 2026-10-25T14:59:59Z다.
+
+- 다음은 `staging-expired`로 거부된다.
+  - deploy·bootstrap plan 생성
+  - deploy·rollback의 `classify`와 `--execute`(`verify_plan`). rollback plan은 만들어지지만 plan 만료가 EXPIRY로 잘려 실행에서 거부된다.
+  - `edge`(`verify_deployed_plan`)
+- `edge`는 이 검사를 잠금과 현재 상태 읽기보다 먼저 한다. 그래서 EXPIRY 뒤에는 *"이미 닫혀 있다"* 는 확인도 할 수 없다.
+- `task`·`unlock`·`secrets`·`secret-scan`에는 만료 검사가 없다.
+- 다음 둘도 같은 시각에 멈춘다.
+  - 예보·detail schedule(`FORECAST_SCHEDULE_END`)
+  - 서울 Live 수집(`SeoulLiveRefreshScheduler`의 `JUDGING_END`)
+- RDS·ECS·ALB 과금은 멈추지 않는다(A-050).
+
+**stack을 지우기 전에 할 것**:
+
+1. 제출 release의 최종 증거(#305)를 남긴다. release bucket에 다음이 쓰인다.
+   - `kto-smoke`: `evidence/actual-call-<release>.json`
+   - `task --task kto-call-inventory`: `evidence/kto-inventory/<release>/`
+   - `secret-scan`: `evidence/secret-exposure/<release>/`
+
+   call-audit 원본은 RDS에 있으므로 Data stack을 지우기 전에 inventory로 내보낸다.
+2. release bucket의 증거를 오너 저장소로 내려받고 sha256 목록을 남긴다.
+   - 대상: `deployed/current.json`·`previous.json`, `releases/<planSha256>/plan.tgz`, `evidence/**`
+   - operator 권한(`ReleaseRecords`)으로 읽을 수 있다.
+3. CloudFront 접근 로그는 원문 대신 집계만 남긴다(`scripts/aws/cloudfront_access_report.py`).
+   - 원문에는 viewer IP(`c-ip`)가 있고, 로그 그룹 보존은 1개월이다.
+   - 로그 그룹은 us-east-1에 있다. operator의 로그 읽기 권한(`OperatorLogs`)은 ap-northeast-2 범위라 이 그룹을 읽지 못한다. `--profile`에는 읽기 권한이 있는 다른 프로필을 준다.
+4. edge를 operator로 닫으려면 EXPIRY 전에 닫는다.
+5. staging에서만 증명할 수 있는 절을 teardown 전에 증명할지 정한다. teardown 뒤에는 증명할 수 없다. 예: `BA-071-T4`(rollback 뒤 smoke).
+6. `scripts/aws/staging-expiry-audit.sh`를 사전·사후 목록으로 쓰지 않는다.
+   - 7개 stack만 본다. Migration, GlobalWaf, 접근 로그 stack, toolkit 두 개가 빠진다.
+   - tagging API도 ap-northeast-2만 본다.
+
+   목록은 아래 표와 두 region 조회로 만든다.
+
+**stack 삭제 순서** `[합성]` — 다른 stack이 import하는 stack은 그 import가 사라진 뒤에만 지울 수 있다. 아래 순서가 그 조건을 만족한다.
+
+| 순서 | stack | region | 삭제 보호 | 먼저 사라져야 하는 것 |
+| --- | --- | --- | --- | --- |
+| 1 | `NullnullStgCloudFrontAccessLogs` | us-east-1 | 없음 | 없음. distribution ID를 parameter로 받아 로그 전달만 붙인다 |
+| 2 | `NullnullStgServices` | ap-northeast-2 | 없음 | 없음 |
+| 3 | `NullnullStgMigration` | ap-northeast-2 | 없음 | 없음. 예보·detail schedule도 이 stack에 있다 |
+| 4 | `NullnullStgWebEdge` | ap-northeast-2 | 없음 | Services, Migration의 import |
+| 5 | `NullnullStgObservability` | ap-northeast-2 | 없음 | 없음 |
+| 6 | `NullnullStgPlatform` | ap-northeast-2 | 없음 | Services, Migration, WebEdge, Observability의 import |
+| 7 | `NullnullStgData` | ap-northeast-2 | stack termination protection, RDS deletion protection | Services, Migration, Observability의 import |
+| 8 | `NullnullStgNetwork` | ap-northeast-2 | 없음 | Services, Migration, Data, Platform의 import |
+| 9 | `NullnullStgGlobalWaf` | us-east-1 | 없음 | WebEdge. import는 없지만 WebEdge가 parameter로 쓴다 |
+| 10 | `NullnullStgFoundation` | ap-northeast-2 | stack termination protection | Services, Migration의 import |
+| 11 | `NullnullStgCDKToolkit`(두 region) | 둘 다 | §11 bootstrap 명령이 `--termination-protection`을 준다 `[읽음]`. 실제 값은 `[미확인]` | 모든 `NullnullStg*` app stack. deploy 역할과 CloudFormation 실행 역할이 이 stack에 있다 |
+
+**삭제 뒤에도 남는 것** `[합성]` — `DeletionPolicy`가 `Retain`이거나 `Snapshot`인 자원, 그리고 CFN 밖에서 생긴 자원이다.
+
+- Foundation:
+  - ECR 2개(api·ai)
+  - S3 2개(`Releases`·`DeletionLedger`, 둘 다 versioning)
+  - DynamoDB 잠금 table(삭제 보호 켜짐)
+  - secret 3개(KTO·서울·verifier token)
+- Data:
+  - RDS 최종 snapshot
+  - 자동 백업(`deleteAutomatedBackups: false`)
+  - secret 3개(DB 자격 증명·cursor·deletion)
+- Platform: 로그 그룹 3개(api·ai·migration)
+- WebEdge: S3 `WebBucket`(versioning). 사용자 업로드(`quarantine/`·`covers/user/`)의 모든 version을 포함한다.
+- 접근 로그 stack: 로그 그룹 `NullnullStgCloudFrontAccessLogs`
+- CFN 밖에서 생긴 것:
+  - Lambda 로그 그룹 `[미확인]`: WebEdge의 `BucketDeployment` handler와 Services의 서울 프록시(`NullnullStgSeoulProxy`)는 CFN에 로그 그룹이 없다. 실행된 적이 있으면 Lambda가 만든 `/aws/lambda/…` 로그 그룹이 남는다.
+  - CDK staging bucket(`cdk-nnstg-assets-*`) `[읽음]`: 커밋된 bootstrap 템플릿에서 `Retain`이다.
+  - CDK container-assets 저장소: `Retain`이 아니다. 합성된 container image asset이 0개라 비어 있을 것이다 `[합성]`.
+  - 복원 drill DB(`nullnull-stg-restore-*`): `staging-restore-drill.sh`가 만들고 자동으로 지우지 않는다 `[읽음]`. 실제로 있는지는 `[미확인]`.
+
+**권한 주체** `[읽음]` — `infra/iam/operator.json`과 커밋된 bootstrap 템플릿(`infra/bootstrap/nnstg-bootstrap.yaml`)을 기준으로 했다.
+
+- **app stack 삭제**:
+  - operator 역할 자신은 `NullnullStg*` stack을 읽기만 한다(`ReadNullnullStacks`).
+  - 대신 CDK deploy 역할(`cdk-nnstg-*`)을 맡아(`DeployThroughCdkRoles`) 지운다. deploy 역할의 `CliPermissions`에 `cloudformation:DeleteStack`·`UpdateTerminationProtection`이 있다. 그 범위는 역할이 있는 region의 `NullnullStg*` stack이다. 그래서 us-east-1의 두 stack은 us-east-1 deploy 역할로 지운다.
+  - CloudFormation은 stack을 만든 실행 역할로 자원을 지운다. 그 역할의 Deny는 `Project=Nullnull` 태그가 아닌 자원에만 걸린다.
+- **toolkit stack 삭제**: deploy 역할은 toolkit stack 자신을 건드리지 못한다(`NeverTheToolkitStackItself`). 대신 operator 역할이 직접 지운다. 쓰는 권한은 셋이다.
+  - `OwnCdkToolkitStack`: 두 region의 `NullnullStgCDKToolkit`에 `cloudformation:*`
+  - `CdkBootstrapRoles`: `cdk-nnstg-*` 역할 삭제
+  - `CdkBootstrapStorage`: staging bucket과 container 저장소에 `s3:*`·`ecr:*`
+- **삭제 보호 해제**: RDS와 DynamoDB 잠금 table 둘 다 해당한다. operator에는 `rds:ModifyDBInstance`가 없고, EXPIRY 뒤에는 deploy도 거부된다. 그래서 IAM admin profile(`NULLNULL_IAM_ADMIN_PROFILE`)이나 콘솔로 푼다.
+- **남은 자원 삭제**: CDK staging bucket은 operator가 지울 수 있다. 나머지는 operator 권한 밖이라 admin profile이 필요하다.
+  - S3 3개의 모든 version과 delete marker
+  - ECR 2개, secret 6개, DynamoDB
+  - 로그 그룹
+  - RDS snapshot·자동 백업
+- **IAM 정리**: 대상은 `staging-iam.py`가 만든 정책 5개와 `nullnull-stg-operator` 역할이다.
+  - 스크립트에 삭제 경로가 없으므로 admin profile로 손으로 지운다.
+  - `NullnullStgCfnExecution*` 세 정책은 CloudFormation 실행 역할에 붙어 있다. toolkit stack을 지운 뒤에 지운다.
+- **GitHub OIDC provider는 지우지 않는다.** 이 저장소가 만든 것이 아니다(infra test *"existing GitHub OIDC provider is referenced, never created"*).
+
+**사후 확인**:
+
+- 두 region 모두에서 `NullnullStg*` stack이 0개다(toolkit 포함).
+- 두 region의 tagging API에서 `Project=Nullnull` 결과가 보존하기로 한 자원뿐이다. operator에 `tag:GetResources`가 있다. Lambda가 만든 로그 그룹은 태그가 없을 수 있어 `/aws/lambda/NullnullStg` 접두사로 따로 본다.
+- GitHub:
+  - `staging-reconcile.yml`은 15분마다 돈다(cron `7,22,37,52 * * * *`). 이것을 끈다.
+  - `STAGING_AUTO_DEPLOY`가 `true`가 아닌지 본다.
+  - `staging` environment의 secret을 정리한다.
+- 다음 달 청구는 오너가 조직 청구 화면에서 확인한다. Budgets를 쓸 수 없기 때문이다(A-050). `infra/cost-basis.md`의 추정으로는 보존 자원만 남을 때 월 3.45(세후)다.
+- 증거에는 account ID와 private IP를 적지 않는다.
+
+**실행 전 오너 결정**:
+
+- **날짜**: 공모전 일정(`docs/contest/2026-관광데이터-활용-공모전-공지-심사기준.md`)은 다음과 같다.
+  - 최종심사 대상 발표: 2026-10-21
+  - 최종 발표심사: 2026-10-28
+
+  선정되면 발표심사가 EXPIRY 뒤다. 그때까지 서비스를 둘지 정한다.
+- **EXPIRY 연장 여부**: 만료값은 코드 여러 곳에 하드코딩돼 있다.
+  - `git grep -n '2026-10-25\|2026, 10, 25' -- ':!docs'`로 찾는다.
+  - 태그의 `Expiry` 값까지 포함해 한 PR에서 바꾼다. 대표적인 것은 `staging_operator.py`의 `EXPIRY`, `FORECAST_SCHEDULE_END`, `JUDGING_END`, `scripts/aws/common.sh`의 만료 검사다.
+  - A-029(종료일)와 A-044(상시 승인)를 다시 승인한다.
+- **edge 폐쇄 방법**: 다음 셋 중 하나다.
+  - EXPIRY 전에 닫는다. 이 경우 심사 마지막 시간과 겹친다.
+  - 닫지 않고 stack 삭제로 대신한다.
+  - `closed`만 EXPIRY 뒤에도 허용하도록 operator를 고친다.
+- **데이터 보존**: 다음 셋을 각각 정한다.
+  - RDS 최종 snapshot과 자동 백업
+  - `WebBucket`의 사용자 업로드
+  - 나머지 보존 자원
+
+  삭제 원장이 없다(A-048). 그래서 snapshot을 복원하면 접수된 삭제가 되감길 수 있다.
+- **파괴적 단계의 실행 주체**: admin profile이나 콘솔을 누가 쓸지 정한다.
+
 ### 42일 비용 계획
 
 | 항목 | 계획치 USD |
