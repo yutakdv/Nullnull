@@ -2759,7 +2759,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-071",
-      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 실제 DynamoDB 잠금의 이중 획득 거부(나)와 로컬 Flyway 동시 실행의 대기(다)로 증명했다. T3는 A-047로 승격 절을 빼고 manifest에 묶인 산출물 전체의 대조 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 #305의 마지막 배포 전 연습으로 남았다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
+      "reason": "T1은 staging smoke(alb_internal·s3_private·rds_private_multi_az)가 증명했다. T2는 실제 DynamoDB 잠금의 이중 획득 거부(나)와 로컬 Flyway 동시 실행의 대기(다)로 증명했다. T3는 A-047로 승격 절을 빼고 manifest에 묶인 산출물 전체의 대조 test와 staging release run들이 증명했다. T4(rollback 뒤 smoke)는 오너 결정(2026-09-21, #305 본문)으로 연습하지 않는다 — 증거 수집 뒤의 재배포가 release 이름에 묶인 actual_call·inventory·readiness를 무효로 만들기 때문이다. 그래서 T4는 미증명으로 남는다. staging 절은 JUnit으로 집계되지 않으므로 in-progress를 유지한다."
     },
     {
       "id": "BA-072",
@@ -3936,7 +3936,12 @@
         },
         {
           "id": "BA-091-T2",
-          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다"
+          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 BA-091-T2 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
         },
         {
           "id": "BA-091-T3",
