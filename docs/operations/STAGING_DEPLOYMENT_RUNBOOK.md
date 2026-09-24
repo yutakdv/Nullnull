@@ -227,7 +227,7 @@ release manifest는 한 번 build한 산출물을 식별한다.
 
 두 workflow가 동시에 시작해도 진행 중 migration/deploy는 취소하지 않는다. GitHub environment concurrency는 1, `cancel-in-progress=false`다.
 
-**공개 중 schema를 늘리는 배포(A-067).** `--preserve-open-edge` deploy는 edge를 연 채로 migration을 돈다. 그래서 migration task가 끝난 뒤 Services가 바뀌기 전까지 **옛 API가 새 schema를 읽는다.** 이 모드는 schema 불변만 받았고, 이제 plan이 이름을 댄 migration이 배포된 목록 뒤에 그것만 덧붙은 경우도 받는다. 이름은 **plan을 만들 때** 준다: local `deploy --manifest … --accept-additive-schema <파일>[,<파일>]`, 또는 `staging-release.yml`의 `accept_additive_schema` 입력이다. 이름은 `plan.json`의 `acceptAdditiveSchema`에 들어가 승인 hash가 덮고, plan 출력·`classify` 출력·plan job summary에 찍힌다. 이 release의 migration 파일이 아닌 이름, deploy가 아닌 plan에 준 이름은 plan 단계에서 거부한다. execute는 plan의 이름만 따른다. execute에 다시 준 이름이 plan과 다르면 거부한다(`accept-additive-schema-not-in-approved-plan`). 이름이 든 plan은 `--preserve-open-edge` execute만 돌릴 수 있고, edge를 열어 두지 않는 workflow deploy job은 그 plan을 거부한다. 배포 기록(`deployed/current.json`)에 migration 목록이 없으면 거부한다(`accept-additive-schema-requires-deployed-release`). 배포된 항목의 순서·checksum이 바뀌었거나, 이름 없는 migration이 더 있거나, 이름 댄 파일이 덧붙지 않았어도 거부한다(`preserve-open-schema-change`). execute의 거부는 모두 stack 배포와 migration 전에 난다. rollback plan은 되돌아가는 release plan의 이름을 물려받지 않는다. **operator는 옛 코드가 그 파일을 견디는지 판정하지 않는다** — 이름을 대는 것은 그 질문이 plan 검토에서 답해졌다는 표시다.
+**공개 중 schema를 늘리는 배포(A-067).** `--preserve-open-edge` deploy는 edge를 연 채로 migration을 돈다. 그래서 migration task가 끝난 뒤 Services가 바뀌기 전까지 **옛 API가 새 schema를 읽는다.** 이 모드는 schema 불변만 받았고, 이제 plan이 이름을 댄 migration이 배포된 목록 뒤에 그것만 덧붙은 경우도 받는다. 이름은 **plan을 만들 때** 준다: local `deploy --manifest … --accept-additive-schema <파일>[,<파일>]`, 또는 `staging-release.yml`의 `accept_additive_schema` 입력이다. 이름은 `plan.json`의 `acceptAdditiveSchema`에 들어가 승인 hash가 덮고, plan 출력·`classify` 출력·plan job summary에 찍힌다. 이 release의 migration 파일이 아닌 이름, deploy가 아닌 plan에 준 이름은 plan 단계에서 거부한다. execute는 plan의 이름만 따른다. execute에 다시 준 이름이 plan과 다르면 거부한다(`accept-additive-schema-not-in-approved-plan`). 이름이 든 plan은 `--preserve-open-edge` execute만 돌릴 수 있고, edge를 열어 두지 않는 workflow deploy job은 그 plan을 거부한다. 의도된 동작이다. CI가 만든 plan을 local에서 실행하는 순서는 §11에 있다. 배포 기록(`deployed/current.json`)에 migration 목록이 없으면 거부한다(`accept-additive-schema-requires-deployed-release`). 배포된 항목의 순서·checksum이 바뀌었거나, 이름 없는 migration이 더 있거나, 이름 댄 파일이 덧붙지 않았어도 거부한다(`preserve-open-schema-change`). execute의 거부는 모두 stack 배포와 migration 전에 난다. rollback plan은 되돌아가는 release plan의 이름을 물려받지 않는다. **operator는 옛 코드가 그 파일을 견디는지 판정하지 않는다** — 이름을 대는 것은 그 질문이 plan 검토에서 답해졌다는 표시다.
 
 승인 경로는 `classify`가 정한다. live template과 새 template을 release 자신의 표지(task definition image의 `@sha256:` 꼬리와 `APP_RELEASE_VERSION`, web bundle key)만 가려서 비교하고, 그 밖의 차이나 migration 집합 변경이 하나라도 있으면 `infra`다. `infra`의 reviewer가 승인하는 것은 plan job summary에 찍힌 diff(정규화한 template과 migration 목록, 12자리 숫자는 가림)이고, 분류 시점의 **원본** live template hash가 실행 직전과 다르면 실행을 거부한다. 분류 뒤 app release가 하나라도 배포됐다면 digest만 바뀌어도 그 승인은 무효다.
 
@@ -560,11 +560,36 @@ python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-pla
 # schema를 덧붙이는 release는 덧붙는 migration 파일을 plan을 만들 때 이름으로 댄다(A-067, §7). 승인 hash가 그 이름을 덮고
 # execute는 plan의 이름만 따른다. 배포된 목록이 새 목록의 정확한 앞부분이고 덧붙은 파일이 이름과 정확히 같을 때만 통과한다.
 # 이 배포 뒤 rollback plan에는 --accept-newer-schema가 필요하다(§8).
-python3 scripts/aws/staging_operator.py deploy --manifest .artifacts/releases/release.json --web-dir apps/web/dist \
-  --estimated-total 80 --cost-basis infra/cost-basis.md --accept-additive-schema V050__kto_eng_service_text_source.sql
-python3 scripts/aws/staging_operator.py classify --plan <plan.json> --approved-plan-sha256 <sha>   # accept_additive_schema=
-python3 scripts/aws/staging_operator.py deploy --plan <plan.json> --approved-plan-sha256 <sha> \
+# CI plan 경로(R2): plan은 staging-release.yml이 만들고, 실행은 local operator가 edge를 연 채로 한다. CI deploy job은
+# --preserve-open-edge를 주지 않으므로 이름이 든 plan을 거부한다(accept-additive-schema-requires-preserve-open-edge).
+# 의도된 동작이다 — open-edge로 검토된 plan이 edge를 닫는 기본 배포로 실행되지 않는다. 이 경로는 plan이 infra로 분류될
+# 때만 쓴다: staging environment에는 reviewer가 없어 app plan이면 deploy-app이 기다리지 않고 바로 돈다.
+# rc.20(run 20)이 이 경로로 나갔다. run 기록은 plan 성공·deploy-infra 취소이고, (d)~(g)는 run 기록에 남지 않는다.
+# (a) main HEAD를 dispatch한다.
+gh workflow run staging-release.yml --ref main -f action=deploy -f expected_sha=<main HEAD> \
+  -f accept_additive_schema=V050__kto_eng_service_text_source.sql
+# (b) plan job이 끝나고 deploy-infra가 reviewer를 기다리는지 본다. plan job 요약에서 approved plan sha256, infra reason,
+#     "migrations an open-edge execute may append" 줄을 읽는다.
+# (c) 승인하지 않고 취소한다. 기본 deploy가 edge를 닫는 경로가 돌지 않는다.
+gh run cancel <run_id>
+# (d)(e) operator 자격증명(위 AWS_PROFILE)으로 plan job이 올린 plan을 받는다. key의 attempt는 plan job을 다시 돌리지
+#     않았으면 1이다.
+bucket="$(aws cloudformation describe-stacks --stack-name NullnullStgFoundation \
+  --query "Stacks[0].Outputs[?OutputKey=='ReleaseBucketName'].OutputValue | [0]" --output text)"
+aws s3 cp "s3://${bucket}/pending/<run_id>-<attempt>/plan.tgz" plan.tgz --only-show-errors
+mkdir plan && tar -xzf plan.tgz -C plan
+# (f) 받은 plan.json이 plan job이 승인 대상으로 찍은 그 plan인지 먼저 본다. 기대값은 plan job 요약이나 plan 단계 log의
+#     approved_plan_sha256이다. 받은 파일에서 다시 계산한 값을 쓰면 이 비교도 execute의 hash 검사도 아무것도 재지 않는다.
+#     MISMATCH면 멈춘다. match일 때만 plan/template-diff.txt(검토 diff)와 plan/classification.json(kind·findings)을 읽는다.
+[ "$(shasum -a 256 plan/plan.json | cut -d' ' -f1)" = "<approved_plan_sha256>" ] && echo plan_sha256=match || echo plan_sha256=MISMATCH
+# (g) dispatch한 commit과 정확히 같은 commit의 worktree에서 실행한다. verify_plan이 infra/package-lock.json hash를 plan의
+#     toolchainSha256과 대조한다. operator 코드가 같은 commit인지는 대조하는 장치가 없다. plan은 만든 지 24시간 안에
+#     실행한다(plan-older-than-24-hours). classify 뒤 live stack이 바뀌었으면 실행이 멈춘다.
+npm --prefix infra ci --ignore-scripts --no-audit --no-fund
+python3 scripts/aws/staging_operator.py deploy --plan plan/plan.json --approved-plan-sha256 <approved_plan_sha256> \
   --execute --kind infra --preserve-open-edge
+# local에서 plan을 만들 때는 위 `deploy --manifest` 줄에 --accept-additive-schema <파일>을 붙이고, classify 출력의
+# accept_additive_schema= 줄을 확인한 뒤 같은 execute를 돌린다.
 bash scripts/aws/staging-smoke.sh                                      # NULLNULL_VERIFIER_TOKEN 이 있으면 API 경로도 본다
 python3 scripts/aws/staging_operator.py rollback --previous-plan <plan.json> --previous-plan-sha256 <sha>
 python3 scripts/aws/staging_operator.py classify --plan <rollback-plan.json> --approved-plan-sha256 <sha>
