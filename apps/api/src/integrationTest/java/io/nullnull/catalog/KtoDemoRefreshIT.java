@@ -145,7 +145,7 @@ class KtoDemoRefreshIT {
     }
 
     @Test
-    @DisplayName("the detail mode maps a new place, leaves a snapshot with days to spare, and renews one two days before P7D")
+    @DisplayName("the detail mode maps a new place, leaves a just-fetched snapshot alone, and renews it on the next scheduled run")
     void theDetailClock() {
         KtoPlaceRequest place = place();
         answerDetail(place);
@@ -157,15 +157,15 @@ class KtoDemoRefreshIT {
         assertThat(detailStub.calls()).isEqualTo(1);
         assertThat(lines.get(0)).contains("planned_calls=1 per_day=1000 planned_ratio=0.0010");
 
-        // Four days in: three days left, more than the two-day margin. No call.
-        clock.advance(Duration.ofDays(4));
+        // Twelve hours in: six and a half days left, more than the six-day window. A rerun costs nothing.
+        clock.advance(Duration.ofHours(12));
         KtoDemoRefresh.Report quiet = refresh.run(KtoDemoRefresh.Mode.DETAIL, List.of(place), lines::add);
         assertThat(quiet.outcomes().get(0).status()).isEqualTo(KtoDemoRefresh.Status.CURRENT);
         assertThat(quiet.calls()).isZero();
         assertThat(detailStub.calls()).isEqualTo(1);
 
-        // Five days and an hour in: under two days left. Renewed before it lapses, onto the same place.
-        clock.advance(Duration.ofDays(1).plusHours(1));
+        // The next scheduled run, five days after the first: two days left. Renewed, onto the same place.
+        clock.advance(Duration.ofDays(4).plusHours(12));
         answerDetail(place);
         KtoDemoRefresh.Report renewed = refresh.run(KtoDemoRefresh.Mode.DETAIL, List.of(place), lines::add);
         assertThat(renewed.outcomes().get(0).status()).isEqualTo(KtoDemoRefresh.Status.REFRESHED);
@@ -176,7 +176,47 @@ class KtoDemoRefreshIT {
     }
 
     @Test
-    @DisplayName("the forecast mode renews a set twelve hours before PT24H, and fails once the detail mapping has lapsed")
+    @DisplayName("the next scheduled detail run renews the snapshot even when it starts sooner after its tick than the last run fetched")
+    void theNextDetailRunRenewsWhicheverRunStartedFaster() {
+        KtoPlaceRequest place = place();
+        answerDetail(place);
+        // The last run's call went out a minute after its tick: startup, and the places ahead of this one.
+        clock.advance(Duration.ofMinutes(1));
+        refresh.run(KtoDemoRefresh.Mode.DETAIL, List.of(place), lines::add);
+        assertThat(detailStub.calls()).isEqualTo(1);
+
+        // This run starts right on the next tick, five schedule days after the last: a minute short of
+        // five days after the fetch. The snapshot would lapse two days in, three before the run after
+        // this one - so this is the run that has to renew it, however fast it started (#361).
+        clock.advance(Duration.ofDays(5).minusMinutes(1));
+        answerDetail(place);
+        KtoDemoRefresh.Report next = refresh.run(KtoDemoRefresh.Mode.DETAIL, List.of(place), lines::add);
+        assertThat(next.outcomes().get(0).status()).isEqualTo(KtoDemoRefresh.Status.REFRESHED);
+        assertThat(detailStub.calls()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("the next scheduled forecast run renews the set even when it starts sooner after its tick than the last run fetched")
+    void theNextForecastRunRenewsWhicheverRunStartedFaster() {
+        KtoPlaceRequest place = place();
+        answerDetail(place);
+        refresh.run(KtoDemoRefresh.Mode.DETAIL, List.of(place), lines::add);
+        clock.advance(Duration.ofMinutes(1));
+        answerForecast();
+        refresh.run(KtoDemoRefresh.Mode.FORECAST, List.of(place), lines::add);
+        assertThat(forecastStub.calls()).isEqualTo(1);
+
+        // Twelve schedule hours later, a minute short of twelve hours after the fetch: the set would lapse
+        // before the run after this one, so this run renews it.
+        clock.advance(Duration.ofHours(12).minusMinutes(1));
+        answerForecast();
+        assertThat(refresh.run(KtoDemoRefresh.Mode.FORECAST, List.of(place), lines::add).outcomes().get(0).status())
+                .isEqualTo(KtoDemoRefresh.Status.REFRESHED);
+        assertThat(forecastStub.calls()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("the forecast mode leaves a just-fetched set alone, renews a stale one, and fails once the detail mapping has lapsed")
     void theForecastClock() {
         KtoPlaceRequest place = place();
         answerDetail(place);
