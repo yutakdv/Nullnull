@@ -9,12 +9,11 @@ import { overflow } from './overflow.js';
 // page.route cannot see a request the MSW worker answers. Measured: with the
 // worker allowed it routed none of the Live reads and the page showed the MSW
 // LIVE result; with the worker blocked it routed the area query and the page
-// showed the replay. So this file blocks service workers and routes the three
-// calls the Live list makes - the CSRF reissue, the area query and an area's
-// places - and aborts anything else, so a call the screen starts making later
-// fails here instead of reaching the dev server's proxy.
-//
-// Mock-only: the composed gate runs no *.mock.spec.ts (playwright.config.ts).
+// showed the replay. So this file blocks service workers and serves every call
+// the Live list makes from the approved examples, and nothing reaches a server.
+// That is also why it has no .mock/.integration suffix: the same inputs reach
+// the page against the mock dev server and in the composed gate, which is what
+// runs FE-403-T1 and FE-403-T3 in required CI.
 test.use({ serviceWorkers: 'block' });
 
 const fixture = (path: string) =>
@@ -45,7 +44,9 @@ const WORDS = {
   },
 } as const;
 
-async function serve(page: Page, mode: keyof typeof AREA_RESULT): Promise<void> {
+/** Serves the Live list's calls; returns the calls it did not expect, for the test to assert empty. */
+async function serve(page: Page, mode: keyof typeof AREA_RESULT): Promise<string[]> {
+  const unexpected: string[] = [];
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -62,9 +63,15 @@ async function serve(page: Page, mode: keyof typeof AREA_RESULT): Promise<void> 
     ) {
       return json(AREA_PLACES);
     }
+    // The shell asks for the owner after the CSRF reissue. Both approved owner
+    // examples carry ko-KR, which would override the locale under test, so this
+    // one is refused on purpose - and it is the only call refused that way.
+    if (request.method() === 'GET' && pathname === '/api/v1/me') return route.abort();
+    unexpected.push(`${request.method()} ${pathname}`);
     return route.abort();
   });
   await page.route('https://dapi.kakao.com/**', (route) => route.abort());
+  return unexpected;
 }
 
 for (const mode of ['LIVE', 'REPLAY'] as const) {
@@ -75,7 +82,7 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
       }) => {
         const words = WORDS[locale];
         await page.setViewportSize({ width, height: 400 });
-        await serve(page, mode);
+        const unexpected = await serve(page, mode);
         await page.addInitScript((value) => {
           localStorage.setItem('nullnull.locale', value);
         }, locale);
@@ -88,6 +95,17 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
         // The observation in Seoul time, never the raw instant.
         await expect(state).toContainText(words.observed);
         await expect(state).not.toContainText('2026-09-20T05:00:00Z');
+
+        // Every area row says the same in its own badge: the list is where a
+        // traveller reads it, not only the header.
+        const rows = page.locator('button[aria-expanded]');
+        await expect(rows).toHaveCount(
+          (JSON.parse(AREA_RESULT[mode]) as { areas: unknown[] }).areas.length,
+        );
+        for (const row of await rows.all()) {
+          await expect(row).toContainText(words[mode]);
+          await expect(row).not.toContainText(words[mode === 'LIVE' ? 'REPLAY' : 'LIVE']);
+        }
 
         const area = page.getByRole('button', { name: /광화문·덕수궁/ });
         await area.focus();
@@ -111,6 +129,8 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
         const measured = await overflow(page);
         expect(measured.spilling, `spills: ${measured.widest.join(', ')}`).toEqual([]);
         expect(measured.clipped, 'clips its own text').toEqual([]);
+        // A call this file does not serve would have been aborted silently.
+        expect(unexpected, 'calls this file does not serve').toEqual([]);
       });
     }
   }
