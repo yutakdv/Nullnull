@@ -1,12 +1,15 @@
 package io.nullnull.catalog;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.MutableClock;
+import io.nullnull.testsupport.PlaceCredits;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -240,6 +243,42 @@ class CatalogRelatedPlacesApiIT {
                         .value(org.hamcrest.Matchers.contains(OFFICIAL)));
     }
 
+    /**
+     * The fixture Frontend mocks listRelatedPlaces with, held against a relation written the way
+     * CatalogRelationDeriver writes one - the only producer of relation rows. It used to carry a crowd
+     * forecast's provenance under the KorService2 name, comparisonEligible true included, which the server
+     * can never send for a relation (invariant 8).
+     *
+     * <p>Only the SIMILAR item is compared. The fixture's EXACT item has no producer: its one possible
+     * source, KTO_RELATED_PLACES, is disabled and unapproved (BA-024-T7 pins that EXACT is never emitted),
+     * so there is no response to hold it against. It stays as the mock of the Figma state
+     * (FIGMA_HANDOFF "Candidate relation"), credited to that provider's registered values.
+     */
+    @Test
+    @DisplayName("BA-024 places/related-page.json's SIMILAR item is what listRelatedPlaces sends for a derived relation")
+    void theRelatedPageFixtureDescribesADerivedRelation() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID source = ktoPlace("대조 출발 장소");
+        derived(source, ktoPlace("대조 대상 장소"));
+
+        tools.jackson.databind.JsonNode body = new tools.jackson.databind.ObjectMapper().readTree(
+                related(owner, source).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        tools.jackson.databind.JsonNode fixture = JsonShape.fixture("places/related-page.json");
+
+        assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(fixture));
+        assertThat(body.get("state")).isEqualTo(fixture.get("state"));
+        assertThat(body.get("reason")).isEqualTo(fixture.get("reason"));
+        tools.jackson.databind.JsonNode served = body.get("items").get(0);
+        tools.jackson.databind.JsonNode similar = fixture.get("items").get(0);
+        for (String field : List.of("relation", "relationReason", "crowd")) {
+            assertThat(served.get(field)).as(field).isEqualTo(similar.get(field));
+        }
+        // Every provenance field but the three a row owns: when it was recorded, when it lapses, its id.
+        assertThat(withoutRowFields(served.get("provenance")))
+                .isEqualTo(withoutRowFields(similar.get("provenance")));
+        PlaceCredits.assertSameAs(served, similar, "places/related-page.json SIMILAR");
+    }
+
     @Test
     @DisplayName("a place that projects nothing is a 404, never an empty relation list")
     void anUnknownPlaceIsNotFound() throws Exception {
@@ -273,6 +312,54 @@ class CatalogRelatedPlacesApiIT {
                 VALUES (?, ?, 'ko-KR', ?, '서울시 어딘가', ?)
                 """, UUID.randomUUID(), id, name, timestamp(NOW));
         return id;
+    }
+
+    /**
+     * A KTO place as JdbcCanonicalCatalogStore writes it: the place, its external reference, and its Korean
+     * localization with the revision the text was collected under (V047). The fixture's places are such
+     * places, credited and with a text credit on name and address.
+     */
+    private UUID ktoPlace(String name) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO places
+                    (id, canonical_name, category_code, latitude, longitude, region_code, status,
+                     created_at, updated_at)
+                VALUES (?, ?, 'A0201', 37.579617, 126.977041, '11', 'ACTIVE', ?, ?)
+                """, id, name, timestamp(NOW), timestamp(NOW));
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, address, updated_at, source_code, source_registry_version,
+                     source_locale, observed_at)
+                VALUES (?, ?, 'ko-KR', ?, '서울시 어딘가', ?, 'KTO_KOR_SERVICE_2', 4, 'ko-KR', ?)
+                """, UUID.randomUUID(), id, name, timestamp(NOW), timestamp(NOW));
+        jdbc.update("""
+                INSERT INTO place_external_refs
+                    (id, place_id, source_code, source_registry_version, external_id, external_type, verified_at)
+                VALUES (?, ?, 'KTO_KOR_SERVICE_2', 4, ?, 'KTO_CONTENT_TYPE:12', ?)
+                """, UUID.randomUUID(), id, "fixture-" + id, timestamp(NOW));
+        return id;
+    }
+
+    /**
+     * A relation as CatalogRelationDeriver writes it through JdbcCatalogRelationStore: SIMILAR by our own
+     * rule, CONFIRMED, its reason, and a window the registry's stale_after_seconds (604800) sets.
+     */
+    private void derived(UUID source, UUID target) {
+        Instant effective = NOW.minus(java.time.Duration.ofDays(1));
+        jdbc.update("""
+                INSERT INTO place_relations
+                    (id, source_place_id, target_place_id, relation_type, derivation, mapping_certainty,
+                     relation_reason, source_code, source_registry_version, effective_at, expires_at, created_at)
+                VALUES (?, ?, ?, 'SIMILAR', 'INTERNAL_RULE', 'CONFIRMED', '같은 분류·지역', ?, 1, ?, ?, ?)
+                """, UUID.randomUUID(), source, target, RULE, timestamp(effective),
+                timestamp(effective.plusSeconds(604_800)), timestamp(effective));
+    }
+
+    private static tools.jackson.databind.JsonNode withoutRowFields(tools.jackson.databind.JsonNode provenance) {
+        tools.jackson.databind.node.ObjectNode copy = (tools.jackson.databind.node.ObjectNode) provenance.deepCopy();
+        copy.remove(List.of("fetchedAt", "staleAt", "provenanceId"));
+        return copy;
     }
 
     private void similar(UUID source, UUID target) {
