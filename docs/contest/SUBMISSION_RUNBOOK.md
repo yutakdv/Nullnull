@@ -384,7 +384,7 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 시작 전에 오너가 정한다.
 
 - [ ] 최종 release를 동결했다. 수집이 끝날 때까지 다른 배포를 하지 않는다.
-- [ ] 최종 release에 #360·#367이 들어 있다. 영문 API(PDF p14 3번)는 2026-09-24 오너 결정 (a)로 최종 release에서 부른다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
+- [ ] 최종 release에 #360·#367이 들어 있다. 영문 API(PDF p14 3번)는 오너 결정 A-066(경로 (a))으로 최종 release에서 부른다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
 - [ ] 이 순서의 KTO 실호출을 승인했다: `kto-smoke`, `kto-demo-forecast`, `kto-eng-text-refresh`. 영문 연결 plan의 바이트도 승인했다.
 
 순서는 다음과 같다.
