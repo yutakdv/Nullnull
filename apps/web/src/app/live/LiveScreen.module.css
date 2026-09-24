@@ -175,7 +175,13 @@
   display: grid;
   width: 100%;
   min-height: 52px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* The name keeps a floor (FE-403, #99). With minmax(0, 1fr) the crowd column
+     took its max-content, and in English REPLAY its credit ("Replaying past
+     observations · not live") left the name 0px wide at 360px: one syllable
+     per line. Measured on the approved examples: 24px (--space-6) still splits
+     one syllable per line and 28px keeps two to a line; LIVE (48px) and Korean
+     REPLAY (42px) are wider than the floor on their own and do not move. */
+  grid-template-columns: minmax(var(--space-7), 1fr) auto auto;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
