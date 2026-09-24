@@ -449,7 +449,8 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task curate-live-maps --plan-file <plan.json> \
   --approved-plan-sha256 <plan_sha256> --owner-approval '<누가·어디서 승인했는지>'
 # 영문 장소 연결(local 전용, BA-086·#60). 오너가 검토한 "이 EngService record가 그 장소다" 결정만 들인다.
-# plan의 links 배열은 placeId, contentId, contentTypeId, reviewedAt, evidenceUrl(https)을 각각 담는다.
+# plan의 links 배열은 placeId, contentId, contentTypeId, reviewedAt(UTC ISO 시각, 예: 2026-09-21T06:00:00Z),
+# evidenceUrl(host가 있는 https, user:password@ 없음)을 각각 담는다. 어긋나면 AWS 호출 전에 멈춘다.
 # provider를 부르지 않으므로 KTO 승인 변수 대신 plan 바이트를 승인한다. 승인값 없이 먼저 돌리면 해시만 찍고 멈춘다.
 NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
   python3 scripts/aws/staging_operator.py task --task kto-eng-link-import --plan-file <plan.json> \
@@ -514,6 +515,8 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
   - 영문 텍스트는 이 명령이 아니라 `kto-eng-text-refresh`가 쓴다.
 - `kto-eng-text-refresh`는 연결마다 `KTO_ENG_TEXT_REFRESH placeId=… outcome=…`를 찍는다.
   - 연결 하나라도 실패하면 task가 실패하고 배포 잠금이 남는다.
+  - 성공은 `KTO_ENG_TEXT_REFRESH_DONE links=N attempted=N failed=0`(N≥1) 한 줄일 때뿐이다(`eng-text-not-refreshed`). 연결이 0개이거나 DONE 줄이 없으면 exit 0이어도 실패다.
+  - 로그에서 되찍는 줄은 설정 출처, 연결별 place id와 결과 단어, 합계의 세 모양뿐이다.
   - 두 영문 명령은 배포된 release의 ops 정의로만 돈다. ops task definition은 `KTO_ENG_BASE_URL`을 싣는다.
 - `curate-hours`는 승인한 plan 바이트를 gzip+base64로 task override에 싣는다. override는 `describe-tasks`와 CloudTrail에 남으므로 plan에 민감한 값을 넣지 않는다. task가 출력한 sha가 승인값과 같을 때만 성공이고, 그 바이트는 release bucket `evidence/curation/<release>/<sha>.json`에 남는다.
 - `curate-posts`도 같은 경로다. task를 띄우기 **전에** plan의 표지마다 배포된 `PublicUrl/covers/` 아래 주소인지 보고(`cover-not-on-the-deployed-edge`), 그 주소를 실제로 받아 바이트의 sha256이 `cover.checksum`과 같은지 본다(`cover-not-served-as-approved`, 성공이면 `covers_verified=<n>`). 성공은 sha 줄, 실패 줄 없음, **plan의 게시물 id마다 결과 줄이 정확히 하나**, 그리고 `curated_posts_published=<PUBLISHED 줄 수> of <게시물 수>`다 — 합계만으로는 `9999 of 5`도 통과했다. 다시 돌려 이미 있는 게시물은 `ALREADY_PRESENT`이고 그래도 성공이다(`0 of 5`). **두 전제가 있다**: 표지를 서빙하는 release(WebEdge의 `CuratedCovers` 배포)가 먼저 배포돼 있어야 게시물의 표지가 404가 되지 않고, `CuratedPostImportMain`이 inline plan을 읽는 release의 image에서만 task가 돈다 — 그 전 release에서는 main이 파일 경로만 알아서 task 안에서 실패한다. 이미 게시된 게시물은 다시 import해도 바뀌지 않으므로(`ALREADY_PRESENT`) 표지 URL을 고치려면 그 게시물을 먼저 지워야 한다.
