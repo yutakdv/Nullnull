@@ -4,6 +4,7 @@ import type { MessageKey } from '../../i18n/messages.js';
 import { DataAttribution } from '../ui/components/DataAttribution.js';
 import { StateLabel, type SourceState } from '../ui/components/StateLabel.js';
 import { busiestCrowdPoint, crowdTargetDate } from './forecast.js';
+import { formatReferenceTime } from './reference-time.js';
 import styles from './CrowdForecastReading.module.css';
 
 type CrowdMetric = components['schemas']['CrowdMetric'];
@@ -35,13 +36,7 @@ export function CrowdForecastReading({ point }: { point: CrowdMetric | null }) {
     point.value,
   );
   const referenceAt = point.provenance.observedAt ?? point.provenance.fetchedAt;
-  const referenceLabel = new Intl.DateTimeFormat(locale, {
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'Asia/Seoul',
-  }).format(new Date(referenceAt));
+  const referenceLabel = formatReferenceTime(referenceAt, locale);
   const stateLabels = Object.fromEntries(
     STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
   ) as Partial<Record<SourceState, string>>;
