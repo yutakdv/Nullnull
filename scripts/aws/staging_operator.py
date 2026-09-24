@@ -1034,7 +1034,10 @@ def https_evidence_url(value):
     """What EngTextLinkImporter.Link accepts: https, a host and no userinfo, and nothing URI.create cannot read. A
     prefix check let an empty host, a user:password@ and a space through."""
     import urllib.parse
-    if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
+    # Only the characters RFC 3986 allows - unreserved, reserved and percent-encoding - since those are what
+    # URI.create reads. quote() changes anything else (|, a backslash, ^, braces, a space, a control character,
+    # non-ASCII), so a string it would change is refused here rather than by the task after launch.
+    if not isinstance(value, str) or not value or urllib.parse.quote(value, safe=":/?#[]@!$&'()*+,;=%-._~") != value:
         return False
     try:
         parts = urllib.parse.urlsplit(value)

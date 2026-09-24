@@ -1860,6 +1860,11 @@ class EnglishTextTaskRegressions(unittest.TestCase):
                                  ('evidenceUrl','https://owner:pw@korean.visitkorea.or.kr/x','plan-file-eng-link-invalid'),
                                  ('evidenceUrl','https://korean.visitkorea.or.kr/a b','plan-file-eng-link-invalid'),
                                  ('evidenceUrl','https://korean.visitkorea.or.kr:port/x','plan-file-eng-link-invalid'),
+                                 # Characters RFC 3986 does not allow, which URI.create refuses once the task has started.
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a|b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a\\b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/a^b','plan-file-eng-link-invalid'),
+                                 ('evidenceUrl','https://korean.visitkorea.or.kr/{x}','plan-file-eng-link-invalid'),
                                  # An instant, as Jackson reads it into Instant: a date alone, a local time, or words
                                  # are not one. A non-blank check passed all three.
                                  ('reviewedAt','yesterday','plan-file-eng-link-invalid'),
@@ -1874,6 +1879,11 @@ class EnglishTextTaskRegressions(unittest.TestCase):
                 r=self.run_import(self.plan(**{field:bad}))
                 self.assertEqual(reason,r['error'])
                 self.assertEqual([],r['calls'])
+    def test_an_evidence_url_with_every_rfc_3986_delimiter_still_passes(self):
+        # The control for the character check: query, fragment, percent-encoding and sub-delimiters are all URI.create's.
+        url="https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=a1-b2_c.3~&x=%EA%B0%80;y=(1)*+,!$'#top"
+        r=self.run_import(self.plan(evidenceUrl=url))
+        self.assertIsNone(r['error'],r['out'])
     def test_a_task_that_did_not_process_the_place_is_not_a_success(self):
         import hashlib
         data=self.plan()
