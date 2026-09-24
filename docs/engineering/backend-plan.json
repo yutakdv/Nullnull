@@ -717,6 +717,10 @@
         {
           "id": "BA-020-T8",
           "assertion": "operator 해제 도구는 격리되지 않은 source 를 거절하고 아무것도 쓰지 않는다"
+        },
+        {
+          "id": "BA-020-T9",
+          "assertion": "공통 기록기의 기본 경로는 제공자가 선언한 오류도 QUARANTINED 로 닫는다"
         }
       ],
       "handoff": "V007 source registry와 apps/api build/test-results/{test,integrationTest}의 C1 JUnit 증거. C2에서만 실제 KTO gateway·key·provenance/snapshot을 추가하며 서울 전용 adapter는 구현하지 않는다.",
@@ -3880,6 +3884,18 @@
         {
           "id": "BA-090-T18",
           "assertion": "source 장애 중 optimizer 의 답이 장애 밖에서와 같다"
+        },
+        {
+          "id": "BA-090-T19",
+          "assertion": "서울 제공자가 스스로 선언한 오류는 run 을 FAILED 로 닫는다"
+        },
+        {
+          "id": "BA-090-T20",
+          "assertion": "서울 제공자 오류로 닫힌 run 은 다음 수집을 막지 않는다"
+        },
+        {
+          "id": "BA-090-T21",
+          "assertion": "RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다"
         }
       ],
       "handoff": "서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures.",
