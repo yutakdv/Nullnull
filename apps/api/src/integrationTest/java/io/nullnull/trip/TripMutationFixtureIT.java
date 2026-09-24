@@ -13,6 +13,7 @@ import io.nullnull.identity.application.SessionService;
 import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.OwnedRows;
+import io.nullnull.testsupport.PlaceCredits;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -439,6 +440,7 @@ class TripMutationFixtureIT {
         java.util.SortedSet<String> expected = JsonShape.of(onDisk);
         assertThat(expected.remove("$.days[].items[].crowd")).as("%s still holds items[].crowd", fixture).isTrue();
         assertThat(JsonShape.of(body)).isEqualTo(expected);
+        PlaceCredits.assertSameAs(body, onDisk, fixture);
         assertEveryPlaceCredited(body);
         // Order is not shape, and the fixture follows the server's: interests by code, each item's locks
         // by type (JdbcTripStore's ORDER BY). This trip holds the fixture's places and locks, so the two
@@ -462,6 +464,7 @@ class TripMutationFixtureIT {
         // The fixture Frontend mocks this mutation against has the keys the server sends, everywhere,
         // textProvenance (BA-086) included (#60).
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
+        PlaceCredits.assertSameAs(body, JsonShape.fixture(fixture), fixture);
         assertEveryPlaceCredited(body);
     }
 

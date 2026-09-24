@@ -9,6 +9,7 @@ import io.nullnull.identity.application.SessionService;
 import io.nullnull.testsupport.ContractResponse;
 import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.OwnedRows;
+import io.nullnull.testsupport.PlaceCredits;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -180,6 +181,7 @@ class TripImportFixtureIT {
         // textProvenance (BA-086) included (#60).
         assertThat(JsonShape.of(body)).as(fixture)
                 .isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
+        PlaceCredits.assertSameAs(body, JsonShape.fixture(fixture), fixture);
         assertEveryPlaceCredited(body);
     }
 
