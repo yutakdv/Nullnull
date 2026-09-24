@@ -75,7 +75,7 @@
         "source": "KTO_ENG_SERVICE",
         "endpoint": "ENG_SERVICE_2_DETAIL_COMMON_2",
         "pdfLabel": "한국관광공사 영문 관광정보",
-        "usedBy": []
+        "usedBy": ["FR-PLC-01"]
       }
     ]
   }

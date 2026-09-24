@@ -60,20 +60,22 @@ p14의 목록 3개다.
 | --- | --- | --- | --- | --- |
 | 1 | 한국관광공사 국문 관광정보 서비스_GW (KorService2) | "detailCommon2: 장소명·주소 등 관광정보를 피드의 장소 연결과 여행 후보·일정에 활용" | `KTO_KOR_SERVICE_2` / `KOR_SERVICE_2_DETAIL_COMMON_2` | FR-PST-01, FR-PLC-01, FR-CAN-02, FR-ITM-02 |
 | 2 | 한국관광공사 관광지 집중률 방문자 추이 예측 정보 | "tatsCnctrRateList: 날짜별 상대 집중률 예측으로 명소 방문 날짜를 검토하는 데 활용" | `KTO_CONCENTRATION_FORECAST` / `TATS_CNCTR_RATE_LIST` | FR-DAT-05 |
-| 3 | 한국관광공사 영문 관광정보 | "국문에서 가진 장소 ID가 영문 데이터에도 있고 영어로 오는지를 detailCommon2로 한 번 측정하는 데 쓰는 API입니다." | `KTO_ENG_SERVICE` / `ENG_SERVICE_2_DETAIL_COMMON_2` | **비움** |
+| 3 | 한국관광공사 영문 관광정보 | "국문에서 가진 장소 ID가 영문 데이터에도 있고 영어로 오는지를 detailCommon2로 한 번 측정하는 데 쓰는 API입니다." | `KTO_ENG_SERVICE` / `ENG_SERVICE_2_DETAIL_COMMON_2` | FR-PLC-01 |
 
 - `source`·`endpoint`는 inventory가 찍는 값이다. 한국관광공사 operation 이름이 아니라 내부 감사 키(`api_ingest_logs.endpoint_key`)다.
   - 1·2: `backend`의 `KtoPlaceDetailGateway`·`KtoCrowdForecastGateway`에 있다.
   - 3: #360의 `KtoEngTextRefresh`에만 있다.
-- **3번은 지금 `backend`의 어떤 release도 inventory에 낼 수 없다.** PDF가 말하는 "한 번 측정"은 `KtoEngServiceProbeMain`이고, 그 javadoc이 *"no audit row"* 라고 적는다. 감사 행을 남기는 영문 호출은 #360(`KtoEngTextRefresh`)과 그것을 돌리는 operator task(#367)가 들어와야 생긴다.
-- **3번의 `usedBy`는 비워 두었다.** PDF가 이 API에 기능을 잇지 않았기 때문이다. 비어 있으면 검사기가 `names no feature that uses it`로 멈춘다. 오너 결정 전까지 의도된 실패다.
+- **3번은 지금 `backend`의 어떤 release도 inventory에 낼 수 없다.** PDF가 말하는 "한 번 측정"은 `KtoEngServiceProbeMain`이고, 그 javadoc이 *"no audit row"* 라고 적는다. 감사 행을 남기는 영문 호출은 #360(`KtoEngTextRefresh`)과 그것을 돌리는 operator task(#367)가 들어와야 생긴다. 오너 결정 (a)에 따라 최종 release에서 그 호출을 돌린다(§4).
+- **3번의 `usedBy`는 `FR-PLC-01`이다.** PDF는 이 API에 기능을 잇지 않았으므로 이 값은 PDF 문구가 아니라 오너 결정 (a)에서 왔다. #360이 받아 온 영문 텍스트는 장소 상세에 나온다.
 - p15(기타 API)는 검사기 대상이 아니다. inventory가 `KTO_` source만 센다(`JdbcKtoCallInventoryQuery`). 다만 읽다가 본 것이 하나 있다. 1번 "서울 실시간 도시데이터"의 상세설명이 2번 "카카오모빌리티 길찾기"의 상세설명과 같은 문장이다. PDF는 마감 뒤 고칠 수 없다(CMP-SUB-001).
 
 ## 4. 오너 결정
 
-1. **p14 3번(영문 API)**: 둘 중 하나를 고른다.
-   - (a) #360·#367을 넣고, 최종 release에서 영문 호출을 돌려 inventory에 나오게 한다. 그때 `usedBy`를 정한다.
-   - (b) 불일치를 기록하고 수용한다. 검사기는 §5 S1의 두 줄로 계속 실패하고, 그 출력과 결정이 `BA-073-T3`의 증거가 된다.
+1. **p14 3번(영문 API) — 결정됨: (a).** 2026-09-24 오너가 직접 정했다. 최종 release에서 영문 호출을 돌려 inventory에 나오게 하고, `usedBy`는 `FR-PLC-01`로 한다. 그래서 다음이 필요하다.
+   - 최종 release에 #360·#367이 들어 있다.
+   - 오너가 영문 연결 plan의 바이트를 승인한다(`kto-eng-link-import`).
+   - 오너가 영문 KTO 실호출을 승인한다(`kto-eng-text-refresh`).
+   - 수용안이었던 (b)는 CMP-KTO-006(공식 필수)을 알고도 미충족으로 두는 것이라 택하지 않았다.
 2. **"개인화 노출 고도화"를 원장에서 뺀 것.** 계획 기능은 PDF에 적지 않는다는 것이 CMP-SUB-008이다. 이 문구가 PDF에 있다는 사실 자체는 원장이 바꿀 수 없다.
 3. **Live 기능(`FR-LIV-*`)을 넣지 않은 것.** "연계 기능" 열에 Live가 없다. Live 쪽으로 읽힐 수 있는 문장은 p11 4단계 하나다: *"현재 관측이 없는 상태는 별도 표시합니다. 날짜 예측과 실시간 관측을 섞지 않습니다."*
 4. **§2 매핑 전체.** 검사기 docstring이 형식을 *"draft, pending owner/FE agreement"* 라고 적는다. 매핑도 오너·FE 검토 대상이다.
@@ -87,10 +89,10 @@ p14의 목록 3개다.
 
 | 경우 | 입력 | 결과 |
 | --- | --- | --- |
-| S1 | inventory에 1·2번만 있다(지금 `backend`가 낼 수 있는 모양) | exit 1. `names no feature that uses it`(3번)과 `the PDF lists KTO_ENG_SERVICE/ENG_SERVICE_2_DETAIL_COMMON_2, which the release never called usably (CMP-KTO-006)` |
-| S2 | inventory에 셋 다 있고, 3번 `usedBy`를 이 실행에서만 `FR-PLC-01`로 채웠다 | exit 0. `submission_inventory=verified release=v0.0.0-synthetic`. §2의 ID가 모두 P0로 통과했다 |
+| S1 | inventory에 1·2번만 있다(지금 `backend`가 낼 수 있는 모양) | exit 1. `the PDF lists KTO_ENG_SERVICE/ENG_SERVICE_2_DETAIL_COMMON_2, which the release never called usably (CMP-KTO-006)` |
+| S2 | inventory에 셋 다 있다(결정 (a)가 끝난 release의 모양) | exit 0. `submission_inventory=verified release=v0.0.0-synthetic`. §2의 ID가 모두 P0로 통과했다 |
 | S3 | S2와 같고 readiness의 `optimization`만 `UNAVAILABLE` | exit 1. "변경안 검토"·"사용자 승인형 변경" 두 줄 |
-| S4 | 초안을 명령 없이 그대로 넣었다(`releaseVersion`이 `<RELEASE>`) | exit 1. release 불일치와 3번 `usedBy` |
+| S4 | 초안을 명령 없이 그대로 넣었다(`releaseVersion`이 `<RELEASE>`) | exit 1. release 불일치 |
 | S5 | 예전 절차대로 `ktoOperations`를 inventory(1·2번)에서 뽑았다. PDF는 셋을 적는다 | **exit 0. `verified`** |
 
 **S5가 예전 절차의 결함이다.** 대조하는 두 목록이 같은 출처에서 오면, PDF가 적었는데 release가 부르지 않은 API가 원장에 아예 없다. 그래서 CMP-KTO-006의 *"PDF API 목록 ↔ audit operation set diff 0"* 이 공허하게 통과한다. 이 초안은 `ktoOperations`를 PDF에서 옮겼고, runbook도 그렇게 바꿨다.

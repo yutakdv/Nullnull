@@ -224,7 +224,7 @@ python3 scripts/check_actual_call_evidence.py ".artifacts/aws/evidence/actual-ca
 
 입력은 셋이다. readiness와 inventory는 release를 고정한 뒤 그 release에서 뽑는다.
 
-- **ledger**: PDF에서 옮긴 [초안](./submission-ledger.draft.json)에 `$RELEASE`를 채워 만든다(아래 "ledger 만들기"). 영문 API(PDF p14 3번)에 대한 오너 결정 전에는 이 검사가 실패한다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
+- **ledger**: PDF에서 옮긴 [초안](./submission-ledger.draft.json)에 `$RELEASE`를 채워 만든다(아래 "ledger 만들기"). 영문 API(PDF p14 3번)는 오너 결정 (a)에 따라 최종 release가 실제로 부른 뒤에야 이 검사를 통과한다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
 - **readiness**: 제출 release에서 받은 `GET /api/v1/demo/readiness` body다. 답에 release 필드가 없어 검사기가 release에 묶지 못하므로 release를 고정한 **뒤** 그 배포에서 받는다. 두 호출은 `scripts/aws/staging-flows.mjs`의 session·readiness 호출을 curl로 옮긴 것이다. 이 형태로 staging에서 돌려 보지는 않았다. 익명 demo session이 하나 생긴다.
 
 ```bash
@@ -292,7 +292,7 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 ```
 
 - 이 명령은 합성 입력으로만 돌려 봤다. staging release에서는 돌려 보지 않았다.
-- 빈 칸은 조용히 통과하지 않는다. 지금 초안은 영문 API(p14 3번)의 `usedBy`가 비어 있어 `names no feature that uses it`로 멈춘다. 오너 결정 전까지 의도된 실패다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
+- 영문 API(p14 3번)는 release가 실제로 불러야 대조를 통과한다. 부르지 않은 release에서는 `the PDF lists KTO_ENG_SERVICE/ENG_SERVICE_2_DETAIL_COMMON_2, which the release never called usably`로 멈춘다([ledger 초안 §5](./SUBMISSION_INVENTORY_DRAFT.md#5-합성-입력으로-돌린-결과)의 S1).
 - 매핑이나 결정이 바뀌면 초안 JSON을 고친다. release가 바뀌면 위 명령으로 다시 만든다.
 - 초안을 고칠 때 칸마다 지키는 규칙이 있다.
   - `featureIds`: [기능 인벤토리](../product/FUNCTIONAL_INVENTORY.md)의 **P0** ID만 쓴다.
@@ -384,8 +384,8 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 시작 전에 오너가 정한다.
 
 - [ ] 최종 release를 동결했다. 수집이 끝날 때까지 다른 배포를 하지 않는다.
-- [ ] 영문 API(PDF p14 3번)를 어떻게 처리할지 정했다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
-- [ ] 이 순서의 KTO 실호출을 승인했다: `kto-smoke`, `kto-demo-forecast`, 그리고 (a)이면 영문 호출.
+- [ ] 최종 release에 #360·#367이 들어 있다. 영문 API(PDF p14 3번)는 2026-09-24 오너 결정 (a)로 최종 release에서 부른다([ledger 초안 §4](./SUBMISSION_INVENTORY_DRAFT.md#4-오너-결정)).
+- [ ] 이 순서의 KTO 실호출을 승인했다: `kto-smoke`, `kto-demo-forecast`, `kto-eng-text-refresh`. 영문 연결 plan의 바이트도 승인했다.
 
 순서는 다음과 같다.
 
@@ -399,14 +399,16 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
    - operator 성공 줄: `actual_call=verified release=<RELEASE> …`
    - 이어서 ①의 검사를 돌린다.
 5. [ ] **예보 호출**: inventory에 p14 2번이 나오도록 이 release에서 예보를 부른다. `task --task kto-demo-forecast`의 성공 줄은 `KTO_DEMO_REFRESH_DONE mode=forecast …`이다. 12시간 schedule도 배포된 release의 ops 정의로 같은 호출을 한다. 배포 뒤 첫 tick 전이면 직접 돌린다.
-6. [ ] **영문 호출**(3번 결정이 (a)일 때만): #360과 #367(`kto-eng-text-refresh` ops task)이 이 release에 들어 있어야 한다.
+6. [ ] **영문 호출**(오너 결정 (a)): staging runbook §11의 영문 명령 두 개를 이 순서로 돌린다.
+   - `task --task kto-eng-link-import`: 오너가 승인한 연결 plan을 들인다. 성공 줄은 장소마다 `eng_link <placeId> PROCESSED`와 `eng_links_processed=<n>`이다.
+   - `task --task kto-eng-text-refresh`: 연결마다 EngService2 detailCommon2를 부른다. 연결마다 `KTO_ENG_TEXT_REFRESH placeId=… outcome=…`이 찍히고, 끝에 `KTO_ENG_TEXT_REFRESH_DONE …`이 찍힌다. 하나라도 실패하면 task가 실패하고 배포 잠금이 남는다.
 7. [ ] **KTO 호출 목록**(`BA-073-T3`): `task --task kto-call-inventory`를 돌린다.
    - 성공 줄: `kto_inventory_file=… release=<RELEASE> … counts_as_evidence=true`
    - 그 파일을 `$DIR/kto-inventory.txt`로 둔다.
 8. [ ] **readiness**: ②의 readiness 명령을 돌린다. 성공 줄은 `readiness=captured`다.
 9. [ ] **ledger 대조**: [ledger 만들기](#ledger-만들기)를 한 뒤 ②의 검사를 돌린다.
    - 성공 줄: `submission_inventory=verified release=<RELEASE>`
-   - (b)를 택했으면 영문 API 두 줄로 실패한다. 그 출력과 오너 결정을 함께 남긴다.
+   - `… KTO_ENG_SERVICE/ENG_SERVICE_2_DETAIL_COMMON_2, which the release never called usably`로 멈추면 6을 이 release에서 돌렸는지 본다.
 10. [ ] **secret 노출**(CMP-KTO-007): `staging_operator.py secret-scan`을 돌린다.
     - 성공 줄: `secret_exposure=clean …` 또는 `clean-partial`. operator가 읽지 못한 secret은 `secret_exposure_partial reason=…`으로 나온다.
     - `leaked`면 멈춘다.
