@@ -189,7 +189,7 @@ Secrets Manager에는 최소 DB credential, `KTO_SERVICE_KEY`, `NULLNULL_CURSOR_
 
 1. Secrets Manager 콘솔(서울 region)에서 `nullnull-stg/seoul-proxy`를 연다 → **Retrieve secret value** → **Edit**.
 2. Key/value 보기에서 **`apiKey`의 값만** 바꾸고 `proxyToken`은 그대로 둔 채 저장한다.
-3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, 정상 제공자 응답과 validator 수정을 검증한 뒤 ops task `release-source-quarantine`으로 푼다. 해제 후 수동 수집과 다음 자동 수집을 확인한다.
+3. 반영은 최대 5분 뒤다. proxy Lambda가 secret을 5분(`TTL_MS = 300000`) 캐시한다. 다음 5분 수집의 API 로그에서 `seoul_live_collect_failed`가 멈추는지 본다. 멈추지 않으면 바로 앞의 `seoul_live_validation outcome=… rule=…` 줄이 어느 검사가 거절했는지 말한다(검사 목록은 `docs/data/SOURCE_CATALOG.md`). 이전 수집이 이미 source를 격리했다면 키를 넣어도 수집이 시작되지 않으므로, 정상 제공자 응답과 validator 수정을 검증한 뒤 ops task `release-source-quarantine`으로 푼다. 해제 후 수동 수집과 다음 자동 수집을 확인한다.
 
 **KTO 키처럼 문자열 통째로 넣지 않는다.** `put-secret-value --secret-string <키>` 모양은 JSON을 덮어 `proxyToken`을 지운다. 그러면 proxy가 `seoul_proxy_secret_incomplete`로 모든 요청을 거절하고, 고치려던 hop을 고치는 명령이 부순다. `secrets --seoul`은 키를 명령 인자로 받지 않고 로컬 파일에서 읽어 이 문제를 피한다. **`proxyToken`은 바꾸지 않는다.** API task는 task 시작 시 ECS secret 주입으로 그 값을 읽으므로, 바꾸면 API를 다시 배포할 때까지 proxy가 API를 거절한다.
 

@@ -2505,6 +2505,8 @@ FE 인계·완료 증거: 새 protocol의 FE 영향 유무, 장애 상태 exampl
 - `BA-090-T20`: 서울 제공자 오류로 닫힌 run 은 다음 수집을 막지 않는다
 - `BA-090-T21`: RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다
 - `BA-090-T22`: 대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다
+- `BA-090-T23`: 서울 응답을 거부한 검사는 자기 규칙 이름으로 답한다
+- `BA-090-T24`: 거절된 서울 응답의 결과와 규칙이 수집 결과에 실린다
 
 FE 인계·완료 증거: 서울 정확한 출처·license URL·scope/mapping confidence·Live stale/unavailable fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2562,6 +2564,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T24`: 복수 API 작업이 같은 서울 구역을 동시에 수집하지 않는다
 - `BA-091-T25`: 같은 승인 시각의 다른 매핑 판단은 기존 판단을 덮지 않는다
 - `BA-091-T26`: 심사 종료 시각부터 서울 수집을 시도하지 않는다
+- `BA-091-T27`: 거절된 서울 수집은 결과와 규칙을 한 줄로 남긴다
+- `BA-091-T28`: 거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
