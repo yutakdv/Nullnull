@@ -899,14 +899,34 @@ describe('FE-402 Live place detail', () => {
   it('FE-603-T5 credits an alternative place apart from the relation', async () => {
     // The row credited the relation (item.provenance) and not the place it
     // named. The two are different records: the place is a catalogue entry,
-    // the relation is the reason it is offered. Found by the place credit's
-    // own page, because both credits read the same words.
+    // the relation is the reason it is offered.
+    //
+    // The relation's provenance is overridden with what the server actually
+    // sends: CatalogRelationDeriver writes NULLNULL_CATALOG_RULE (V007), an
+    // internal rule with no page, licence or KTO credit. The fixture's relation
+    // carries a KTO dataset link the server cannot produce; the fixture owner
+    // corrects it separately (#387), so this test does not lean on it.
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
-    const alternative = relatedFixtures.page.items[0];
-    const credit = alternative?.place.sourceAttribution;
-    if (!alternative || !credit)
+    const fixture = relatedFixtures.page.items[0];
+    const credit = fixture?.place.sourceAttribution;
+    if (!fixture || !credit)
       throw new Error('Fixtures must include a credited alternative');
-    expect(credit.officialUrl).not.toBe(alternative.provenance.officialUrl);
+    const alternative = {
+      ...fixture,
+      provenance: {
+        ...fixture.provenance,
+        source: 'NULLNULL_CATALOG_RULE',
+        sourceDisplayName: '널널 카탈로그 규칙',
+        sourceState: 'QUALITATIVE' as const,
+        attribution: '널널 내부 규칙',
+        attributionShort: null,
+        officialUrl: null,
+        licenseUrl: null,
+        license: null,
+        comparisonEligible: false,
+        comparisonReasonCode: 'QUALITATIVE_ONLY',
+      },
+    };
     server.use(
       http.get(`${API_BASE}/live/places/:placeId`, () =>
         HttpResponse.json({
@@ -920,11 +940,13 @@ describe('FE-402 Live place detail', () => {
 
     const link = await screen.findByRole('link', { name: alternative.place.name });
     const row = link.closest('li') as HTMLElement;
-    const hrefs = within(row)
-      .getAllByRole('link', { name: credit.attribution })
-      .map((anchor) => anchor.getAttribute('href'));
-    expect(hrefs).toContain(credit.officialUrl);
-    expect(hrefs).toContain(alternative.provenance.officialUrl);
+    expect(within(row).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+    // The relation keeps its own credit, as words: it has no page to link.
+    expect(within(row).getByText('널널 내부 규칙')).toBeVisible();
+    expect(within(row).queryByRole('link', { name: '널널 내부 규칙' })).toBeNull();
   });
 
   it('FE-402-T1 does not compare TEMPORAL metrics across different places', async () => {
