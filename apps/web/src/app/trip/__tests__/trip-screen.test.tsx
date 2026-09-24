@@ -604,6 +604,51 @@ describe('FE-301 the trip screen credits the places it shows', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the place credit beside the forecast credit when the stop has a forecast', async () => {
+    const credited = tripWithCredit();
+    const [firstDay, ...restDays] = credited.days;
+    if (!firstDay) throw new Error('fixture has no days');
+    const [firstItem, ...restItems] = firstDay.items;
+    if (!firstItem) throw new Error('fixture day has no items');
+    const forecast = crowdFixtures.seriesForecast.points[0];
+    if (!forecast) throw new Error('forecast fixture has no points');
+    // Two datasets: the place text from KorService2 and the reading from the
+    // concentration forecast. Each keeps its own credit (SOURCE_CATALOG); the
+    // view once showed only the forecast's when both were present.
+    expect(forecast.provenance.source).not.toBe(
+      firstItem.place.sourceAttribution?.source,
+    );
+    const forecasted = {
+      ...credited,
+      days: [
+        { ...firstDay, items: [{ ...firstItem, crowd: forecast }, ...restItems] },
+        ...restDays,
+      ],
+    };
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(forecasted, { headers: { ETag: '"3"' } }),
+      ),
+    );
+    renderTrip();
+    await loaded();
+
+    const name = trip.days[0]?.items[0]?.place.name ?? '';
+    const row = (await screen.findByRole('heading', { level: 3, name })).closest(
+      'article',
+    ) as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(within(row).getByRole('link', { name: CREDIT })).toBeInTheDocument();
+    const forecastUrl = forecast.provenance.officialUrl ?? '';
+    expect(forecastUrl).not.toBe('');
+    const forecastLinks = within(row)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href') === forecastUrl);
+    expect(forecastLinks).toHaveLength(1);
+    // The forecast's own words, not the place credit carrying its URL.
+    expect(forecastLinks[0]).toHaveAccessibleName(forecast.provenance.attribution);
+  });
+
   it('does not reserve empty rows when optional place details are absent', async () => {
     const credited = tripWithCredit();
     const [firstDay, ...restDays] = credited.days;
