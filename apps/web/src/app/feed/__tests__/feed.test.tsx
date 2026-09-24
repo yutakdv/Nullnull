@@ -69,8 +69,10 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { components } from '@nullnull/api-client';
 import {
   candidateFixtures,
+  crowdFixtures,
   feedFixtures,
   sessionFixtures,
   tripFixtures,
@@ -155,6 +157,46 @@ function renderFeed() {
 
 const firstTitle = feedFixtures.page.items[0]?.post.title ?? '';
 const secondPageTitle = feedFixtures.pageTwo.items[0]?.post.title ?? '';
+
+type FeedPage = components['schemas']['FeedPage'];
+type CrowdMetric = components['schemas']['CrowdMetric'];
+
+// Crowd readings for the tests that need one on a card.
+//
+// FeedController sends `crowd: null` on every card today, and the feed
+// fixtures are being corrected to say so. A test that needs a reading puts one
+// on a card itself, taken from the crowd contract fixtures — a KTO forecast
+// point the server does produce — so it passes on the old fixtures and on the
+// corrected ones alike.
+const FORECAST = crowdFixtures.seriesForecast.points[0] as CrowdMetric;
+const STALE = crowdFixtures.seriesStale.points[0] as CrowdMetric;
+/** No figure, unit or level: the contract sends none of them for UNAVAILABLE. */
+const UNAVAILABLE: CrowdMetric = {
+  ...FORECAST,
+  state: 'UNAVAILABLE',
+  value: null,
+  unit: null,
+  ordinalLevel: null,
+};
+
+/** A copy of `page` whose card at `index` carries `crowd`. */
+function withCrowd(page: FeedPage, index: number, crowd: CrowdMetric): FeedPage {
+  return {
+    ...page,
+    items: page.items.map((card, at) => (at === index ? { ...card, crowd } : card)),
+  };
+}
+
+/** Serves `first` for the first page and `second` after it. */
+function feedServes(first: FeedPage, second: FeedPage = feedFixtures.pageTwo) {
+  server.use(
+    http.get(`${API_BASE}/feed`, ({ request }) =>
+      HttpResponse.json(
+        new URL(request.url).searchParams.get('cursor') === null ? first : second,
+      ),
+    ),
+  );
+}
 
 describe('FE-201-T2 the feed renders each of its states', () => {
   it('lists the cards the first page returned', async () => {
@@ -782,13 +824,20 @@ describe('FE-201-T2 populated feed boundaries (FCR-002/003/009 trace)', () => {
 
 describe('FE-201 the card shows only what the contract supplies', () => {
   it('credits the source the server named on a card that has one', async () => {
+    feedServes(withCrowd(feedFixtures.page, 0, FORECAST));
     renderFeed();
-    await screen.findByText(firstTitle);
     // CMP-ATT-001: the crowd reading carries its own attribution and it is
-    // displayed verbatim, never composed here (CMP-ATT-003).
-    const credit = feedFixtures.page.items[0]?.crowd?.provenance.attribution ?? '';
-    expect(credit).not.toBe('');
-    expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
+    // displayed verbatim, never composed here (CMP-ATT-003). Found by the
+    // forecast's own dataset page, inside the card: the place credit on every
+    // card reads the same words, so a document-wide text match passed with no
+    // crowd credit anywhere.
+    const credit = FORECAST.provenance;
+    expect(credit.attribution).toBeTruthy();
+    const card = (await screen.findByText(firstTitle)).closest('article') as HTMLElement;
+    const link = within(card)
+      .getAllByRole('link', { name: credit.attribution ?? '' })
+      .find((anchor) => anchor.getAttribute('href') === credit.officialUrl);
+    expect(link).toBeDefined();
   });
 
   it('credits the PLACE on a card that has no crowd reading', async () => {
@@ -820,10 +869,10 @@ describe('FE-201 the card shows only what the contract supplies', () => {
   });
 
   it('renders a card whose crowd reading is unavailable without inventing one', async () => {
+    const page = withCrowd(feedFixtures.page, 0, UNAVAILABLE);
+    feedServes(page);
     renderFeed();
-    const unavailable = feedFixtures.page.items.find(
-      (card) => card.crowd?.state === 'UNAVAILABLE',
-    );
+    const unavailable = page.items[0];
     await screen.findByText(unavailable?.post.title ?? '');
     // A missing reading is not a zero and not a "보통" (invariant 8, AGENTS.md
     // rule 6). The contract sends no value, unit or ordinalLevel for an
@@ -868,13 +917,13 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     // data-components.test.tsx proves StateLabel gives all six states
     // distinct words, but it renders StateLabel DIRECTLY. This case is the
     // only one that goes through the feed, which is the wiring that broke.
-    const stale = feedFixtures.pageTwo.items.find(
-      (card) => card.crowd?.state === 'STALE',
-    );
+    const pageTwo = withCrowd(feedFixtures.pageTwo, 0, STALE);
+    const stale = pageTwo.items[0];
     // Without this the lookup could go empty and the queries below would be
     // made against '', which passes by matching nothing.
-    expect(stale).toBeDefined();
+    expect(stale?.crowd?.state).toBe('STALE');
 
+    feedServes(feedFixtures.page, pageTwo);
     renderFeed();
     await screen.findByText(firstTitle);
     // The STALE card is on page two, so pagination has to run first.
@@ -894,17 +943,12 @@ describe('FE-201 the card shows only what the contract supplies', () => {
 describe('FE-201-T3 keyboard and accessible names', () => {
   it('announces all five crowd levels on a feed card', async () => {
     const card = feedFixtures.page.items[0];
-    expect(card?.crowd).toBeDefined();
+    expect(card).toBeDefined();
     server.use(
       http.get(`${API_BASE}/feed`, () =>
         HttpResponse.json({
           ...feedFixtures.page,
-          items: [
-            {
-              ...card,
-              crowd: { ...card?.crowd, ordinalLevel: '5' },
-            },
-          ],
+          items: [{ ...card, crowd: { ...FORECAST, ordinalLevel: '5' } }],
         }),
       ),
     );

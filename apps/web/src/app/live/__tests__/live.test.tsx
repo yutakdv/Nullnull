@@ -276,7 +276,7 @@ describe('FE-401 Live area list', () => {
     expect(areaPlaceRequests).toBe(1);
   });
 
-  it('shows a selected place at its detail coordinates without inventing area centroids', async () => {
+  it('FE-603-T5 shows a selected place at its detail coordinates without inventing area centroids', async () => {
     vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', 'test-key');
     const centers: unknown[] = [];
     window.kakao = {
@@ -329,9 +329,6 @@ describe('FE-401 Live area list', () => {
     const showOnMap = await screen.findByRole('button', {
       name: 'Show 경복궁 on the map',
     });
-    // Every search result carries its own credit now (FE-603-T5), so the map's
-    // is the one that choosing a place adds rather than the only one on screen.
-    const creditsBefore = screen.getAllByRole('link', { name: /한국관광공사/ }).length;
     await user.click(showOnMap);
 
     const marker = await within(map).findByRole('button', { name: '경복궁' });
@@ -343,9 +340,14 @@ describe('FE-401 Live area list', () => {
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toBeVisible();
-    const creditsAfter = screen.getAllByRole('link', { name: /한국관광공사/ });
-    expect(creditsAfter).toHaveLength(creditsBefore + 1);
-    for (const credit of creditsAfter) expect(credit).toBeVisible();
+    // The marker is an overlay and holds no link, so the map's credits sit
+    // under it. Scoped there: every search result carries the same words.
+    const credit = detail.place.sourceAttribution;
+    if (!credit) throw new Error('the live place fixture lost its credit');
+    const mapCredits = document.querySelector('[data-map-credits]') as HTMLElement;
+    expect(
+      within(mapCredits).getByRole('link', { name: credit.attribution }),
+    ).toHaveAttribute('href', credit.officialUrl ?? '');
     await user.click(marker);
     expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
   });
@@ -411,6 +413,8 @@ describe('FE-401 Live area list', () => {
 
     renderLive();
     await user.type(await screen.findByRole('searchbox'), '경복궁');
+    // Without this the loop could run over nothing and assert nothing.
+    expect(placeFixtures.searchPage.items.length).toBeGreaterThan(0);
     for (const place of placeFixtures.searchPage.items) {
       const credit = place.sourceAttribution;
       if (!credit) throw new Error(`${place.name} lost its credit in the fixture`);

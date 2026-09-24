@@ -217,7 +217,9 @@ export function LiveScreen() {
         {/* The credits of the places the map shows, once each. Today that is
             the one selected place KakaoLiveMap draws as a marker; the marker
             itself cannot hold a link, so the credit sits under the map. */}
-        <PlaceAttribution compact place={selectedPlace.data} />
+        <div data-map-credits="">
+          <PlaceAttribution compact place={selectedPlace.data} />
+        </div>
       </div>
 
       <section aria-label={t('live.sheet.title')} className={styles.listPanel}>

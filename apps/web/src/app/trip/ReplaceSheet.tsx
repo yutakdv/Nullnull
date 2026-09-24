@@ -220,8 +220,13 @@ export function ReplaceSheet({
                             ? t('replace.compare.noData')
                             : t('replace.compare.unavailable')}
                       </span>
-                      <PlaceAttribution compact place={option.place} />
                     </button>
+                    {/* Beside the button, not in it: a link inside a button is
+                        no link to a screen reader, and a click on it would
+                        pick the option (FE-603-T11). */}
+                    <span className={styles.optionCredit}>
+                      <PlaceAttribution compact place={option.place} />
+                    </span>
                   </li>
                 );
               })}

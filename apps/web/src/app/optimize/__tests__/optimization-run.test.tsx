@@ -727,7 +727,84 @@ describe('the run screen credits the places a proposal names (CMP-ATT-001)', () 
 
     const card = await screen.findByRole('article');
     expect(
-      await within(card).findByText(copy['run.proposal.placeCreditMissing']),
+      await within(card).findByText(copy['run.proposal.placeCreditMissingAll']),
     ).toBeVisible();
+  });
+});
+
+describe('FE-603-T10 a stale run credits the place record, not today’s text', () => {
+  // The summary was written against the trip the run started from. When the
+  // trip has moved on (inputTripVersion behind), today's text credits may name
+  // a dataset whose words the summary never used, so only the place record's
+  // credit is drawn. The English credit is the V050 registry row, put on 인사동
+  // here because no fixture carries one.
+  const READY = optimizationFixtures.runReady;
+  const ENG_URL = 'https://www.data.go.kr/data/15101753/openapi.do';
+  const days = trip.days.map((day) => ({
+    ...day,
+    items: day.items.map((item) =>
+      item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03'
+        ? {
+            ...item,
+            place: {
+              ...item.place,
+              textProvenance: {
+                name: {
+                  locale: 'en',
+                  sourceAttribution: {
+                    source: 'KTO_ENG_SERVICE',
+                    sourceDisplayName: '한국관광공사 영문 관광정보',
+                    sourceRegistryVersion: 1,
+                    attribution: '출처: ⓒ한국관광공사',
+                    officialUrl: ENG_URL,
+                    licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do',
+                    license: '이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)',
+                  },
+                },
+                address: null,
+                description: null,
+              },
+            },
+          }
+        : item,
+    ),
+  }));
+
+  function serve(tripVersion: number) {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () =>
+        HttpResponse.json({ ...READY, inputTripVersion: trip.version }),
+      ),
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          { ...trip, version: tripVersion, days },
+          { headers: { ETag: `"${String(tripVersion)}"` } },
+        ),
+      ),
+    );
+  }
+
+  async function creditHrefs(): Promise<(string | null)[]> {
+    const card = await screen.findByRole('article');
+    await waitFor(() => {
+      expect(within(card).getAllByRole('link').length).toBeGreaterThan(0);
+    });
+    return within(card)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+  }
+
+  it('draws the text credit when the run is current', async () => {
+    serve(trip.version);
+    renderRun(READY.id);
+    expect(await creditHrefs()).toContain(ENG_URL);
+  });
+
+  it('leaves the text credit off when the trip has moved on', async () => {
+    serve(trip.version + 1);
+    renderRun(READY.id);
+    const hrefs = await creditHrefs();
+    expect(hrefs).toContain('https://www.data.go.kr/data/15101578/openapi.do');
+    expect(hrefs).not.toContain(ENG_URL);
   });
 });

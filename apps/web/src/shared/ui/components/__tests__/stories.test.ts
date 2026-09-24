@@ -17,14 +17,7 @@ const dir = 'src/shared/ui/components';
  * story would be the parallel model TEST_STRATEGY.md:117 forbids — so they wait
  * for BE/AI's real responses rather than getting invented data.
  */
-const AWAITING_FIXTURES = new Set([
-  'CandidateCard',
-  'DataAttribution',
-  // The case it exists for — a place whose text comes from a second dataset
-  // (KTO_ENG_SERVICE) — has no contract fixture yet; its unit test builds that
-  // one credit from the V050 registry row, which a story may not do.
-  'PlaceAttribution',
-]);
+const AWAITING_FIXTURES = new Set(['CandidateCard', 'DataAttribution']);
 
 function componentNames(): string[] {
   return readdirSync(dir)

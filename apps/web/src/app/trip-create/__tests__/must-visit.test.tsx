@@ -10,7 +10,7 @@
 //   - the separate crowd batch stays in search-result order and retains each
 //     selected point's date, state and provenance.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -166,6 +166,39 @@ const addButton = (name: string) =>
   screen.findByRole('button', {
     name: copy['mustVisit.addNamed'].replace('{place}', name),
   });
+
+describe('FE-603-T5 both lists on this screen credit their places', () => {
+  // The search results and the kept list both read `place`, so the static
+  // scan (FE-603-T4) sees one group and cannot tell which list lost its
+  // credit. Each list is checked through a control only its own rows have.
+  const credit = first?.sourceAttribution;
+
+  it('credits a place in the search results', async () => {
+    if (!first || !credit) throw new Error('the search fixture lost its credited place');
+    await searchFor('서울');
+    const row = (await addButton(first.name)).closest('li') as HTMLElement;
+    // The row's forecast credit reads the same words, so the place credit is
+    // told apart by its own dataset page.
+    const hrefs = within(row)
+      .getAllByRole('link', { name: credit.attribution })
+      .map((link) => link.getAttribute('href'));
+    expect(hrefs).toContain(credit.officialUrl);
+  });
+
+  it('credits a place in the kept list', async () => {
+    if (!first || !credit) throw new Error('the search fixture lost its credited place');
+    const user = await searchFor('서울');
+    await user.click(await addButton(first.name));
+    const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
+    const row = within(kept)
+      .getByRole('button', { name: `${first.name} ${copy['mustVisit.remove']}` })
+      .closest('li') as HTMLElement;
+    expect(within(row).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+  });
+});
 
 describe('FE-103-T1 results and the kept list', () => {
   it('lists what the search returned', async () => {

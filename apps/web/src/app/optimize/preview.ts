@@ -353,3 +353,18 @@ export function proposalPlaces(
   }
   return { places, missing };
 }
+
+/**
+ * The same places with their text credits taken off, for a stale run.
+ *
+ * The summary was written against the trip the run started from. Once the trip
+ * has moved on, today's `textProvenance` may credit words the summary never
+ * used — an English name added since, say — so only the place record's credit,
+ * which the summary's place does carry, is kept (FE-603-T10).
+ */
+export function recordCreditsOnly(result: ProposalPlaces): ProposalPlaces {
+  return {
+    ...result,
+    places: result.places.map((place) => ({ ...place, textProvenance: undefined })),
+  };
+}

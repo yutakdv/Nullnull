@@ -5,11 +5,18 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
   border-radius: var(--radius-card);
   background: var(--color-bg-surface);
   box-shadow: var(--elevation-card);
+}
+
+/* What the proposal says: the radio when there is a choice. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: inherit;
 }
 
 .summary {
@@ -20,12 +27,19 @@
   line-height: 21px;
 }
 
-/* The named places' credits, under the sentence that names them. */
+/* The credits: beside the radio, never in it (FE-603-T11). */
 .credits {
-  margin-top: calc(-1 * var(--space-2));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-4) var(--space-4);
 }
 
-.creditMissing {
+.credits:empty {
+  display: none;
+}
+
+.creditNote {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-caption-sm);

@@ -63,6 +63,49 @@ describe('FE-603-T8 one credit is drawn once per unit', () => {
   });
 });
 
+describe('FE-603-T8 "once" is judged on what is drawn', () => {
+  const KOR: SourceAttribution = (() => {
+    const credit = placeFixtures.detail.sourceAttribution;
+    if (!credit) throw new Error('the detail fixture lost its credit');
+    return credit;
+  })();
+
+  /** The fixture place whose name credit is the record's, changed by `edit`. */
+  function withNameCredit(edit: Partial<SourceAttribution>) {
+    return {
+      ...placeFixtures.detail,
+      textProvenance: {
+        name: { locale: 'ko-KR', sourceAttribution: { ...KOR, ...edit } },
+        address: null,
+        description: null,
+      },
+    };
+  }
+
+  it('keeps two credits that link different pages', () => {
+    // Same source and words, another page (an older registry revision, say):
+    // a reader following each link lands somewhere different, so both stay.
+    const other = 'https://www.data.go.kr/data/99999999/openapi.do';
+    const { container } = render(
+      <PlaceAttribution place={withNameCredit({ officialUrl: other })} />,
+    );
+    expect(creditLinks(container).map((link) => link.getAttribute('href'))).toEqual([
+      KOR_URL,
+      other,
+    ]);
+  });
+
+  it('draws once when the only difference is a licence link it does not show', () => {
+    const place = withNameCredit({ licenseUrl: 'https://example.test/other-licence' });
+    const { container, rerender } = render(<PlaceAttribution compact place={place} />);
+    expect(creditLinks(container)).toHaveLength(1);
+
+    // Shown, the licence links differ, so the two credits do too.
+    rerender(<PlaceAttribution place={place} showLicense />);
+    expect(creditLinks(container)).toHaveLength(2);
+  });
+});
+
 describe('FE-603-T6 a text credit from another dataset is drawn on its own', () => {
   it('credits the English dataset beside the place record', () => {
     const { container } = render(<PlaceAttribution place={withEnglishText()} />);

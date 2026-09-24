@@ -11,7 +11,7 @@ import {
   useTrip,
 } from '../../shared/api/index.js';
 import { BottomCta, DecisionBar, NavBar } from '../../shared/ui/index.js';
-import { decisionPhase, isStale, proposalPlaces } from './preview.js';
+import { decisionPhase, isStale, proposalPlaces, recordCreditsOnly } from './preview.js';
 import { ProposalCard, type ProposalCardProps } from './ProposalCard.js';
 import styles from './OptimizationRunScreen.module.css';
 
@@ -371,7 +371,9 @@ export function OptimizationRunScreen() {
     constraintsOk: t('run.proposal.constraintsOk'),
     constraintsBroken: t('run.proposal.constraintsBroken'),
     licenseTerms: t('license.terms'),
-    placeCreditMissing: t('run.proposal.placeCreditMissing'),
+    placeCreditPending: t('run.proposal.placeCreditPending'),
+    placeCreditMissingAll: t('run.proposal.placeCreditMissingAll'),
+    placeCreditMissingSome: t('run.proposal.placeCreditMissingSome'),
   };
 
   if (working || (progressStarted && !progressComplete)) {
@@ -510,11 +512,14 @@ export function OptimizationRunScreen() {
               labels={proposalLabels}
               onSelect={selectable ? setChosenId : undefined}
               // The named places come from the trip this screen already reads.
-              // Still loading: nothing yet. Failed: every place counts as
-              // missing, so the card says it could not credit them.
+              // Still loading: the card says it is checking. Failed: every place
+              // counts as missing. Stale: the trip moved on after the run, so only
+              // the place record's credit is drawn (recordCreditsOnly).
               places={
                 trip.data
-                  ? proposalPlaces(proposal, trip.data.trip)
+                  ? stale
+                    ? recordCreditsOnly(proposalPlaces(proposal, trip.data.trip))
+                    : proposalPlaces(proposal, trip.data.trip)
                   : trip.isError
                     ? proposalPlaces(proposal, null)
                     : null

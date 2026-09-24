@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { components } from '@nullnull/api-client';
 import { ProposalCard } from '../ProposalCard.js';
 
@@ -40,7 +40,9 @@ const LABELS = {
   constraintsOk: 'CONSTRAINTS_OK',
   constraintsBroken: 'CONSTRAINTS_BROKEN',
   licenseTerms: 'LICENSE_TERMS',
-  placeCreditMissing: 'PLACE_CREDIT_MISSING',
+  placeCreditPending: 'PLACE_CREDIT_PENDING',
+  placeCreditMissingAll: 'PLACE_CREDIT_MISSING_ALL',
+  placeCreditMissingSome: 'PLACE_CREDIT_MISSING_SOME',
 };
 
 /**
@@ -481,7 +483,7 @@ describe('the card credits the places its summary names (CMP-ATT-001)', () => {
     expect(forecastLink).toHaveAccessibleDescription(forecast.sourceDisplayName);
   });
 
-  it('FE-603-T9 says so when a named place cannot be credited', () => {
+  it('FE-603-T9 says so when no named place can be credited', () => {
     render(
       <ProposalCard
         labels={LABELS}
@@ -489,7 +491,27 @@ describe('the card credits the places its summary names (CMP-ATT-001)', () => {
         proposal={proposal()}
       />,
     );
-    expect(screen.getByText('PLACE_CREDIT_MISSING')).toBeVisible();
+    expect(screen.getByText('PLACE_CREDIT_MISSING_ALL')).toBeVisible();
+  });
+
+  it('FE-603-T9 says "some" only when some named places are credited', () => {
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 1 }}
+        proposal={proposal()}
+      />,
+    );
+    expect(screen.getByText('PLACE_CREDIT_MISSING_SOME')).toBeVisible();
+    expect(screen.queryByText('PLACE_CREDIT_MISSING_ALL')).toBeNull();
+  });
+
+  it('FE-603-T9 says the credits are being checked while the trip loads', () => {
+    // The summary names a place from the first frame; the trip that supplies
+    // its credit arrives later. Until it does, the card says so rather than
+    // showing the name with nothing under it.
+    render(<ProposalCard labels={LABELS} places={null} proposal={proposal()} />);
+    expect(screen.getByText('PLACE_CREDIT_PENDING')).toBeVisible();
   });
 
   it('FE-603-T9 says nothing extra when every named place is credited', () => {
@@ -500,6 +522,43 @@ describe('the card credits the places its summary names (CMP-ATT-001)', () => {
         proposal={proposal()}
       />,
     );
-    expect(screen.queryByText('PLACE_CREDIT_MISSING')).toBeNull();
+    for (const note of [
+      'PLACE_CREDIT_PENDING',
+      'PLACE_CREDIT_MISSING_ALL',
+      'PLACE_CREDIT_MISSING_SOME',
+    ]) {
+      expect(screen.queryByText(note)).toBeNull();
+    }
+  });
+
+  it('FE-603-T11 keeps every credit link outside a selectable card’s radio', () => {
+    // A radio's children are presentational: a link inside one is not a link
+    // to a screen reader, Enter and Space are taken by the radio, and a click
+    // selects the card instead of opening the source. The place credit and
+    // the forecast credit both sit beside the radio, not in it.
+    const onSelect = vi.fn();
+    const { container } = render(
+      <ProposalCard
+        labels={LABELS}
+        onSelect={onSelect}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={proposal()}
+        selected={false}
+      />,
+    );
+    const radio = screen.getByRole('radio');
+    const links = within(container).getAllByRole('link');
+    // The place credit, the forecast credit and its licence link.
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    for (const link of links) expect(radio.contains(link)).toBe(false);
+    const placeLink = links.find(
+      (link) => link.getAttribute('href') === credit.officialUrl,
+    );
+    if (!placeLink) throw new Error('the place credit is not drawn');
+    placeLink.addEventListener('click', (event) => {
+      event.preventDefault();
+    });
+    placeLink.click();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

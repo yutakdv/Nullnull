@@ -46,13 +46,24 @@ export function shownText(credit: AttributionSource, compact: boolean): string |
   return compact ? (credit.attributionShort ?? credit.attribution) : credit.attribution;
 }
 
-/** Two credits are the same credit when everything a reader sees or follows is. */
-function creditKey(credit: AttributionSource): string {
+/** How a unit draws its credits, which decides what a reader can tell apart. */
+export interface CreditDisplay {
+  compact?: boolean;
+  showLicense?: boolean;
+}
+
+/**
+ * Two credits of one source are the same credit when everything a reader sees
+ * or follows is: the words shown, the page linked, and the licence link when
+ * it is shown. A hidden licence difference is not something a reader can see.
+ * The source stays in the key, so two providers are never folded into one.
+ */
+function creditKey(credit: AttributionSource, display: CreditDisplay): string {
   return [
     credit.source ?? '',
-    credit.attribution ?? '',
+    shownText(credit, display.compact ?? false) ?? '',
     credit.officialUrl ?? '',
-    credit.licenseUrl ?? '',
+    display.showLicense ? (credit.licenseUrl ?? '') : '',
   ].join('\u0000');
 }
 
@@ -70,6 +81,7 @@ function creditKey(credit: AttributionSource): string {
 export function unitCredits(
   places: readonly PlaceLike[],
   also: readonly AttributionSource[] = [],
+  display: CreditDisplay = {},
 ): AttributionSource[] {
   const found: AttributionSource[] = [];
   for (const place of places) {
@@ -87,7 +99,7 @@ export function unitCredits(
 
   const seen = new Set<string>();
   return found.filter((credit) => {
-    const key = creditKey(credit);
+    const key = creditKey(credit, display);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

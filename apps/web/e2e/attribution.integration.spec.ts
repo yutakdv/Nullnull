@@ -2,9 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 // BA-073-T4 (#53) against the real API: a place the API credits to a provider
 // shows that credit on screen, or the release gate fails. FE-603-T4
-// (attribution-coverage.test.ts) proves the files that draw such a place import
-// DataAttribution; this proves the drawn page carries the credit the response
-// sent, verbatim (CMP-ATT-003), for every credited place on it.
+// (attribution-coverage.test.ts) proves, from the code, that every place a
+// screen names has a PlaceAttribution in the same file or a stated exemption;
+// this proves the drawn page carries the credit the response sent, verbatim
+// (CMP-ATT-003), for every credited place on it.
 //
 // The integration seed gives exactly one place a KorService2 credit: 명동, with
 // no coordinates, so searchPlaces and the draft pool never return it and no

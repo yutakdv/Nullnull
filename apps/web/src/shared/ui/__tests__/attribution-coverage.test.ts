@@ -20,16 +20,20 @@
 // whose type carries `sourceAttribution` — a PlaceSummary or PlaceDetail,
 // whatever the variable is called. A site is credited when the same file
 // renders `<PlaceAttribution place={…}>` for the same expression (or an array
-// holding it). Every other site must be in EXEMPT below, with the reason; an
-// unlisted uncredited site fails, and so does an exemption that no longer
-// matches one, so the list cannot rot into a blanket pass.
+// holding it). Every other site must be in EXEMPT below, with the reason.
+//
+// Matching is by (file, expression), so two units that share an expression —
+// the post chip and the checklist row above it are both `place` — are one
+// group. COUNTS pins how many sites and credits each group has: a new site in
+// an exempt file, or a unit whose credit is deleted while a sibling keeps the
+// same expression credited, changes a count and turns this red, and a person
+// re-reads the group before updating the number. The per-unit render tests
+// (FE-603-T5) are what tell sharing units apart; this is the outer boundary.
 //
 // What it cannot see: a name taken by destructuring (`const { name } = place`),
-// and whether the credit sits in the right element of the file. The per-unit
-// render tests (FE-603-T5) hold the second — the post chip and the checklist
-// row above it share the expression `place`, and only a render tells them
-// apart. A name passed on as a string (a sheet's context line) is judged where
-// it is first read, which is where EXEMPT names it.
+// and server prose that names a place (a proposal's `summary`) — neither is a
+// `.name` read. A name passed on as a string (a sheet's context line) is judged
+// where it is first read, which is where EXEMPT names it.
 import { relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -56,49 +60,51 @@ interface Site {
  *   자리는 test에 이유와 함께 명시 목록으로 둡니다. 그래야 새 자리가 조용히
  *   빠지지 않습니다.
  *
- * Each entry names where the words end up, so a reader can check the claim
- * against the screen.
+ * Each reason names its category from that rule and where the words end up, so
+ * a reader can check the claim against the screen.
  */
 const EXEMPT: readonly { file: string; expr: string; reason: string }[] = [
   {
     file: 'app/feed/FeedScreen.tsx',
     expr: 'card.primaryPlace',
     reason:
-      'the trip picker context line (TripPicker.tsx:145) for the feed card it was opened from, which FeedPostCard credits',
+      'sheet context line: the trip picker (TripPicker.tsx:145) names the feed card it was opened from, which FeedPostCard credits',
   },
   {
     file: 'app/trip/ItemMoveControls.tsx',
     expr: 'item.place',
     reason:
-      'accessible names of the move controls, the aria-live reorder status, and the MoveDaySheet context line (MoveDaySheet.tsx:178) for a stop TripScreen credits',
+      'status and accessible names: the move controls’ labels, the aria-live reorder status, and the MoveDaySheet context line (MoveDaySheet.tsx:178), for a stop TripScreen credits',
   },
   {
     file: 'app/trip/ItemMoveControls.tsx',
     expr: 'choice.place',
     reason:
-      'the aria-live sentence announcing a replacement; ReplaceSheet credits the option itself',
+      'status: the aria-live sentence announcing a replacement; ReplaceSheet credits each option beside its button',
   },
   {
     file: 'app/trip/RemoveItemControl.tsx',
     expr: 'item.place',
     reason:
-      'the remove confirm dialog, its accessible names, and the removal status (TripScreen.tsx:379) for a stop TripScreen credits',
+      'confirm dialog and status: the remove dialog, its accessible names, and the removal status (TripScreen.tsx:379), for a stop TripScreen credits',
   },
   {
     file: 'app/trip/trip-edit.ts',
     expr: 'item.place',
     reason:
-      'the stranded-stop list of the date-range form (TripEditForm.tsx:268), shown only on trip/:tripId/settings, a registered route no screen links to',
+      'confirmation notice: the date-range form’s list of stops a shorter range would drop (TripEditForm.tsx:268), shown before the change is confirmed, like a confirm dialog',
   },
   {
     file: 'app/trip/useTripDragReorder.ts',
     expr: 'item.place',
-    reason: 'the aria-hidden drag ghost (TripScreen.tsx:512) and the drag announcements',
+    reason:
+      'status: the aria-live sentence announcing where a dragged stop landed, for a stop TripScreen credits',
   },
   {
     file: 'app/trip/useTripDragReorder.ts',
     expr: 'current.item.place',
-    reason: 'the drop announcement of a drag, for a stop TripScreen credits',
+    reason:
+      'drag ghost: the aria-hidden preview that follows the pointer (TripScreen.tsx:512)',
   },
 ];
 
@@ -121,6 +127,56 @@ const CREDITED_ELSEWHERE: readonly {
   },
 ];
 
+/**
+ * How many `.name` sites and `<PlaceAttribution place>` credits each
+ * (file, expression) group has.
+ *
+ * A change here is a prompt, not a formality: open the file, find the unit the
+ * new or missing site belongs to, and decide whether it shows a place (credit
+ * it) or is UI feedback (say so in EXEMPT) before touching the number.
+ */
+const COUNTS: Record<string, { sites: number; credits: number }> = {
+  'app/feed/FeedScreen.tsx :: card.primaryPlace': { sites: 1, credits: 0 },
+  'app/live/KakaoLiveMap.tsx :: selectedPlace': { sites: 1, credits: 0 },
+  'app/live/LivePlaceScreen.tsx :: detail.data.place': { sites: 1, credits: 1 },
+  'app/live/LivePlaceScreen.tsx :: item.place': { sites: 1, credits: 1 },
+  'app/live/LiveScreen.tsx :: item.place': { sites: 3, credits: 1 },
+  'app/live/LiveScreen.tsx :: place': { sites: 3, credits: 1 },
+  'app/live/LiveScreen.tsx :: selectedPlace.data': { sites: 0, credits: 1 },
+  'app/optimize/OptimizeSetupScreen.tsx :: item.place': { sites: 1, credits: 1 },
+  'app/optimize/ProposalCard.tsx :: places.places[]': { sites: 0, credits: 1 },
+  'app/post/PostCreateScreen.tsx :: place': { sites: 2, credits: 2 },
+  'app/post/PostScreen.tsx :: place': { sites: 1, credits: 1 },
+  'app/trip-create/ConfirmStopsStep.tsx :: stop.place': { sites: 2, credits: 1 },
+  'app/trip-create/ImportPasteScreen.tsx :: item.place': { sites: 2, credits: 1 },
+  'app/trip-create/ImportPasteScreen.tsx :: place': { sites: 1, credits: 1 },
+  'app/trip-create/ManualStopsStep.tsx :: place': { sites: 2, credits: 1 },
+  'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 3, credits: 1 },
+  'app/trip-create/MustVisitScreen.tsx :: place': { sites: 4, credits: 2 },
+  'app/trip-create/RecommendedDraftStep.tsx :: stop.place': { sites: 2, credits: 1 },
+  'app/trip/AddPlaceScreen.tsx :: place': { sites: 3, credits: 1 },
+  'app/trip/CandidatesScreen.tsx :: candidate.place': { sites: 3, credits: 1 },
+  'app/trip/ItemMoveControls.tsx :: choice.place': { sites: 1, credits: 0 },
+  'app/trip/ItemMoveControls.tsx :: item.place': { sites: 9, credits: 0 },
+  'app/trip/RemoveItemControl.tsx :: item.place': { sites: 4, credits: 0 },
+  'app/trip/ReplaceSheet.tsx :: item.place': { sites: 1, credits: 1 },
+  'app/trip/ReplaceSheet.tsx :: option.place': { sites: 1, credits: 1 },
+  'app/trip/TripScreen.tsx :: item.place': { sites: 3, credits: 2 },
+  'app/trip/trip-edit.ts :: item.place': { sites: 1, credits: 0 },
+  'app/trip/useTripDragReorder.ts :: current.item.place': { sites: 1, credits: 0 },
+  'app/trip/useTripDragReorder.ts :: item.place': { sites: 2, credits: 0 },
+  'shared/ui/components/CandidateCard.tsx :: candidate.place': { sites: 1, credits: 1 },
+  'shared/ui/components/FeedPostCard.tsx :: primaryPlace': { sites: 1, credits: 1 },
+  'shared/ui/components/TripItemCard.tsx :: item.place': { sites: 2, credits: 1 },
+};
+
+/**
+ * Elements a credit link may not sit inside. A button, a link, or anything
+ * whose role makes it one control: its children are presentational to a screen
+ * reader, so the credit is no link there, and the control takes the click.
+ */
+const CONTROL_ROLE = /radio|button|option|checkbox|link|tab|menuitem|switch/;
+
 /** `item.place?.name` and `item.place!.name` are the same site as `item.place.name`. */
 function normal(text: string): string {
   return text.replace(/[?!]/g, '').replace(/\s+/g, '');
@@ -135,8 +191,16 @@ function shipped(fileName: string): boolean {
 
 interface Scan {
   sites: Site[];
-  /** Per file, the expressions a `<PlaceAttribution place={…}>` credits. */
-  credited: Map<string, Set<string>>;
+  /** Per `file :: expr`, the site and credit counts. */
+  groups: Map<string, { sites: number; credits: number }>;
+  /** Credit elements (PlaceAttribution or DataAttribution) found at all. */
+  creditElements: number;
+  /** Credit elements drawn inside a control, as `file:line Tag in control`. */
+  nested: string[];
+}
+
+function key(file: string, expr: string): string {
+  return `${file} :: ${expr}`;
 }
 
 function scan(): Scan {
@@ -154,54 +218,103 @@ function scan(): Scan {
   const program = ts.createProgram(parsed.fileNames, parsed.options);
   const checker = program.getTypeChecker();
 
-  const sites: Site[] = [];
-  const credited = new Map<string, Set<string>>();
+  const found: Scan = { sites: [], groups: new Map(), creditElements: 0, nested: [] };
+  const group = (file: string, expr: string) => {
+    const entry = found.groups.get(key(file, expr)) ?? { sites: 0, credits: 0 };
+    found.groups.set(key(file, expr), entry);
+    return entry;
+  };
+
   for (const source of program.getSourceFiles()) {
     if (!shipped(source.fileName)) continue;
     const file = relative(SRC, source.fileName);
-    const visit = (node: ts.Node): void => {
+    const lineOf = (node: ts.Node) =>
+      source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+
+    /** A button, a link, or an element whose role makes it one control. */
+    const isControl = (element: ts.JsxOpeningLikeElement): boolean => {
+      const tag = element.tagName.getText(source);
+      return (
+        tag === 'button' ||
+        tag === 'a' ||
+        element.attributes.properties.some(
+          (attribute) =>
+            ts.isJsxAttribute(attribute) &&
+            attribute.name.getText(source) === 'role' &&
+            attribute.initializer !== undefined &&
+            CONTROL_ROLE.test(attribute.initializer.getText(source)),
+        )
+      );
+    };
+
+    /** `controls` is the stack of control elements this node sits inside. */
+    const visit = (
+      node: ts.Node,
+      controls: readonly ts.JsxOpeningLikeElement[],
+    ): void => {
       if (ts.isPropertyAccessExpression(node) && node.name.text === 'name') {
         const type = checker.getNonNullableType(
           checker.getTypeAtLocation(node.expression),
         );
         if (type.getProperty('sourceAttribution')) {
-          sites.push({
-            file,
-            expr: normal(node.expression.getText(source)),
-            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
-          });
+          const expr = normal(node.expression.getText(source));
+          found.sites.push({ file, expr, line: lineOf(node) });
+          group(file, expr).sites += 1;
         }
       }
-      if (
-        (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) &&
-        node.tagName.getText(source) === 'PlaceAttribution'
-      ) {
-        for (const attribute of node.attributes.properties) {
-          if (
-            !ts.isJsxAttribute(attribute) ||
-            attribute.name.getText(source) !== 'place' ||
-            !attribute.initializer ||
-            !ts.isJsxExpression(attribute.initializer) ||
-            !attribute.initializer.expression
-          ) {
-            continue;
+
+      if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
+        const tag = node.tagName.getText(source);
+        if (tag === 'PlaceAttribution' || tag === 'DataAttribution') {
+          found.creditElements += 1;
+          const control = controls.at(-1);
+          if (control) {
+            found.nested.push(
+              `${file}:${String(lineOf(node))} ${tag} in <${control.tagName.getText(source)}>`,
+            );
           }
-          const value = attribute.initializer.expression;
-          const each = ts.isArrayLiteralExpression(value) ? value.elements : [value];
-          const set = credited.get(file) ?? new Set<string>();
-          for (const element of each) set.add(normal(element.getText(source)));
-          credited.set(file, set);
+        }
+        if (tag === 'PlaceAttribution') {
+          for (const attribute of node.attributes.properties) {
+            if (
+              !ts.isJsxAttribute(attribute) ||
+              attribute.name.getText(source) !== 'place' ||
+              !attribute.initializer ||
+              !ts.isJsxExpression(attribute.initializer) ||
+              !attribute.initializer.expression
+            ) {
+              continue;
+            }
+            const value = attribute.initializer.expression;
+            const each = ts.isArrayLiteralExpression(value) ? value.elements : [value];
+            for (const element of each) {
+              group(file, normal(element.getText(source))).credits += 1;
+            }
+          }
         }
       }
-      ts.forEachChild(node, visit);
+
+      // Only an element's children are inside it; its own attributes are not.
+      if (ts.isJsxElement(node)) {
+        visit(node.openingElement, controls);
+        const inner = isControl(node.openingElement)
+          ? [...controls, node.openingElement]
+          : controls;
+        for (const child of node.children) visit(child, inner);
+        return;
+      }
+      ts.forEachChild(node, (child) => {
+        visit(child, controls);
+      });
     };
-    visit(source);
+
+    visit(source, []);
   }
-  return { sites, credited };
+  return found;
 }
 
 function isCredited(found: Scan, site: { file: string; expr: string }): boolean {
-  return found.credited.get(site.file)?.has(site.expr) ?? false;
+  return (found.groups.get(key(site.file, site.expr))?.credits ?? 0) > 0;
 }
 
 describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credit', () => {
@@ -243,11 +356,8 @@ describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credi
     // An exemption that no longer matches anything would silently cover the
     // next site someone writes with the same file and expression.
     for (const entry of [...EXEMPT, ...CREDITED_ELSEWHERE]) {
-      const matches = found.sites.filter(
-        (site) => site.file === entry.file && site.expr === entry.expr,
-      );
       expect(
-        matches.length,
+        found.groups.get(key(entry.file, entry.expr))?.sites ?? 0,
         `${entry.file} ${entry.expr} matches no site`,
       ).toBeGreaterThan(0);
       expect(
@@ -264,5 +374,27 @@ describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credi
         `${entry.by.file} no longer credits ${entry.by.expr} (${entry.reason})`,
       ).toBe(true);
     }
+  });
+
+  it('has the sites and credits COUNTS pins, group by group', () => {
+    // (file, expression) matching cannot see a second site in an exempt file,
+    // or one unit losing its credit while a sibling keeps the expression
+    // credited. A count can. Re-read the group before changing a number here.
+    expect(Object.fromEntries([...found.groups].sort())).toEqual(COUNTS);
+  });
+});
+
+describe('FE-603-T11 CMP-ATT-001 a credit link is never inside a control', () => {
+  let found: Scan;
+  beforeAll(() => {
+    found = scan();
+  }, 60_000);
+
+  it('draws no credit inside a button, a link or a selection control', () => {
+    // A button's or a radio's children are presentational, so a credit there
+    // is no link to a screen reader, and the control takes the click. The
+    // guard is only as good as the number of credits it looked at.
+    expect(found.creditElements, 'no credit element was found at all').toBeGreaterThan(0);
+    expect(found.nested).toEqual([]);
   });
 });

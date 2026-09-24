@@ -51,7 +51,7 @@ export function PlaceAttribution({
   showLicense = false,
   termsLabel,
 }: PlaceAttributionProps) {
-  const credits = unitCredits(asList(place), also);
+  const credits = unitCredits(asList(place), also, { compact, showLicense });
   return (
     <>
       {credits.map((credit, index) => (
