@@ -294,7 +294,7 @@ readonly e2e_seed_report="${artifact_dir}/e2e-catalog-seed.txt"
   cat "${e2e_seed_report}" >&2
   exit 1
 }
-if ! grep -qx 'e2e_catalog_seed=places:3,published_posts:1' "${e2e_seed_report}"; then
+if ! grep -qx 'e2e_catalog_seed=places:3,published_posts:1,attributed_places:1' "${e2e_seed_report}"; then
   echo "E2E catalog seed did not read back as expected:" >&2
   cat "${e2e_seed_report}" >&2
   exit 1

@@ -196,7 +196,7 @@ class E2ECatalogSeedTests(unittest.TestCase):
         # psql exiting 0 says the statements ran, not that the rows are there.
         seed = self.seed_line()
         verdict = [i for i, line in enumerate(self.lines)
-                   if "grep -qx 'e2e_catalog_seed=places:3,published_posts:1'" in line]
+                   if "grep -qx 'e2e_catalog_seed=places:3,published_posts:1,attributed_places:1'" in line]
         self.assertEqual(len(verdict), 1)
         self.assertLess(seed, verdict[0])
         self.assertLess(verdict[0], self.lines.index(E2E_RUN))

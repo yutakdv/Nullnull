@@ -418,7 +418,7 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 12. [ ] **inventory 다시 뽑기**: 7을 다시 돌려 operation 집합이 같은지 본다. 완주가 새 종류의 KTO 호출을 만들었으면 9를 다시 한다.
 13. [ ] **release gate**(`BA-073-T4`·`T5`): 그 release의 main SHA에서 돈 `docker-integration` run URL을 남긴다.
     - T5는 E2E JUnit에 `BA-073-T5` 이름으로 나온다(`location-off.spec.ts`).
-    - T4는 web suite의 `FE-603-T4`가 재지만 `BA-073-T4` 이름으로는 집계되지 않는다(#53).
+    - T4는 E2E JUnit에 `BA-073-T4` 이름으로 나온다(`attribution.integration.spec.ts`, #53). 실제 API의 여행 응답이 출처를 준 장소마다 그 카드가 서버 문구를 그대로 그리는지 본다. web suite의 `FE-603-T4`는 그 장소를 그리는 파일이 `DataAttribution`을 쓰는지 보는 파일 단위 검사다.
 14. [ ] **같은 release 확인**: ③을 돌린다. 성공 줄은 `submission_release=unchanged release=<RELEASE>`다.
 15. [ ] **묶음**: 아래를 `$DIR`에 모으고 #305·#53에 요약 코멘트를 단다.
     - 1·2의 성공 줄
