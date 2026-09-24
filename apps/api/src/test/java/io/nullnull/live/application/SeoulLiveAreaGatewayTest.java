@@ -105,7 +105,7 @@ class SeoulLiveAreaGatewayTest {
                 assertThat(audit.finishes).as("%s: the run is closed", example.label()).hasSize(1);
                 IngestAudit.FinishRun finish = audit.finishes.get(0);
                 assertThat(finish.runId()).isEqualTo(collection.runId());
-                // Which refusal decides how the run closes (A-0b): the provider's own error is a FAILED
+                // Which refusal decides how the run closes (A-065): the provider's own error is a FAILED
                 // run the next tick retries, anything else still quarantines. BA-090-T19 holds that split.
                 assertThat(finish.status())
                         .isEqualTo(example.accepted() ? IngestAudit.RunStatus.COMPLETED
@@ -147,7 +147,7 @@ class SeoulLiveAreaGatewayTest {
      * The provider saying so itself is not drift: its own error code, or its own "this reading is a
      * substitute" flag, tells us nothing about whether we still understand its shape. Quarantining on
      * one of them shut SEOUL_CITYDATA for about ten hours on 2026-09-23, because a QUARANTINED latest
-     * run stops every later tick before it asks again (A-0b). Such a run now closes FAILED, which the
+     * run stops every later tick before it asks again (A-065). Such a run now closes FAILED, which the
      * next tick does not stop at; BA-090-T20 measures that against the real database.
      *
      * <p>The drift case is the control. Without it, a gateway that closed every refusal FAILED - which

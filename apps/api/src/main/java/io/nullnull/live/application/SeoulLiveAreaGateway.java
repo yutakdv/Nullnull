@@ -37,7 +37,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><strong>Except when the provider said so itself.</strong> Its own error code, or its own
  * substitution flag, is a PROVIDER_ERROR verdict, and that run finishes FAILED: the next tick asks
- * again instead of stopping at a quarantine nobody will review (A-0b). The run still carries the
+ * again instead of stopping at a quarantine nobody will review (A-065). The run still carries the
  * verdict, and the scheduler still logs the refusal the failed-collection alarm counts.
  *
  * <p><strong>This is not where a reviewed incident goes.</strong> {@code source_quality_incidents}

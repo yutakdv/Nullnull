@@ -59,7 +59,7 @@ public final class SeoulCityDataValidator {
         String dottedCode = hasDottedCode ? text(result, "RESULT.CODE") : null;
         // No code, or a code field with nothing readable in it, is not the provider declaring an error -
         // it declared nothing - so it is drift, and drift is quarantined. PROVIDER_ERROR is the one
-        // refusal that is retried on the next tick (A-0b), so it must mean what it says: a code the
+        // refusal that is retried on the next tick (A-065), so it must mean what it says: a code the
         // provider sent that is not success.
         if ((!hasCode && !hasDottedCode) || (hasCode && code == null) || (hasDottedCode && dottedCode == null)) {
             return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
@@ -103,7 +103,7 @@ public final class SeoulCityDataValidator {
         if ("Y".equals(replaced)) {
             // The provider itself says this reading is a substitute, so it is PROVIDER_ERROR: refused,
             // never stored, and - because the provider said so rather than changing shape - retried on
-            // the next tick instead of quarantined (A-0b, owner decision 2026-09-24). No eighth outcome:
+            // the next tick instead of quarantined (A-065, owner decision 2026-09-24). No eighth outcome:
             // that would move ProviderResponseValidator.Outcome, IngestAudit.ValidationResult and the
             // api_ingest_validation_check CHECK together, and PROVIDER_ERROR already says what happened.
             return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);

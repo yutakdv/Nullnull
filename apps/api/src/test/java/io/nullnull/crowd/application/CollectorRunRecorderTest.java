@@ -34,7 +34,7 @@ class CollectorRunRecorderTest {
     }
 
     /**
-     * KTO keeps the path it had. A-0b moved one source's provider-declared errors off quarantine and
+     * KTO keeps the path it had. A-065 moved one source's provider-declared errors off quarantine and
      * said "KTO untouched" in the same breath; this is what holds the second half. Point the shared
      * path at the Seoul rule and this goes red while every Seoul test stays green.
      */
@@ -55,7 +55,7 @@ class CollectorRunRecorderTest {
     }
 
     /**
-     * The whole table, not the one row A-0b is about: a path that also let RANGE or MAPPING_UNCERTAIN
+     * The whole table, not the one row A-065 is about: a path that also let RANGE or MAPPING_UNCERTAIN
      * through as FAILED would pass a test that only asked about PROVIDER_ERROR.
      */
     @Test

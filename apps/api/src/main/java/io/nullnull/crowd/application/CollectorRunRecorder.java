@@ -43,10 +43,10 @@ public class CollectorRunRecorder {
      * Every other refusal is QUARANTINED exactly as there: drift is not the provider saying something
      * went wrong, it is us no longer understanding what it sends.
      *
-     * <p>Only the Seoul adapter uses this (A-0b, owner decision 2026-09-24). One refused Seoul response
+     * <p>Only the Seoul adapter uses this (A-065, owner decision 2026-09-24). One refused Seoul response
      * quarantined SEOUL_CITYDATA for about ten hours on 2026-09-23: a QUARANTINED latest run stops
      * every later tick before it can ask again, so a provider that had recovered was never asked. The
-     * KTO gateways keep {@link #finalizeSingleCall}; A-0b left them as they were.
+     * KTO gateways keep {@link #finalizeSingleCall}; A-065 left them as they were.
      */
     public boolean finalizeSingleCallRetryingProviderErrors(UUID runId, UUID ingestLogId, int httpStatus,
             int durationMs, int responseCount, String payloadHash, ProviderResponseValidator.Verdict verdict,

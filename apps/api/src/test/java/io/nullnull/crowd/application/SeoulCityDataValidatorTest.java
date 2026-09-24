@@ -174,7 +174,7 @@ class SeoulCityDataValidatorTest {
      * consults {@code observation()}.
      */
     /**
-     * PROVIDER_ERROR says the provider declared an error, and since A-0b it is the one refusal that
+     * PROVIDER_ERROR says the provider declared an error, and since A-065 it is the one refusal that
      * does not quarantine: the next tick asks again. A response with no RESULT code declared nothing,
      * so reading it as the provider's error would turn a shape the provider stopped sending into a
      * retry loop instead of a quarantine. The declared-code case is the control - it must stay
