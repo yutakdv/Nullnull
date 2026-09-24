@@ -1,5 +1,10 @@
 package io.nullnull;
 
+import static com.tngtech.archunit.core.domain.JavaCall.Predicates.target;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.type;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
+import static com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -115,6 +120,27 @@ class ArchitectureRulesTest {
                         "io.nullnull..infrastructure..", "io.nullnull..api..")
                 .because("recommendation only computes over injected immutable inputs (§14, §15)")
                 .allowEmptyShould(true)
+                .check(classes);
+    }
+
+    /**
+     * A-065 moved Seoul's provider-declared errors off quarantine and left KTO where it was. BA-020-T9's unit test holds
+     * the shared path's answer; this holds who may take the other path. The second rule is what keeps the first from
+     * going quiet: rename the method and "no other class calls it" would match nothing, so the one class that must
+     * call it is asserted too.
+     */
+    @Test
+    @DisplayName("BA-020-T9 only the Seoul adapter takes the path that retries provider-declared errors")
+    void onlyTheSeoulAdapterRetriesProviderDeclaredErrors() {
+        var retryingPath = target(owner(type(io.nullnull.crowd.application.CollectorRunRecorder.class)))
+                .and(target(name("finalizeSingleCallRetryingProviderErrors")));
+        noClasses().that().doNotHaveFullyQualifiedName("io.nullnull.live.application.SeoulLiveAreaGateway")
+                .should().callMethodWhere(retryingPath)
+                .because("KTO keeps quarantining every refusal (A-065 is Seoul only)")
+                .check(classes);
+        classes().that().haveFullyQualifiedName("io.nullnull.live.application.SeoulLiveAreaGateway")
+                .should().callMethodWhere(retryingPath)
+                .because("the Seoul adapter is the one caller this path has")
                 .check(classes);
     }
 
