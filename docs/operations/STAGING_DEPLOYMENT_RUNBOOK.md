@@ -578,8 +578,9 @@ aws s3 cp "s3://${bucket}/pending/<run_id>-<attempt>/plan.tgz" plan.tgz --only-s
 mkdir plan && tar -xzf plan.tgz -C plan
 # (d) 받은 plan.json이 plan job이 승인 대상으로 찍은 그 plan인지 먼저 본다. 기대값은 plan job 요약이나 plan 단계 log의
 #     approved_plan_sha256이다. 받은 파일에서 다시 계산한 값을 쓰면 이 비교도 execute의 hash 검사도 아무것도 재지 않는다.
-#     MISMATCH면 멈춘다. match일 때만 plan/template-diff.txt(검토 diff)와 plan/classification.json(kind·findings)을 읽는다.
-[ "$(shasum -a 256 plan/plan.json | cut -d' ' -f1)" = "<approved_plan_sha256>" ] && echo plan_sha256=match || echo plan_sha256=MISMATCH
+#     MISMATCH면 멈춘다: 이 줄은 subshell 안에서 exit 1로 끝나 셸은 살아 있고 상태만 1이다(zsh·bash 모두). match일 때만
+#     plan/template-diff.txt(검토 diff)와 plan/classification.json(kind·findings)을 읽고 (e)로 간다.
+( [ "$(shasum -a 256 plan/plan.json | cut -d' ' -f1)" = "<approved_plan_sha256>" ] || { echo plan_sha256=MISMATCH; exit 1; }; echo plan_sha256=match )
 # (e) dispatch한 commit과 정확히 같은 commit의 worktree에서 실행한다. --kind는 plan job 요약의 kind다(migration 집합이
 #     바뀌면 infra). verify_plan이 infra/package-lock.json hash를 plan의 toolchainSha256과 대조한다. operator 코드가
 #     같은 commit인지는 대조하는 장치가 없다. plan은 만든 지 24시간 안에 실행한다(plan-older-than-24-hours). classify 뒤
@@ -590,9 +591,23 @@ python3 scripts/aws/staging_operator.py deploy --plan plan/plan.json --approved-
 # local에서 plan을 만들 때는 위 `deploy --manifest` 줄에 --accept-additive-schema <파일>을 붙이고, classify 출력의
 # accept_additive_schema= 줄을 확인한 뒤 같은 execute를 돌린다.
 bash scripts/aws/staging-smoke.sh                                      # NULLNULL_VERIFIER_TOKEN 이 있으면 API 경로도 본다
+# rollback(§8). 기록된 release의 assembly로 Migration·WebEdge·Services만 배포하고, edge를 닫는다.
+# schema가 같은 release로 돌아갈 때: classify가 app이면 --kind app으로 실행한다.
 python3 scripts/aws/staging_operator.py rollback --previous-plan <plan.json> --previous-plan-sha256 <sha>
 python3 scripts/aws/staging_operator.py classify --plan <rollback-plan.json> --approved-plan-sha256 <sha>
 python3 scripts/aws/staging_operator.py rollback --plan <rollback-plan.json> --approved-plan-sha256 <sha> --execute --kind app
+# schema를 덧붙인 release(V050 등, A-067) 뒤에 그 전 release로 돌아갈 때: 옛 binary가 새 schema를 만나므로 plan에
+# --accept-newer-schema를 준다. classify가 그 plan을 infra(infra_reason=rollback-accepts-newer-schema)로 보내므로
+# reviewer 검토 뒤 --kind infra로 실행한다. --kind app은 rollback-requires-infra-approval로 거부된다.
+python3 scripts/aws/staging_operator.py rollback --previous-plan <pre-V050 plan.json> --previous-plan-sha256 <sha> \
+  --accept-newer-schema
+python3 scripts/aws/staging_operator.py classify --plan <rollback-plan.json> --approved-plan-sha256 <rollback-sha>
+python3 scripts/aws/staging_operator.py rollback --plan <rollback-plan.json> --approved-plan-sha256 <rollback-sha> \
+  --execute --kind infra
+# 두 경우 모두 rollback이 edge를 닫는다. 공개가 필요하면 방금 배포된 rollback plan으로 다시 연다. edge는 current.json의
+# planSha256인 plan만 받고, 여는 데 verifier token이 필요하다(아래 공개 edge 줄과 같다).
+python3 scripts/aws/staging_operator.py edge --state open --plan <rollback-plan.json> --approved-plan-sha256 <rollback-sha> \
+  --execute
 python3 scripts/aws/staging_operator.py unlock --owner <lockOwner>     # break-glass, local 전용
 # ops task(local 전용). 승인 변수와 쓰기 대상 DB는 호출자 환경에서만 읽는다. target이 RDS가 보고하는 DB와 다르면
 # task를 띄우기 전에 거부하고 기대값을 출력한다.
