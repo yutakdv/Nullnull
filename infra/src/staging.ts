@@ -60,8 +60,10 @@ export const METRIC_NAMESPACE = "Nullnull/Staging";
 // date: judging closes 2026-10-25 23:59:59 KST and nothing here may outlive it.
 export const FORECAST_SCHEDULE_END = new Date("2026-10-25T14:59:59Z");
 // Every 12 h. A run renews the sets that lapse within KtoDemoRefresh.FORECAST_RENEW_BEFORE of its start,
-// and that window is longer than this cadence by more than a run can start late (the scheduler's
-// maxEventAge, plus startup), so the set one run fetched is always renewed by the next. Equal numbers
+// six hours longer than this cadence, so the set one run fetched is renewed by the next as long as a
+// run's call comes less than six hours later after its tick than the previous run's did. Lateness is
+// the scheduler's delivery, which maxEventAge below bounds (an older invocation is dropped, not
+// delivered late), then the Fargate start and the places ahead - minutes, bounded by nothing here. Equal numbers
 // were the defect (#361): that set lapsed exactly one window after the next run's tick, and whichever
 // run started faster after its tick decided whether it was renewed. The relation, not the numbers, is
 // the rule; scripts/tests/test_ops_alarm_metric_filters.py holds the two files to it.
@@ -83,7 +85,8 @@ export const DETAIL_MAIN =
 // NO_VERIFIED_KTO_MAPPING (KtoDemoRefresh.refreshForecast), so a forecast-only schedule would fail from
 // the seventh day of a thirty-six day judging period onward. Every 5 days, with
 // KtoDemoRefresh.DETAIL_RENEW_BEFORE longer than that by a day, so each run renews the snapshot the run
-// before it fetched. "5 + 2 = the 7 the registry allows" was the defect (#361): it put that snapshot
+// before it fetched as long as its call is not a day later after its tick than that run's (the same
+// lateness as above). "5 + 2 = the 7 the registry allows" was the defect (#361): it put that snapshot
 // exactly on the next run's renewal boundary, where a skipped renewal left about three days without a
 // mapping. The same test file holds this relation.
 export const DETAIL_SCHEDULE_RATE_DAYS = 5;

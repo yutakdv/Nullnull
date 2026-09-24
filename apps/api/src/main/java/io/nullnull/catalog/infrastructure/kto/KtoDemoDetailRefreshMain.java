@@ -1,8 +1,8 @@
 package io.nullnull.catalog.infrastructure.kto;
 
 /**
- * Renews the detailCommon2 snapshot of every demo place whose snapshot lapses within P2D, and maps it to
- * its canonical place (KtoDemoRefresh).
+ * Renews the detailCommon2 snapshot of every demo place whose snapshot lapses within
+ * {@code KtoDemoRefresh.DETAIL_RENEW_BEFORE} (P6D), and maps it to its canonical place (KtoDemoRefresh).
  *
  * <pre>
  * NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_DEMO_PLACES=126508:12,... ./gradlew ktoDemoDetailRefresh

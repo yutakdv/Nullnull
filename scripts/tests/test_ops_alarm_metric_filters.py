@@ -128,10 +128,12 @@ class ScheduleConstants(unittest.TestCase):
 
         Whatever the run finds must still be fresh when the NEXT run fetches, or the evidence has a gap
         (a detail gap leaves the forecast NO_VERIFIED_KTO_MAPPING; a forecast gap leaves optimization
-        without evidence). The next run fetches `rate` after this one's tick, plus however late that
-        run starts after its own tick and reaches this place on its list, so `renew` has to exceed
-        `rate` by more than any lateness. The scheduler alone may start a run up to maxEventAge after
-        its tick (it retries within that age); startup and the places ahead on the list add minutes.
+        without evidence). The next run fetches `rate` after this one's tick, plus however late its
+        call comes after its own tick, so `renew - rate` is the margin that lateness has to stay under.
+        Lateness is the scheduler's delivery, which maxEventAge bounds (it retries within that age and
+        drops an older invocation rather than deliver it late), then the Fargate start and the places
+        ahead on the list, which nothing here bounds and which take minutes. So this holds the margin
+        against the delivery bound only: an hour and some minutes fits inside a six-hour margin.
 
         The rule this replaces was `rate + renew <= life` for detail (5 + 2 = 7) and `rate == renew`
         for the forecast (12 = 12), and both are the boundary itself: the snapshot the last run fetched
@@ -141,10 +143,10 @@ class ScheduleConstants(unittest.TestCase):
         """
         max_event_age = re.search(r"maxEventAge: cdk\.Duration\.hours\((\d+)\)", STAGING_TS.read_text())
         assert max_event_age, "the schedule's maxEventAge is no longer a literal hour count"
-        lateness = int(max_event_age.group(1)) * 3600
+        delivery_bound = int(max_event_age.group(1)) * 3600
         self.assertGreater(
-            renew - rate, lateness,
-            f"{name}: a run must renew what would lapse before the next run starts, however late that is",
+            renew - rate, delivery_bound,
+            f"{name}: the margin a run's lateness must stay under is no longer than the scheduler's delivery bound",
         )
         # And a rerun right after a fetch leaves it alone, so a repeated schedule costs no calls.
         self.assertLess(renew, life, f"{name}: a just-fetched snapshot would be renewed again at once")

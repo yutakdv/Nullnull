@@ -278,10 +278,12 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 | schedule | 주기 | 승인 변수 | 왜 필요한가 |
 | --- | --- | --- | --- |
-| `nullnull-stg-forecast-refresh` | 12시간 | `NULLNULL_KTO_FORECAST_SMOKE_APPROVED` | 예보 set은 PT24H에 stale. 실행마다 시작 뒤 `KtoDemoRefresh.FORECAST_RENEW_BEFORE`(18시간) 안에 만료될 set을 갱신한다. 이 창이 주기보다 실행 지연 이상 길어서, 직전 실행이 받은 set을 매 실행이 갱신한다 |
-| `nullnull-stg-detail-refresh` | 5일 | `NULLNULL_KTO_SMOKE_APPROVED` | 예보 요청은 detail snapshot에서 만들어지고 그 수명은 `V007`의 604800초(7일)다. 끊기면 예보가 `NO_VERIFIED_KTO_MAPPING`으로 매번 실패한다. `DETAIL_RENEW_BEFORE`(6일)가 주기보다 하루 길어서, 직전 실행이 받은 snapshot을 매 실행이 갱신한다 |
+| `nullnull-stg-forecast-refresh` | 12시간 | `NULLNULL_KTO_FORECAST_SMOKE_APPROVED` | 예보 set은 PT24H에 stale. 실행마다 시작 뒤 `KtoDemoRefresh.FORECAST_RENEW_BEFORE`(18시간) 안에 만료될 set을 갱신한다. 이 창은 주기보다 6시간 길다. 실행의 호출이 tick 뒤 늦는 정도가 직전 실행보다 6시간 넘게 커지지 않으면, 직전 실행이 받은 set을 매 실행이 갱신한다 |
+| `nullnull-stg-detail-refresh` | 5일 | `NULLNULL_KTO_SMOKE_APPROVED` | 예보 요청은 detail snapshot에서 만들어지고 그 수명은 `V007`의 604800초(7일)다. 끊기면 예보가 `NO_VERIFIED_KTO_MAPPING`으로 매번 실패한다. `DETAIL_RENEW_BEFORE`(6일)는 주기보다 하루 길다. 늦는 정도가 직전 실행보다 하루 넘게 커지지 않으면, 직전 실행이 받은 snapshot을 매 실행이 갱신한다 |
 
 두 창은 예전에 주기와 같거나(예보 12시간), 주기와 더해 수명과 같았다(detail 5일 + 2일 = 7일). 그 경우 직전 실행이 받은 것이 다음 실행의 갱신 경계에 정확히 걸린다. 그래서 두 실행 가운데 어느 쪽이 tick 뒤 더 빨리 시작했는지에 따라 갱신 여부가 갈렸다(#361). #361에 기록된 staging 로그에서 예보는 한 번 갱신하고 한 번 건너뛰기를 되풀이했다. 이 관계는 `scripts/tests/test_ops_alarm_metric_filters.py`가 잰다.
+
+여유(창 − 주기)가 덮어야 하는 늦음은 두 가지다. Scheduler의 전달은 `maxEventAge`(1시간)가 묶는다. 그보다 오래된 호출은 늦게 보내지 않고 버린다. 그 뒤의 Fargate 기동과 앞 장소 처리는 분 단위로 보지만, 여기서 막는 장치는 없고 재지도 않았다. 위 test는 여유를 전달 한도와만 대조한다.
 
 KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
 

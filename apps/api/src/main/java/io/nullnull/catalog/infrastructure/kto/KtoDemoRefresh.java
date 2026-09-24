@@ -49,16 +49,20 @@ public final class KtoDemoRefresh {
 
     /**
      * A detail snapshot that lapses within this of a run's start is renewed. A day longer than the
-     * 5-day schedule (infra DETAIL_SCHEDULE_RATE_DAYS), so each run renews the snapshot the run before it
-     * fetched however late either of them started; shorter than the P7D life, so a rerun right after a
-     * fetch costs no call. Two days put that snapshot exactly on the next run's boundary (#361).
+     * 5-day schedule (infra DETAIL_SCHEDULE_RATE_DAYS), and that day is the margin: each run renews the
+     * snapshot the run before it fetched as long as a run's call comes less than a day later after its
+     * tick than the previous run's did. Lateness is the scheduler's delivery, which its maxEventAge
+     * bounds (1 h; an older invocation is dropped, not delivered late), then the Fargate start and the
+     * places ahead of this one - minutes, and bounded by nothing here. Shorter than the P7D life, so a
+     * rerun right after a fetch costs no call. Two days put that snapshot exactly on the next run's
+     * boundary (#361).
      */
     static final Duration DETAIL_RENEW_BEFORE = Duration.ofDays(6);
 
     /**
      * A forecast set that lapses within this of a run's start is renewed. Six hours longer than the
-     * 12-hour schedule, for the same reason; shorter than the PT24H life. Twelve hours, the schedule
-     * itself, was the same boundary (#361).
+     * 12-hour schedule: the same margin as above, six hours instead of a day. Shorter than the PT24H
+     * life. Twelve hours, the schedule itself, was the same boundary (#361).
      */
     static final Duration FORECAST_RENEW_BEFORE = Duration.ofHours(18);
 
