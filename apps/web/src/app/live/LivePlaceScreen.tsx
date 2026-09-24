@@ -16,8 +16,9 @@ import {
   CrowdLevel,
   DataAttribution,
   NavBar,
-  StateLabel,
+  PlaceAttribution,
   type SourceState,
+  StateLabel,
 } from '../../shared/ui/index.js';
 import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
@@ -189,9 +190,7 @@ export function LivePlaceScreen() {
           {detail.data.place.address ? (
             <p className={styles.address}>{detail.data.place.address}</p>
           ) : null}
-          {detail.data.place.sourceAttribution ? (
-            <DataAttribution compact provenance={detail.data.place.sourceAttribution} />
-          ) : null}
+          <PlaceAttribution compact place={detail.data.place} />
 
           <section aria-labelledby="live-place-crowd" className={styles.card}>
             <h2 id="live-place-crowd">{t('live.detail.crowd')}</h2>
@@ -254,7 +253,14 @@ export function LivePlaceScreen() {
                         unavailableReason={t('live.noReading')}
                       />
                     )}
-                    <DataAttribution compact provenance={item.provenance} />
+                    {/* The place and the relation are two records: the place
+                        is a catalogue entry, the relation is why it is
+                        offered. Each keeps its own credit (CMP-ATT-001). */}
+                    <PlaceAttribution
+                      compact
+                      also={[item.provenance]}
+                      place={item.place}
+                    />
                   </li>
                 ))}
               </ul>

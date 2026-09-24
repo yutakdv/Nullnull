@@ -14,9 +14,10 @@ import {
   Chip,
   CrowdLevel,
   DataAttribution,
+  PlaceAttribution,
   SearchField,
-  StateLabel,
   type SourceState,
+  StateLabel,
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
@@ -184,6 +185,11 @@ export function LiveScreen() {
                     >
                       {t('live.searchShowOnMap', { name: place.name })}
                     </button>
+                    {/* CMP-ATT-001: a result names a catalogue place, so it
+                        carries that place's credit like any other row. */}
+                    <span className={styles.resultCredit}>
+                      <PlaceAttribution compact place={place} />
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -208,9 +214,10 @@ export function LiveScreen() {
           <p role="status">{t('live.detail.loading')}</p>
         ) : null}
         {selectedPlace.isError ? <p role="alert">{t('live.map.placeError')}</p> : null}
-        {selectedPlace.data?.sourceAttribution ? (
-          <DataAttribution compact provenance={selectedPlace.data.sourceAttribution} />
-        ) : null}
+        {/* The credits of the places the map shows, once each. Today that is
+            the one selected place KakaoLiveMap draws as a marker; the marker
+            itself cannot hold a link, so the credit sits under the map. */}
+        <PlaceAttribution compact place={selectedPlace.data} />
       </div>
 
       <section aria-label={t('live.sheet.title')} className={styles.listPanel}>
@@ -358,18 +365,11 @@ export function LiveScreen() {
                               >
                                 {t('live.searchShowOnMap', { name: item.place.name })}
                               </button>
-                              {item.place.sourceAttribution ? (
-                                <DataAttribution
-                                  compact
-                                  provenance={item.place.sourceAttribution}
-                                />
-                              ) : null}
-                              {item.crowd ? (
-                                <DataAttribution
-                                  compact
-                                  provenance={item.crowd.provenance}
-                                />
-                              ) : null}
+                              <PlaceAttribution
+                                also={item.crowd ? [item.crowd.provenance] : undefined}
+                                compact
+                                place={item.place}
+                              />
                             </li>
                           ))}
                         </ul>

@@ -14,9 +14,9 @@ import {
   useTripCandidates,
 } from '../../shared/api/index.js';
 import {
-  DataAttribution,
   NavBar,
   PlaceThumbnail,
+  PlaceAttribution,
 } from '../../shared/ui/components/index.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import styles from './CandidatesScreen.module.css';
@@ -327,9 +327,7 @@ function CandidateCardRow({
               non-display, and a null name means "show no category". */}
           {meta === '' ? null : <p className={styles.meta}>{meta}</p>}
           {/* FCR-031 / CMP-ATT-001: the server's approved credit, verbatim. */}
-          {candidate.place.sourceAttribution ? (
-            <DataAttribution compact provenance={candidate.place.sourceAttribution} />
-          ) : null}
+          <PlaceAttribution compact place={candidate.place} />
         </div>
       </div>
 

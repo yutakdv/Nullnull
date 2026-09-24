@@ -20,6 +20,17 @@
   line-height: 21px;
 }
 
+/* The named places' credits, under the sentence that names them. */
+.credits {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.creditMissing {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-caption-sm);
+}
+
 .section {
   display: flex;
   flex-direction: column;

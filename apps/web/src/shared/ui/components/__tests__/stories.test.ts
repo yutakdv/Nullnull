@@ -13,11 +13,18 @@ const dir = 'src/shared/ui/components';
 /**
  * Components with no story yet, each with the reason.
  *
- * Both need a contract fixture to render honestly — a hand-written object in a
+ * Each needs a contract fixture to render honestly — a hand-written object in a
  * story would be the parallel model TEST_STRATEGY.md:117 forbids — so they wait
  * for BE/AI's real responses rather than getting invented data.
  */
-const AWAITING_FIXTURES = new Set(['CandidateCard', 'DataAttribution']);
+const AWAITING_FIXTURES = new Set([
+  'CandidateCard',
+  'DataAttribution',
+  // The case it exists for — a place whose text comes from a second dataset
+  // (KTO_ENG_SERVICE) — has no contract fixture yet; its unit test builds that
+  // one credit from the V050 registry row, which a story may not do.
+  'PlaceAttribution',
+]);
 
 function componentNames(): string[] {
   return readdirSync(dir)

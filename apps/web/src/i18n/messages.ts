@@ -736,6 +736,9 @@ export const messages = {
     'run.proposal.remove': '제외',
     'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
     'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
+    // Under a proposal's credits when a place its summary names is not in the
+    // trip the screen holds, so its credit cannot be drawn (CMP-ATT-001).
+    'run.proposal.placeCreditMissing': '이 제안의 일부 장소는 출처를 표시하지 못했어요',
 
     // S07 applied panel (417:2412 and its three sibling states). The panel
     // lives on the trip screen, not the run screen: Figma draws it over the
@@ -1741,6 +1744,8 @@ export const messages = {
     'run.proposal.remove': 'Removed',
     'run.proposal.constraintsOk': 'Your locks and constraints are kept',
     'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
+    'run.proposal.placeCreditMissing':
+      "We couldn't show the source for some places in this proposal",
 
     // See the ko-KR block for why `revision.reverted` counts forward.
     'trip.applied.badge.available': 'Can be undone',

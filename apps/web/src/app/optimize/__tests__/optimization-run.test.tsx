@@ -13,12 +13,12 @@
 // that never polls at all both LOOK right in a snapshot, so the request count
 // is what the assertions are made of.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tripFixtures } from '@nullnull/contracts';
+import { optimizationFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -684,5 +684,50 @@ describe('FE-502 an unknown failure code folds to the generic message', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(copy['run.failure.unknown'])).toBeNull();
     view.unmount();
+  });
+});
+
+describe('the run screen credits the places a proposal names (CMP-ATT-001)', () => {
+  // The fixture proposal moves 인사동, a stop of the trip it was computed from.
+  // The screen already reads that trip, and the card's credit comes from it.
+  const READY = optimizationFixtures.runReady;
+  const insadong = trip.days
+    .flatMap((day) => day.items)
+    .find((item) => item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03')?.place;
+  const credit = insadong?.sourceAttribution;
+  if (!insadong || !credit) throw new Error('the trip fixture lost its credited 인사동');
+
+  function readyWithTrip(answer: () => Response) {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () => HttpResponse.json(READY)),
+      http.get(`${API_BASE}/trips/:tripId`, answer),
+    );
+  }
+
+  it('FE-603-T5 draws the credit of the place the proposal moves', async () => {
+    readyWithTrip(() =>
+      HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } }),
+    );
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    await waitFor(() => {
+      const hrefs = within(card)
+        .getAllByRole('link', { name: credit.attribution })
+        .map((link) => link.getAttribute('href'));
+      expect(hrefs).toContain(credit.officialUrl);
+    });
+  });
+
+  it('FE-603-T9 says a place went uncredited when the trip cannot be read', async () => {
+    // NOT_FOUND — the trip was deleted after the run began — is final, so the
+    // query settles on it; INTERNAL_ERROR would be retried and stay pending.
+    readyWithTrip(() => problemResponse('NOT_FOUND'));
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    expect(
+      await within(card).findByText(copy['run.proposal.placeCreditMissing']),
+    ).toBeVisible();
   });
 });

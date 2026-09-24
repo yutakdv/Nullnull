@@ -1,4 +1,6 @@
+import { useId } from 'react';
 import type { components } from '@nullnull/api-client';
+import { shownText, type AttributionSource } from './credits.js';
 import styles from './DataAttribution.module.css';
 
 // Shared provenance primitive named in COMPONENT_CATALOG §1. Not a Figma
@@ -16,21 +18,6 @@ import styles from './DataAttribution.module.css';
 type Provenance = components['schemas']['DataProvenance'];
 type SourceAttribution = components['schemas']['SourceAttribution'];
 
-/**
- * What this component needs, which is less than either contract type supplies.
- *
- * Two shapes carry a credit: DataProvenance (crowd metrics, 29 fields) and
- * SourceAttribution (place records, 7). Only the attribution text and the two
- * links are common to both, and `attributionShort` exists on the first alone —
- * hence optional here rather than a Pick that one of them cannot satisfy.
- */
-export interface AttributionSource {
-  attribution: string;
-  attributionShort?: string | null;
-  officialUrl?: string | null;
-  licenseUrl?: string | null;
-}
-
 export interface DataAttributionProps {
   provenance: AttributionSource | Provenance | SourceAttribution;
   /** Narrow cards prefer the server's short credit. */
@@ -44,6 +31,12 @@ export interface DataAttributionProps {
    * wording, shown verbatim (CMP-ATT-003). Only this link is our own label.
    */
   termsLabel?: string;
+  /**
+   * The server's name for this credit's source, shown beside it when another
+   * credit in the same unit reads the same (`sourceContext` in credits.ts).
+   * Never part of the link text, which stays the server's words.
+   */
+  context?: string | null;
 }
 
 export function DataAttribution({
@@ -51,25 +44,33 @@ export function DataAttribution({
   termsLabel = '이용조건',
   compact = false,
   showLicense = false,
+  context = null,
 }: DataAttributionProps) {
-  const { attribution, officialUrl, licenseUrl } = provenance;
-  // Present on DataProvenance, absent on SourceAttribution.
-  const attributionShort =
-    'attributionShort' in provenance ? provenance.attributionShort : null;
-  // Falling back to the full string is deliberate: an absent short form must
-  // not become a client-side truncation.
-  const text = compact ? (attributionShort ?? attribution) : attribution;
+  const contextId = useId();
+  const { officialUrl, licenseUrl } = provenance;
+  const text = shownText(provenance, compact);
   if (!text) return null;
 
   return (
     <span className={styles.attribution}>
       {officialUrl ? (
-        <a href={officialUrl} target="_blank" rel="noreferrer noopener">
+        <a
+          aria-describedby={context ? contextId : undefined}
+          href={officialUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
           {text}
         </a>
       ) : (
         text
       )}
+      {context ? (
+        <>
+          <span aria-hidden="true">{' · '}</span>
+          <span id={contextId}>{context}</span>
+        </>
+      ) : null}
       {showLicense && licenseUrl ? (
         <>
           {' · '}

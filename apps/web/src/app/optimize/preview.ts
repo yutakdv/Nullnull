@@ -13,6 +13,8 @@ type OptimizationChange = components['schemas']['OptimizationChange'];
 type OptimizationStatus = components['schemas']['OptimizationStatus'];
 type DataProvenance = components['schemas']['DataProvenance'];
 type TripItemState = components['schemas']['TripItemState'];
+type TripDetail = components['schemas']['TripDetail'];
+type PlaceSummary = components['schemas']['PlaceSummary'];
 
 /**
  * Whether this proposal's crowd delta may be drawn, and the credit that must
@@ -302,4 +304,52 @@ export function changeRows(changes: OptimizationChange[]): ChangeRow[] {
     }
   }
   return rows;
+}
+
+/** The places one proposal names, and how many of them the trip cannot supply. */
+export interface ProposalPlaces {
+  /** Named places the trip holds, each once, in the order the changes name them. */
+  places: PlaceSummary[];
+  /** Named places it does not hold. Never dropped: the card says so (CMP-ATT-001). */
+  missing: number;
+}
+
+/**
+ * The places a proposal's changes name, taken from the trip the screen holds.
+ *
+ * The server's `summary` sentence names a place ("인사동 방문을 …"), so the card
+ * owes that place's credit. The proposal carries only `placeId`s; the places
+ * themselves — and their credits — come from the trip, which the run screen
+ * already reads. That covers every change produced today: ItemProposalMapper
+ * emits MOVE only, and a move's place is in the trip by definition.
+ *
+ * A place the trip does not hold is COUNTED, not skipped: an ADD or REPLACE
+ * target (the contract allows both), a stop removed since the run started, or
+ * a trip that could not be read at all (`null`). Skipping it would draw a card
+ * that names a place and credits nothing for it, and nobody would see the gap.
+ */
+export function proposalPlaces(
+  proposal: OptimizationProposal,
+  trip: TripDetail | null,
+): ProposalPlaces {
+  const held = new Map<string, PlaceSummary>();
+  for (const day of trip?.days ?? []) {
+    for (const item of day.items) held.set(item.place.id, item.place);
+  }
+
+  const named = new Set<string>();
+  for (const change of proposal.changes) {
+    for (const side of [change.before, change.after]) {
+      if (side) named.add(side.placeId);
+    }
+  }
+
+  const places: PlaceSummary[] = [];
+  let missing = 0;
+  for (const placeId of named) {
+    const place = held.get(placeId);
+    if (place) places.push(place);
+    else missing += 1;
+  }
+  return { places, missing };
 }

@@ -288,10 +288,22 @@ describe('FE-103-T2 the card shows only what the contract supplies', () => {
     // Every credit on screen has to be a string the response supplied. A card
     // that prints "ⓒ한국관광공사" for a place the server did not attribute is
     // exactly what CMP-ATT-003 forbids.
+    //
+    // "Supplied" covers both responses on this screen. The forecast's credit
+    // reads the same as the place's, so its source is named beside it
+    // (FE-603-T7) — and that name is the forecast response's own
+    // `sourceDisplayName`, not ours. This set once held the place credits
+    // alone and passed only because the two credits happened to match.
     const served = new Set(
-      placeFixtures.searchPage.items
-        .map((item) => item.sourceAttribution?.attribution)
-        .filter((text): text is string => typeof text === 'string'),
+      [
+        ...placeFixtures.searchPage.items.map(
+          (item) => item.sourceAttribution?.attribution,
+        ),
+        ...crowdFixtures.seriesForecast.points.flatMap((point) => [
+          point.provenance.attribution,
+          point.provenance.sourceDisplayName,
+        ]),
+      ].filter((text): text is string => typeof text === 'string'),
     );
     for (const node of screen.queryAllByText(/한국관광공사/)) {
       expect(served).toContain(node.textContent?.trim());

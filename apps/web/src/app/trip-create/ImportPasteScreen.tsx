@@ -9,7 +9,7 @@ import {
   useRemapTripImport,
   type ImportDraftWithETag,
 } from '../../shared/api/index.js';
-import { BottomCta, NavBar } from '../../shared/ui/index.js';
+import { BottomCta, NavBar, PlaceAttribution } from '../../shared/ui/index.js';
 import { EMPTY_DRAFT, toCreateRequest, type WizardDraft } from './wizard.js';
 import { clearSnapshot } from './wizard-storage.js';
 import wizard from './TripWizardScreen.module.css';
@@ -257,6 +257,9 @@ export function ImportPasteScreen() {
                         undefined for an item the parser gave no time at all. */}
                     {item.startTime == null ? '' : ` · ${item.startTime.slice(0, 5)}`}
                   </span>
+                  {/* CMP-ATT-001: the place the parser matched is a catalogue
+                      record, credited like everywhere else it appears. */}
+                  <PlaceAttribution compact place={item.place} />
                 </span>
                 <button
                   aria-label={t('import.item.dismiss', {
@@ -290,22 +293,27 @@ export function ImportPasteScreen() {
                   </span>
                 </span>
                 <span className={styles.actions}>
+                  {/* Each offered place with its own credit, beside the button
+                      rather than inside it: a link nested in a button can be
+                      reached by neither a pointer nor a screen reader. */}
                   {token.suggestions.map((place) => (
-                    <button
-                      className={styles.pick}
-                      disabled={remap.isPending}
-                      key={place.id}
-                      onClick={() => {
-                        sendUpdate({
-                          clientKey: token.clientKey,
-                          placeId: place.id,
-                          date: current.dates.startDate ?? null,
-                        });
-                      }}
-                      type="button"
-                    >
-                      {t('import.token.pick', { name: place.name })}
-                    </button>
+                    <span className={styles.offer} key={place.id}>
+                      <button
+                        className={styles.pick}
+                        disabled={remap.isPending}
+                        onClick={() => {
+                          sendUpdate({
+                            clientKey: token.clientKey,
+                            placeId: place.id,
+                            date: current.dates.startDate ?? null,
+                          });
+                        }}
+                        type="button"
+                      >
+                        {t('import.token.pick', { name: place.name })}
+                      </button>
+                      <PlaceAttribution compact place={place} />
+                    </span>
                   ))}
                   {/* The dead end #223 closed: a line with no label and no
                       suggestion cannot be resolved, so withdrawing it is the

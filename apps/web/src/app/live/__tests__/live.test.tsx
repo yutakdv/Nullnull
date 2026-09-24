@@ -329,6 +329,9 @@ describe('FE-401 Live area list', () => {
     const showOnMap = await screen.findByRole('button', {
       name: 'Show 경복궁 on the map',
     });
+    // Every search result carries its own credit now (FE-603-T5), so the map's
+    // is the one that choosing a place adds rather than the only one on screen.
+    const creditsBefore = screen.getAllByRole('link', { name: /한국관광공사/ }).length;
     await user.click(showOnMap);
 
     const marker = await within(map).findByRole('button', { name: '경복궁' });
@@ -340,7 +343,9 @@ describe('FE-401 Live area list', () => {
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toBeVisible();
-    expect(screen.getByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    const creditsAfter = screen.getAllByRole('link', { name: /한국관광공사/ });
+    expect(creditsAfter).toHaveLength(creditsBefore + 1);
+    for (const credit of creditsAfter) expect(credit).toBeVisible();
     await user.click(marker);
     expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
   });
@@ -388,6 +393,36 @@ describe('FE-401 Live area list', () => {
       `/live/places/${placeFixtures.searchPage.items[0]?.id}`,
     );
     expect(result).not.toHaveTextContent('›');
+  });
+
+  it('FE-603-T5 credits each place a search returns', async () => {
+    // The result row named a catalogue place with no credit; the same place
+    // chosen onto the map was credited under it. Each row is checked through
+    // its own detail link, so a credit elsewhere on the screen cannot pass.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    for (const place of placeFixtures.searchPage.items) {
+      const credit = place.sourceAttribution;
+      if (!credit) throw new Error(`${place.name} lost its credit in the fixture`);
+      const link = await screen.findByRole('link', {
+        name: new RegExp(`View Live information for ${place.name}`, 'i'),
+      });
+      const row = link.closest('li') as HTMLElement;
+      expect(
+        within(row).getByRole('link', { name: credit.attribution }),
+        place.name,
+      ).toHaveAttribute('href', credit.officialUrl ?? '');
+    }
   });
 
   it('FE-401-T2 shows searching, then no results, as two different states', async () => {
@@ -859,6 +894,37 @@ describe('FE-402 Live place detail', () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByRole('img')).toBeNull();
     expect(within(row as HTMLElement).getByText(/different basis/i)).toBeVisible();
+  });
+
+  it('FE-603-T5 credits an alternative place apart from the relation', async () => {
+    // The row credited the relation (item.provenance) and not the place it
+    // named. The two are different records: the place is a catalogue entry,
+    // the relation is the reason it is offered. Found by the place credit's
+    // own page, because both credits read the same words.
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const alternative = relatedFixtures.page.items[0];
+    const credit = alternative?.place.sourceAttribution;
+    if (!alternative || !credit)
+      throw new Error('Fixtures must include a credited alternative');
+    expect(credit.officialUrl).not.toBe(alternative.provenance.officialUrl);
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () =>
+        HttpResponse.json({
+          ...detail,
+          related: { ...detail.related, state: 'SIMILAR', items: [alternative] },
+        }),
+      ),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const link = await screen.findByRole('link', { name: alternative.place.name });
+    const row = link.closest('li') as HTMLElement;
+    const hrefs = within(row)
+      .getAllByRole('link', { name: credit.attribution })
+      .map((anchor) => anchor.getAttribute('href'));
+    expect(hrefs).toContain(credit.officialUrl);
+    expect(hrefs).toContain(alternative.provenance.officialUrl);
   });
 
   it('FE-402-T1 does not compare TEMPORAL metrics across different places', async () => {

@@ -11,10 +11,11 @@ import {
 } from '../../shared/api/index.js';
 import {
   Chip,
-  DataAttribution,
   NavBar,
+  PlaceAttribution,
   PlaceThumbnail,
   SearchField,
+  unitCredits,
 } from '../../shared/ui/index.js';
 import {
   CrowdForecastCardReading,
@@ -223,10 +224,11 @@ export function AddPlaceScreen() {
                   <span className={styles.resultText}>
                     <span className={styles.name}>{place.name}</span>
                     {meta === '' ? null : <span className={styles.meta}>{meta}</span>}
-                    {place.sourceAttribution ? (
-                      <DataAttribution compact provenance={place.sourceAttribution} />
-                    ) : null}
-                    <CrowdForecastCardReading series={forecasts.data?.items[index]} />
+                    <PlaceAttribution compact place={place} />
+                    <CrowdForecastCardReading
+                      alongside={unitCredits([place])}
+                      series={forecasts.data?.items[index]}
+                    />
                   </span>
                   <button
                     // Named for the place: a column of identical "추가" buttons

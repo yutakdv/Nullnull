@@ -11,7 +11,7 @@ import {
   useTrip,
 } from '../../shared/api/index.js';
 import { BottomCta, DecisionBar, NavBar } from '../../shared/ui/index.js';
-import { decisionPhase, isStale } from './preview.js';
+import { decisionPhase, isStale, proposalPlaces } from './preview.js';
 import { ProposalCard, type ProposalCardProps } from './ProposalCard.js';
 import styles from './OptimizationRunScreen.module.css';
 
@@ -371,6 +371,7 @@ export function OptimizationRunScreen() {
     constraintsOk: t('run.proposal.constraintsOk'),
     constraintsBroken: t('run.proposal.constraintsBroken'),
     licenseTerms: t('license.terms'),
+    placeCreditMissing: t('run.proposal.placeCreditMissing'),
   };
 
   if (working || (progressStarted && !progressComplete)) {
@@ -508,6 +509,16 @@ export function OptimizationRunScreen() {
               key={proposal.id}
               labels={proposalLabels}
               onSelect={selectable ? setChosenId : undefined}
+              // The named places come from the trip this screen already reads.
+              // Still loading: nothing yet. Failed: every place counts as
+              // missing, so the card says it could not credit them.
+              places={
+                trip.data
+                  ? proposalPlaces(proposal, trip.data.trip)
+                  : trip.isError
+                    ? proposalPlaces(proposal, null)
+                    : null
+              }
               proposal={proposal}
               selected={selectable ? proposal.id === selectedId : undefined}
             />

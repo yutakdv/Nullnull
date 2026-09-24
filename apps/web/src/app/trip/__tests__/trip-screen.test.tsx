@@ -649,6 +649,49 @@ describe('FE-301 the trip screen credits the places it shows', () => {
     expect(forecastLinks[0]).toHaveAccessibleName(forecast.provenance.attribution);
   });
 
+  it('FE-603-T7 names the forecast source when its credit reads like the place one', async () => {
+    // The fixtures' own words this time, not the distinctive CREDIT above:
+    // KorService2 and the concentration forecast both approve
+    // `출처: ⓒ한국관광공사`, so a stop with a forecast drew the same link twice
+    // pointing at two datasets (#383 review, MINOR).
+    const [firstDay, ...restDays] = trip.days;
+    const firstItem = firstDay?.items[0];
+    const forecast = crowdFixtures.seriesForecast.points[0];
+    if (!firstDay || !firstItem || !forecast) throw new Error('fixtures lost a stop');
+    expect(forecast.provenance.attribution).toBe(
+      firstItem.place.sourceAttribution?.attribution,
+    );
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...trip,
+            days: [
+              {
+                ...firstDay,
+                items: [{ ...firstItem, crowd: forecast }, ...firstDay.items.slice(1)],
+              },
+              ...restDays,
+            ],
+          },
+          { headers: { ETag: '"3"' } },
+        ),
+      ),
+    );
+    renderTrip();
+    await loaded();
+
+    const row = (
+      await screen.findByRole('heading', { level: 3, name: firstItem.place.name })
+    ).closest('article') as HTMLElement;
+    const forecastLink = within(row)
+      .getAllByRole('link', { name: forecast.provenance.attribution ?? '' })
+      .find((link) => link.getAttribute('href') === forecast.provenance.officialUrl);
+    expect(forecastLink).toHaveAccessibleDescription(
+      forecast.provenance.sourceDisplayName,
+    );
+  });
+
   it('does not reserve empty rows when optional place details are absent', async () => {
     const credited = tripWithCredit();
     const [firstDay, ...restDays] = credited.days;

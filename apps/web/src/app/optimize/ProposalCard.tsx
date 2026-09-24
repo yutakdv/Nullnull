@@ -1,6 +1,18 @@
 import type { components } from '@nullnull/api-client';
-import { DataAttribution, MetricDelta } from '../../shared/ui/index.js';
-import { changeRows, crowdComparison, moveKind, type ChangeRow } from './preview.js';
+import {
+  DataAttribution,
+  MetricDelta,
+  PlaceAttribution,
+  sourceContext,
+  unitCredits,
+} from '../../shared/ui/index.js';
+import {
+  changeRows,
+  crowdComparison,
+  moveKind,
+  type ChangeRow,
+  type ProposalPlaces,
+} from './preview.js';
 import styles from './ProposalCard.module.css';
 
 // One proposal from a READY optimization run (S12, FE-503, FR-OPT-04).
@@ -30,6 +42,11 @@ export interface ProposalCardProps {
   selected?: boolean;
   /** Present only when selecting is possible. See `selected`. */
   onSelect?: (proposalId: string) => void;
+  /**
+   * The places the changes name, from the trip the screen holds
+   * (`proposalPlaces`). Null while that trip is still loading.
+   */
+  places?: ProposalPlaces | null;
   /** Localized copy from the caller; the shared components keep Korean defaults. */
   labels: {
     crowdLabel: string;
@@ -60,6 +77,8 @@ export interface ProposalCardProps {
     constraintsOk: string;
     constraintsBroken: string;
     licenseTerms: string;
+    /** Shown when a place the changes name has no credit the card can draw. */
+    placeCreditMissing: string;
   };
 }
 
@@ -132,6 +151,7 @@ export function ProposalCard({
   selected,
   onSelect,
   labels,
+  places = null,
 }: ProposalCardProps) {
   const rows = changeRows(proposal.changes);
   const comparison = crowdComparison(proposal);
@@ -175,6 +195,19 @@ export function ProposalCard({
           the optimizer did not. */}
       <p className={styles.summary}>{proposal.summary}</p>
 
+      {/* CMP-ATT-001: the summary names places, so the card credits them —
+          in both comparison branches, not only beside a figure. A named place
+          the trip cannot supply is said out loud rather than left uncredited
+          in silence (`proposalPlaces`). */}
+      {places ? (
+        <div className={styles.credits}>
+          <PlaceAttribution compact place={places.places} />
+          {places.missing > 0 ? (
+            <p className={styles.creditMissing}>{labels.placeCreditMissing}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       <section aria-label={labels.changesTitle} className={styles.section}>
         <h3 className={styles.sectionTitle}>
           {labels.changeCount.replace('{count}', String(rows.length))}
@@ -214,6 +247,13 @@ export function ProposalCard({
           />
           <DataAttribution
             compact
+            // The same words as a KTO place credit above, a different dataset:
+            // the forecast's source is named beside it (FE-603-T7).
+            context={sourceContext(
+              comparison.provenance,
+              unitCredits(places?.places ?? []),
+              true,
+            )}
             provenance={comparison.provenance}
             showLicense
             termsLabel={labels.licenseTerms}
