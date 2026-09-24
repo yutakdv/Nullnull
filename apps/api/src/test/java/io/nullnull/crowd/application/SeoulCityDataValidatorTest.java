@@ -173,6 +173,58 @@ class SeoulCityDataValidatorTest {
      * caller that stores readings does not consult the verdict to decide whether there is one, it
      * consults {@code observation()}.
      */
+    /**
+     * PROVIDER_ERROR says the provider declared an error, and since A-065 it is the one refusal that
+     * does not quarantine: the next tick asks again. A response with no RESULT code declared nothing,
+     * so reading it as the provider's error would turn a shape the provider stopped sending into a
+     * retry loop instead of a quarantine. The declared-code case is the control - it must stay
+     * PROVIDER_ERROR, or "every missing-or-wrong code is drift" would pass this test too.
+     */
+    @Test
+    @DisplayName("BA-090-T21 RESULT 코드가 없는 서울 응답은 제공자 오류가 아니라 schema drift 다")
+    void aResponseWithNoResultCodeIsDriftNotAProviderError() {
+        String envelope = "\"RESULT\":{\"CODE\":\"INFO-000\",\"MESSAGE\":\"정상 처리되었습니다.\"},";
+        assertThat(normal()).as("the fixture still carries the envelope this test removes").contains(envelope);
+        for (String body : List.of("[]", "{}", normal().replace(envelope, ""),
+                normal().replace(envelope, "\"RESULT\":{\"MESSAGE\":\"정상 처리되었습니다.\"},"),
+                normal().replace("\"CODE\":\"INFO-000\"", "\"CODE\":\"\""),
+                normal().replace("\"CODE\":\"INFO-000\"", "\"CODE\":0"))) {
+            SeoulCityDataValidator.Validation validation = validate(body);
+            assertThat(validation.verdict().outcome()).as("no code in: %s", body.length() > 40 ? body.substring(0, 40) : body)
+                    .isEqualTo(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+            assertThat(validation.observation()).isNull();
+        }
+        assertThat(validate(normal().replace("INFO-000", "ERROR-500")).verdict().outcome())
+                .as("a code the provider did send, and it is not success")
+                .isEqualTo(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
+    }
+
+    /**
+     * The substitution flag is the provider speaking, so a well-formed substitute is PROVIDER_ERROR and retried
+     * (A-065). The rest of the response still has to be a shape we understand, though: a substitute whose level is
+     * a fifth word or whose time or forecast is broken is drift, and drift is quarantined, flag or no flag. Answering
+     * the flag first made every one of these a retry. The well-formed substitute is the control.
+     */
+    @Test
+    @DisplayName("BA-090-T22 대체 표시가 있는 서울 응답도 나머지 drift 는 격리된다")
+    void aSubstitutedResponseIsStillCheckedForDrift() {
+        record Case(String label, String body, ProviderResponseValidator.Outcome outcome) {
+        }
+        for (Case example : List.of(
+                new Case("a fifth congestion step", payload("Y", "매우 붐빔", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Case("a time in another format", payload("Y", "보통", "15:15 2026-09-20", "POI009"),
+                        ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
+                new Case("an unknown forecast flag", payload("Y", "보통", "2026-09-20 15:15", "POI009", "MAYBE", ""),
+                        ProviderResponseValidator.Outcome.ENUM_DRIFT),
+                new Case("a well-formed substitute", payload("Y", "보통", "2026-09-20 15:15", "POI009"),
+                        ProviderResponseValidator.Outcome.PROVIDER_ERROR))) {
+            SeoulCityDataValidator.Validation validation = validate(example.body());
+            assertThat(validation.verdict().outcome()).as(example.label()).isEqualTo(example.outcome());
+            assertThat(validation.observation()).as("%s: nothing to store", example.label()).isNull();
+        }
+    }
+
     @Test
     @DisplayName("BA-090-T1 서울 응답의 schema·enum drift 는 관측을 만들지 않고 거절된다")
     void driftIsRefusedAndProducesNoObservation() {
@@ -185,10 +237,9 @@ class SeoulCityDataValidatorTest {
                         ProviderResponseValidator.Outcome.ENUM_DRIFT),
                 new Drift("a time in another format", normal().replace("2026-09-20 15:15", "15:15 2026-09-20"),
                         ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
-                // Bytes that are not JSON at all. Measured: a body that IS valid JSON but carries no
-                // RESULT envelope (say "[]") comes back PROVIDER_ERROR instead, because the first
-                // thing the validator asks is whether RESULT.CODE is INFO-000 and a missing field
-                // answers no. That is the validator's shape today, not this clause's question.
+                // Bytes that are not JSON at all. JSON with no RESULT code at all is drift too, and
+                // BA-090-T21 holds that: it used to come back PROVIDER_ERROR, which is a verdict the
+                // provider never gave.
                 new Drift("bytes that are not JSON", "<html>proxy error</html>",
                         ProviderResponseValidator.Outcome.SCHEMA_DRIFT),
                 // Not drift, and here on purpose: it is the other way a response fails to be an

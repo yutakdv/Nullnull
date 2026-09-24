@@ -1,7 +1,8 @@
 package io.nullnull.catalog.infrastructure.kto;
 
 /**
- * Renews the forecast of every demo place whose stored set lapses within PT12H (KtoDemoRefresh).
+ * Renews the forecast of every demo place whose stored set lapses within
+ * {@code KtoDemoRefresh.FORECAST_RENEW_BEFORE} (PT18H, KtoDemoRefresh).
  *
  * <pre>
  * NULLNULL_KTO_FORECAST_SMOKE_APPROVED=true NULLNULL_DEMO_PLACES=126508:12,... ./gradlew ktoDemoForecastRefresh

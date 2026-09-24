@@ -62,6 +62,7 @@ flowchart LR
 | IP/User-Agent | security/edge 운영 | edge/access log 최소화 | 자동 발생 | 가장 짧은 운영 기간 | AWS processor |
 | 외부 source snapshot | 추천 근거 | DB | 기능에 필요 | source 약관/TTL | 사용자 data 아님 |
 | 추천 서비스 `apps/ai` 요청 | 계산 입력 | 전송만, 저장 없음 | 기능에 필요 | 요청 종료 즉시 폐기 | 내부 network만; 장소/게시물 ID·시각·잠금·비교 verdict만, owner/session/원문/좌표 없음 |
+| 설명 문장 LLM 재작성 요청(`AI_PROVIDER=OPENAI`일 때만) | 설명 문장 다듬기 | 전송만, 저장 없음 | 선택. 지금 꺼져 있다(§12) | 요청 종료 즉시 폐기. provider 쪽 보존은 미확인 | 외부 processor(OpenAI)에 렌더된 설명 문장 한 줄: 장소명, 그 일정 item의 이동 전후 방문 날짜·시각, 지표 이름·전후 값·차이, 출처 문구. owner/session/좌표/일정 전체/메모/원문 없음 |
 
 보존 값은 기술 상한 초안이다. 최종 공개 정책이 더 짧으면 공개 정책을 따른다.
 
@@ -76,6 +77,7 @@ flowchart LR
 - 외부 source에 trip 전체/owner/session을 전달
 - 사용자 행동으로 민감 특성·건강·종교·정치 성향을 추론
 - replay/demo 데이터에 실제 사용자의 일정이나 위치를 포함
+- 외부 LLM provider에 owner/session/좌표/일정 전체/메모/붙여넣기 원문을 전달(§12)
 
 ## 4. Session과 cookie
 
@@ -222,3 +224,28 @@ production debug logging은 time-bound flag와 승인 없이는 활성화하지 
 - [ ] 최종 개인정보처리방침 검토자와 날짜 기록
 - [ ] 공모전 release config에서 위치 flag OFF, geolocation 호출/permission prompt 0건
 - [ ] 제출 기능설명서·screenshot·call-audit에 key/token/request 원문·개인 위치 0건
+- [ ] 외부 LLM을 켜기 전에 §12의 오너 결정(processor 허용·국외 이전·고지/동의)이 기록됨
+
+## 12. 선택 외부 LLM(OpenAI) 전송 경계
+
+설명 문장을 LLM으로 다듬는 경로의 기술 사실이다(#337). 이 경로를 켜는 결정과 대외 고지는 이 문서가 정하지 않는다(§10).
+
+- **상태: 꺼져 있다.** staging은 `AI_PROVIDER`를 설정하지 않아 기본값 `NONE`으로 돈다. `infra/test/staging.test.ts`의 provider 가드(#364)가 이 상태를 고정한다. 켜는 순서는 A-064(AI 사용 표기가 먼저)가 정하고, 키·모델·월 상한은 D-034가 정한다.
+- **켜면 나가는 것**(`[읽음]` `apps/ai/src/nullnull_ai/provider/openai.py`, `explain/templates.py`, `explain/facts.py`):
+  - 받는 곳은 `https://api.openai.com/v1/chat/completions`다. timeout은 2초, 출력 상한은 200 token이다.
+  - body는 `model`(`AI_MODEL_ID`), `max_completion_tokens`, 고정된 system 지시문 하나, user 메시지 하나다. user 메시지는 **이미 렌더된 template 문장 한 줄**이다.
+  - 그 문장에 들어가는 값은 다음과 같다.
+    - 장소명(승인된 catalog 이름)
+    - 그 일정 item의 이동 전 방문 날짜·시각과 이동 후 날짜·시각
+    - 비교한 지표 이름, 지표의 전후 값과 차이
+    - 출처 문구
+  - API key는 `Authorization` header에만 있다(BA-084-T10).
+- **나가지 않는 것**: owner ID, session, 좌표, 일정 전체, 메모, 붙여넣기 원문. 근거는 셋이다.
+  - 설명 입력(`ExplanationFacts`)에 그 필드가 없다.
+  - Spring이 `apps/ai`로 보내는 요청의 필드 이름에 owner·session·원문·좌표가 없다(`RecommendationRequestShapeTest`, BA-050-T8).
+  - 모델에 건네는 것은 template뿐이다(BA-084-T7).
+- **개인정보 관점**: 장소와 방문 날짜·시각의 조합은 사용자 일정의 일부다. 이 경로를 켜면 그 조합이 외부 processor로 간다.
+- **확인하지 않은 것 — 오너 결정 대기**:
+  - provider 쪽 보존·학습 정책. 요청은 보존에 관한 필드를 보내지 않는다(`openai.py`). 정책은 provider의 공식 문서로 확인해야 한다.
+  - 외부 processor 허용과 국외 이전 해당 여부(§10)
+  - 사용자 고지·동의 방식
