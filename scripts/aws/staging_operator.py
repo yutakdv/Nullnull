@@ -58,6 +58,13 @@ OPS_TASKS = {
                         {'NULLNULL_DEMO_PLACES': 'places'}),
     'kto-demo-forecast': ('io.nullnull.catalog.infrastructure.kto.KtoDemoForecastRefreshMain',
                           'NULLNULL_KTO_FORECAST_SMOKE_APPROVED', {'NULLNULL_DEMO_PLACES': 'places'}),
+    # BA-086 (#60), English place text. The link import stores the owner's reviewed "this EngService record is that
+    # place" decisions and calls no provider, so the owner approves the plan bytes instead (CURATION_PLANS). The
+    # refresh calls EngService2 detailCommon2 once per link, so it takes its own approval variable: the Korean
+    # calls' approval is not this one. Both mains arrive with #360; an older image has neither.
+    'kto-eng-link-import': ('io.nullnull.catalog.infrastructure.kto.KtoEngLinkImportMain', None, {}),
+    'kto-eng-text-refresh': ('io.nullnull.catalog.infrastructure.kto.KtoEngTextRefreshMain',
+                             'NULLNULL_KTO_ENG_REFRESH_APPROVED', {}),
     # Curated opening hours (A-031/A-032). No KTO call, so no KTO approval variable: the owner approves the exact
     # plan bytes instead (CURATION_PLANS below), and records who did with --owner-approval.
     'curate-hours': ('io.nullnull.catalog.infrastructure.curation.CuratedHoursImportMain', None, {}),
@@ -116,6 +123,15 @@ CURATION_PLANS = {'curate-hours': {'inline': 'NULLNULL_HOURS_PLAN_GZIP_BASE64', 
                                        'done': r'curated_live_maps_processed={n}',
                                        'failed': 'curated_live_maps_failed ',
                                        'incomplete': 'curation-not-all-live-maps-processed'},
+                  # One line per reviewed place, by id, as the live maps: the English text is written by the
+                  # refresh, not by this import, so "processed" is the only outcome it reports.
+                  'kto-eng-link-import': {'inline': 'NULLNULL_ENG_LINK_PLAN_GZIP_BASE64',
+                                          'sha256': 'NULLNULL_ENG_LINK_PLAN_SHA256',
+                                          'echo': 'eng_link_plan', 'lines': 'eng_link', 'items': 'links',
+                                          'entry': r'eng_link ([0-9a-f-]{36}) (PROCESSED)$',
+                                          'done': r'eng_links_processed={n}',
+                                          'failed': 'eng_links_failed ',
+                                          'incomplete': 'eng-links-not-all-processed'},
                   'capture-live-replay': {'inline': 'NULLNULL_REPLAY_PLAN_GZIP_BASE64',
                                           'sha256': 'NULLNULL_REPLAY_PLAN_SHA256',
                                           'echo': 'replay_capture_plan', 'lines': 'replay_',
@@ -172,6 +188,11 @@ OPS_LOG_LINE = re.compile(r'^(KTO_[A-Z_]+ [A-Za-z0-9_ =:.,()<>/+-]{0,400}|.*Exce
                           r'|curated_live_maps_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|curated_live_map [0-9a-f-]{36} PROCESSED'
                           r'|curated_live_maps_processed=[0-9]{1,4}|curated_live_maps_failed reason=[A-Za-z_]{1,80}'
+                          # The English link import (KtoEngLinkImportMain, BA-086): the sha it imported, place ids and
+                          # counts, a failure's code. Never the evidence URL, which stays in the plan file.
+                          r'|eng_link_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
+                          r'|eng_link [0-9a-f-]{36} PROCESSED'
+                          r'|eng_links_processed=[0-9]{1,4}|eng_links_failed reason=[A-Za-z_]{1,80}'
                           r'|replay_capture_plan sha256=[0-9a-f]{64} bytes=[0-9]{1,7}'
                           r'|replay_snapshot [0-9a-f-]{36} CAPTURED'
                           r'|replay_snapshots_captured=[0-9]{1,3}|replay_capture_failed reason=[A-Za-z_]{1,80}'
@@ -1034,6 +1055,17 @@ def curation_plan(args):
                     and isinstance(i.get('verifiedAt'), str) and i['verifiedAt']
                     for i in items), 'plan-file-live-map-invalid')
         places = items
+    elif kind == 'links':
+        # KtoPlaceRequest and EngTextLinkImporter refuse the same things; caught here so a typo costs no approval and
+        # no task. Identifiers are KTO's stable numeric ids, one decision per place.
+        identifier = re.compile(r'[1-9][0-9]{0,29}')
+        require(all(isinstance(i.get('contentId'), str) and identifier.fullmatch(i['contentId'])
+                    and isinstance(i.get('contentTypeId'), str) and identifier.fullmatch(i['contentTypeId'])
+                    and isinstance(i.get('reviewedAt'), str) and i['reviewedAt'].strip()
+                    and isinstance(i.get('evidenceUrl'), str) and i['evidenceUrl'].startswith('https://')
+                    for i in items) and len({str(i.get('placeId')) for i in items}) == len(items),
+                'plan-file-eng-link-invalid')
+        places = items
     elif kind != 'snapshotIds':
         places = items
     require(all(isinstance(p, dict) and PLACE_ID.fullmatch(str(p.get('placeId', ''))) for p in places),
@@ -1139,6 +1171,9 @@ def ops_task(args):
         # A withdrawal needs the release that carries PostWithdrawMain; an older ops image would fail inside the task
         # after the lock was taken, so it is refused here instead.
         bound = bound or args.task == 'withdraw-post'
+        # The English refresh likewise needs the release that carries its main (#360), and its calls are credited to
+        # the release that made them.
+        bound = bound or args.task == 'kto-eng-text-refresh'
         current, expected_digest = release_binding(definition) if bound else (None, None)
         if args.task == 'kto-call-inventory':
             # Read under the lock with the binding, so the release inventoried is the one this task definition is.

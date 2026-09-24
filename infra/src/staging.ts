@@ -656,6 +656,8 @@ export function createStacks(
       NULLNULL_AI_BASE_URL: "http://ai.nullnull.internal:8090",
       KTO_BASE_URL: "https://apis.data.go.kr/B551011/KorService2",
       KTO_FORECAST_BASE_URL: "https://apis.data.go.kr/B551011/TatsCnctrRateService",
+      // BA-086 (#60): only the English text refresh reads it; the same host as the two above.
+      KTO_ENG_BASE_URL: "https://apis.data.go.kr/B551011/EngService2",
       APP_RELEASE_VERSION: config.release.releaseVersion,
     },
     secrets: {

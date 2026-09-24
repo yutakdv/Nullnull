@@ -257,6 +257,24 @@ test("AI task carries the catalog version apps/ai requires in staging", () => {
     { Name: "NULLNULL_CATALOG_VERSION", Value: "KTO_KOR_SERVICE_2:4" },
   );
 });
+test("only the ops task knows the English KTO service, at its exact base (BA-086, #60)", () => {
+  // The English text arrives only through the ops refresh (KtoEngTextRefreshMain), which stops with
+  // KTO_NOT_CONFIGURED without this value. The API reads the stored text and never calls EngService, so it is not
+  // given the address. A literal on purpose: re-reading staging.ts here would agree with any edit.
+  const containers = [templates.services, templates.migration].flatMap((t) =>
+    (Object.values(t.findResources("AWS::ECS::TaskDefinition")) as any[]).flatMap(
+      (d) => d.Properties.ContainerDefinitions as any[],
+    ),
+  );
+  const env = (name: string) =>
+    containers.find((c) => c.Name === name)?.Environment ?? assert.fail(`no ${name} container`);
+  assert.deepEqual(
+    env("ops").filter((e: any) => e.Name === "KTO_ENG_BASE_URL"),
+    [{ Name: "KTO_ENG_BASE_URL", Value: "https://apis.data.go.kr/B551011/EngService2" }],
+  );
+  for (const name of ["api", "ai", "migration"])
+    assert(!env(name).some((e: any) => e.Name === "KTO_ENG_BASE_URL"), `${name} KTO_ENG_BASE_URL`);
+});
 test("only the API runs ITEM optimization, and no service turns on a capability that has no source", () => {
   // Owner decision 2026-09-19: the submission build runs ITEM optimization. The value is a literal here so
   // that re-reading staging.ts cannot make this test agree with whatever the file says.
