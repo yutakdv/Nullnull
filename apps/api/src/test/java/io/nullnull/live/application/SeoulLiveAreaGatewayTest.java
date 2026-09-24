@@ -105,9 +105,12 @@ class SeoulLiveAreaGatewayTest {
                 assertThat(audit.finishes).as("%s: the run is closed", example.label()).hasSize(1);
                 IngestAudit.FinishRun finish = audit.finishes.get(0);
                 assertThat(finish.runId()).isEqualTo(collection.runId());
+                // Which refusal decides how the run closes (A-0b): the provider's own error is a FAILED
+                // run the next tick retries, anything else still quarantines. BA-090-T19 holds that split.
                 assertThat(finish.status())
                         .isEqualTo(example.accepted() ? IngestAudit.RunStatus.COMPLETED
-                                : IngestAudit.RunStatus.QUARANTINED);
+                                : example.expected() == IngestAudit.ValidationResult.PROVIDER_ERROR
+                                        ? IngestAudit.RunStatus.FAILED : IngestAudit.RunStatus.QUARANTINED);
                 // The reason an operator reads is the same word the validator said, not a generic one.
                 assertThat(finish.errorCode())
                         .isEqualTo(example.accepted() ? null : example.expected().name());
@@ -115,7 +118,7 @@ class SeoulLiveAreaGatewayTest {
 
                 assertThat(collection.accepted()).isEqualTo(example.accepted());
                 assertThat(collection.observation().isPresent()).isEqualTo(example.accepted());
-                // A quarantined run leaves nothing behind. THIS PAIR IS HELD BY THE VALIDATOR'S
+                // A refused run leaves nothing behind. THIS PAIR IS HELD BY THE VALIDATOR'S
                 // SHAPE, not by an ordering this case could break: a non-OK verdict carries a null
                 // observation, so there is nothing for the gateway to store even if it tried. It is
                 // asserted because the pairing is the property, not because a gateway change alone
@@ -136,6 +139,51 @@ class SeoulLiveAreaGatewayTest {
                     // provider's word to a reviewed digit here and nowhere else.
                     assertThat(stored.ordinalLevel()).isEqualTo("2");
                 }
+            }
+        }
+    }
+
+    /**
+     * The provider saying so itself is not drift: its own error code, or its own "this reading is a
+     * substitute" flag, tells us nothing about whether we still understand its shape. Quarantining on
+     * one of them shut SEOUL_CITYDATA for about ten hours on 2026-09-23, because a QUARANTINED latest
+     * run stops every later tick before it asks again (A-0b). Such a run now closes FAILED, which the
+     * next tick does not stop at; BA-090-T20 measures that against the real database.
+     *
+     * <p>The drift case is the control. Without it, a gateway that closed every refusal FAILED - which
+     * would turn the quarantine off - satisfies both provider cases.
+     */
+    @Test
+    @DisplayName("BA-090-T19 서울 제공자가 스스로 선언한 오류는 run 을 FAILED 로 닫는다")
+    void aProviderDeclaredErrorClosesTheRunFailed() throws Exception {
+        record Case(String label, String body, IngestAudit.RunStatus status, String errorCode) {
+        }
+        List<Case> cases = List.of(
+                new Case("the provider's own error code", payload("ERROR-300", "보통"),
+                        IngestAudit.RunStatus.FAILED, "PROVIDER_ERROR"),
+                new Case("the provider's own substitution flag",
+                        payload("INFO-000", "보통").replace("\"REPLACE_YN\":\"N\"", "\"REPLACE_YN\":\"Y\""),
+                        IngestAudit.RunStatus.FAILED, "PROVIDER_ERROR"),
+                new Case("a fifth congestion step", payload("INFO-000", "매우 붐빔"),
+                        IngestAudit.RunStatus.QUARANTINED, "ENUM_DRIFT"));
+
+        for (Case example : cases) {
+            try (StubProviderServer stub = new StubProviderServer()
+                    .enqueue(new StubProviderServer.Response(200, example.body()))) {
+                RecordingAudit audit = new RecordingAudit();
+                RecordingSnapshots snapshots = new RecordingSnapshots();
+                SeoulLiveAreaGateway gateway = gateway(stub, audit, new FixedQuota(false),
+                        new SourceRegistryStore.SourceCondition(false, false), new RecordingAreas(), snapshots);
+
+                SeoulLiveAreaGateway.Collection collection = gateway.collect(AREA).join();
+
+                assertThat(audit.finishes).as("%s: the run is closed", example.label()).hasSize(1);
+                assertThat(audit.finishes.get(0).status()).as("%s: how it closed", example.label())
+                        .isEqualTo(example.status());
+                assertThat(audit.finishes.get(0).errorCode()).as("%s: with the verdict's own word", example.label())
+                        .isEqualTo(example.errorCode());
+                assertThat(collection.accepted()).as("%s: refused either way", example.label()).isFalse();
+                assertThat(snapshots.saved).as("%s: and nothing stored", example.label()).isEmpty();
             }
         }
     }

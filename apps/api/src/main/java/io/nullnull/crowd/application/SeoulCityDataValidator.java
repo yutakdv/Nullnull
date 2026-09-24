@@ -55,9 +55,16 @@ public final class SeoulCityDataValidator {
         // or a malformed value in the other.
         boolean hasCode = result.has("CODE");
         boolean hasDottedCode = result.has("RESULT.CODE");
-        if ((!hasCode && !hasDottedCode)
-                || (hasCode && !"INFO-000".equals(text(result, "CODE")))
-                || (hasDottedCode && !"INFO-000".equals(text(result, "RESULT.CODE")))) {
+        String code = hasCode ? text(result, "CODE") : null;
+        String dottedCode = hasDottedCode ? text(result, "RESULT.CODE") : null;
+        // No code, or a code field with nothing readable in it, is not the provider declaring an error -
+        // it declared nothing - so it is drift, and drift is quarantined. PROVIDER_ERROR is the one
+        // refusal that is retried on the next tick (A-0b), so it must mean what it says: a code the
+        // provider sent that is not success.
+        if ((!hasCode && !hasDottedCode) || (hasCode && code == null) || (hasDottedCode && dottedCode == null)) {
+            return rejected(ProviderResponseValidator.Outcome.SCHEMA_DRIFT);
+        }
+        if ((hasCode && !"INFO-000".equals(code)) || (hasDottedCode && !"INFO-000".equals(dottedCode))) {
             return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
         }
         JsonNode city = root.path("CITYDATA");
@@ -94,10 +101,11 @@ public final class SeoulCityDataValidator {
             return rejected(ProviderResponseValidator.Outcome.ENUM_DRIFT);
         }
         if ("Y".equals(replaced)) {
-            // PROVISIONAL OUTCOME. None of the seven values means "the provider says this is a
-            // substitute": an eighth would have to move ProviderResponseValidator.Outcome,
-            // IngestAudit.ValidationResult and the api_ingest_validation_check CHECK together, and
-            // that CHECK is in an applied migration. Raised for a vocabulary decision.
+            // The provider itself says this reading is a substitute, so it is PROVIDER_ERROR: refused,
+            // never stored, and - because the provider said so rather than changing shape - retried on
+            // the next tick instead of quarantined (A-0b, owner decision 2026-09-24). No eighth outcome:
+            // that would move ProviderResponseValidator.Outcome, IngestAudit.ValidationResult and the
+            // api_ingest_validation_check CHECK together, and PROVIDER_ERROR already says what happened.
             return rejected(ProviderResponseValidator.Outcome.PROVIDER_ERROR);
         }
 

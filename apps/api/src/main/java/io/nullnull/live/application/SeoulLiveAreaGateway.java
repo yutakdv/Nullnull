@@ -29,10 +29,16 @@ import org.springframework.stereotype.Component;
  * One trip from the registry to a normalized Seoul observation, with the run recorded either way.
  *
  * <p><strong>A refused response is a recorded run, not a silent nothing.</strong> The validator's
- * verdict goes to {@link CollectorRunRecorder#finalizeSingleCall}, which maps it onto the matching
- * {@code IngestAudit.ValidationResult} and finishes the run QUARANTINED - so a provider that starts
- * sending a shape we do not accept leaves a trail with the reason on it. Returning empty and moving
- * on would make "the city is quiet" and "we stopped understanding the provider" the same answer.
+ * verdict goes to {@link CollectorRunRecorder#finalizeSingleCallRetryingProviderErrors}, which maps it
+ * onto the matching {@code IngestAudit.ValidationResult} and finishes the run QUARANTINED - so a
+ * provider that starts sending a shape we do not accept leaves a trail with the reason on it. Returning
+ * empty and moving on would make "the city is quiet" and "we stopped understanding the provider" the
+ * same answer.
+ *
+ * <p><strong>Except when the provider said so itself.</strong> Its own error code, or its own
+ * substitution flag, is a PROVIDER_ERROR verdict, and that run finishes FAILED: the next tick asks
+ * again instead of stopping at a quarantine nobody will review (A-0b). The run still carries the
+ * verdict, and the scheduler still logs the refusal the failed-collection alarm counts.
  *
  * <p><strong>This is not where a reviewed incident goes.</strong> {@code source_quality_incidents}
  * needs a {@code reviewed_at} and is unique per (source, incident code): it holds the curated
@@ -129,17 +135,17 @@ public class SeoulLiveAreaGateway {
                         duration, "PROVIDER_FAILED", clock.instant());
                 throw unwrap(failure);
             }
-            return acceptOrQuarantine(runId, reservation, source, response, areaName, duration);
+            return acceptOrRefuse(runId, reservation, source, response, areaName, duration);
         });
     }
 
-    private Collection acceptOrQuarantine(UUID runId, SourceQuotaStore.Reservation reservation,
+    private Collection acceptOrRefuse(UUID runId, SourceQuotaStore.Reservation reservation,
             SourceRegistration source, ProviderResponse response, String areaName, int duration) {
         SeoulCityDataValidator.Validation validation = validator.validate(response.body(), areaName);
         // One call, one observation, so the count is 1 whether it was kept or refused - "how many the
         // provider sent" is not "how many we accepted", and finalizeSingleCall splits those itself.
-        boolean accepted = collector.finalizeSingleCall(runId, reservation.ingestLogId(), response.status(),
-                duration, 1, null, validation.verdict(), clock.instant());
+        boolean accepted = collector.finalizeSingleCallRetryingProviderErrors(runId, reservation.ingestLogId(),
+                response.status(), duration, 1, null, validation.verdict(), clock.instant());
         if (!accepted) {
             return new Collection(runId, Optional.empty(), null);
         }
