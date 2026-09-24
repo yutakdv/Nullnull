@@ -653,6 +653,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         savedPost: false
                         candidateState: "NOT_SAVED"
                         crowd:
@@ -718,6 +740,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         savedPost: true
                         candidateState: "SAVED_TO_SELECTED_TRIP"
                         crowd:
@@ -783,6 +827,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         savedPost: false
                         candidateState: "SCHEDULED_IN_SELECTED_TRIP"
                       -
@@ -810,6 +876,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         savedPost: false
                         candidateState: "NOT_SAVED"
                     page:
@@ -1031,6 +1119,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                       -
                         id: "018f5b10-0000-7000-8000-000000000003"
                         name: "명동"
@@ -1049,6 +1159,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                     saved: false
                 savedPost:
                   summary: The same post once saved
@@ -1094,6 +1226,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                       -
                         id: "018f5b10-0000-7000-8000-000000000003"
                         name: "명동"
@@ -1112,6 +1266,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                     saved: true
         "503":
           $ref: "#/components/responses/SourceUnavailable"
@@ -1263,6 +1439,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                       - id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b02"
                         name: "명동"
                         categoryCode: "HS"
@@ -1280,6 +1478,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                       - id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b03"
                         name: "북촌한옥마을"
                         categoryCode: "HS"
@@ -1297,6 +1517,28 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          description: null
                     page:
                       nextCursor: null
                       hasMore: false
@@ -1974,6 +2216,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         relation: "SIMILAR"
                         relationReason: "같은 카페 분위기 · 음식 관심사와 맞아요"
                         crowd: null
@@ -2026,6 +2290,28 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
                         relation: "EXACT"
                         relationReason: "검수된 연관 장소"
                         crowd: null
@@ -2321,6 +2607,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -2357,6 +2656,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -2393,6 +2705,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -2494,6 +2819,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-04"
                             position: 0
                             startTime: "09:30:00"
@@ -2530,6 +2868,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-04"
                             position: 1
                             startTime: "13:00:00"
@@ -2566,6 +2917,19 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address: null
+                                description: null
                             date: "2026-10-05"
                             position: 0
                             startTime: "14:00:00"
@@ -2784,6 +3148,28 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                description: null
                             date: "2026-10-04"
                             position: 0
                             hoursState: "OPEN"
@@ -2805,6 +3191,28 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                description: null
                             date: "2026-10-04"
                             position: 1
                             hoursState: "UNKNOWN"
@@ -2828,6 +3236,28 @@ paths:
                                 officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                                 licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                                 license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              textProvenance:
+                                name:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                address:
+                                  locale: "ko-KR"
+                                  sourceAttribution:
+                                    source: "KTO_KOR_SERVICE_2"
+                                    sourceDisplayName: "한국관광공사 국문 관광정보"
+                                    sourceRegistryVersion: 4
+                                    attribution: "출처: ⓒ한국관광공사"
+                                    officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                    licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                    license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                                description: null
                             date: "2026-10-05"
                             position: 0
                             hoursState: "UNKNOWN"
@@ -2932,6 +3362,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-04'
                       startTime: null
                       position: 0
@@ -2955,6 +3398,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-04'
                       startTime: '13:00:00'
                       position: 1
@@ -2978,6 +3434,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-05'
                       startTime: null
                       position: 2
@@ -3005,6 +3474,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       - id: 018f4b20-1a44-7e11-9c02-5d7e3f1a2b13
                         name: '서울숲 공원'
                         categoryCode: HS
@@ -3022,6 +3504,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                     expiresAt: '2026-10-01T09:00:00Z'
         "422":
           $ref: "#/components/responses/Unprocessable"
@@ -3105,6 +3600,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-04'
                       startTime: null
                       position: 0
@@ -3128,6 +3636,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-04'
                       startTime: '13:00:00'
                       position: 1
@@ -3151,6 +3672,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       date: '2026-10-05'
                       startTime: '14:00:00'
                       position: 2
@@ -3249,6 +3783,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         date: '2026-10-04'
                         position: 0
                         startTime: null
@@ -3274,6 +3821,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         date: '2026-10-04'
                         position: 1
                         startTime: '13:00:00'
@@ -3301,6 +3861,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         date: '2026-10-05'
                         position: 2
                         startTime: '14:00:00'
@@ -3379,6 +3952,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         status: "ACTIVE"
                         scheduledTripItemId: null
                         note: null
@@ -3410,6 +3996,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         status: "ACTIVE"
                         scheduledTripItemId: null
                         note: null
@@ -3441,6 +4040,19 @@ paths:
                             officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                             licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                             license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address: null
+                            description: null
                         status: "SCHEDULED"
                         scheduledTripItemId: "018f4c30-9b55-7f22-8d13-6e8f4a2b3c03"
                         note: null
@@ -3465,6 +4077,10 @@ paths:
                           categoryName: null
                           regionName: null
                           sourceAttribution: null
+                          textProvenance:
+                            name: null
+                            address: null
+                            description: null
                         status: "ACTIVE"
                         scheduledTripItemId: null
                         note: null
@@ -3550,6 +4166,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       status: "ACTIVE"
                       scheduledTripItemId: null
                       note: null
@@ -3601,6 +4230,19 @@ paths:
                           officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                           licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                           license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                        textProvenance:
+                          name:
+                            locale: "ko-KR"
+                            sourceAttribution:
+                              source: "KTO_KOR_SERVICE_2"
+                              sourceDisplayName: "한국관광공사 국문 관광정보"
+                              sourceRegistryVersion: 4
+                              attribution: "출처: ⓒ한국관광공사"
+                              officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                              licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                              license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          address: null
+                          description: null
                       status: "ACTIVE"
                       scheduledTripItemId: null
                       note: null
@@ -3837,6 +4479,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -3869,6 +4524,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -3901,6 +4569,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-05'
                           position: 0
                           startTime: '14:00:00'
@@ -3928,6 +4609,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-06'
                           position: 0
                           startTime: null
@@ -4031,6 +4725,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4063,6 +4770,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4099,6 +4819,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-07'
                           position: 0
                           startTime: '14:00:00'
@@ -4200,6 +4933,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4232,6 +4978,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4264,6 +5023,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-05'
                           position: 0
                           startTime: '15:00:00'
@@ -4369,6 +5141,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4401,6 +5186,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4533,6 +5331,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4562,6 +5373,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4594,6 +5418,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-05'
                           position: 0
                           startTime: '14:00:00'
@@ -4704,6 +5541,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4736,6 +5586,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4768,6 +5631,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-05'
                           position: 0
                           startTime: '14:00:00'
@@ -4868,6 +5744,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 0
                           startTime: '09:30:00'
@@ -4900,6 +5789,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-04'
                           position: 1
                           startTime: '13:00:00'
@@ -4927,6 +5829,19 @@ paths:
                               officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
                               licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
                               license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            textProvenance:
+                              name:
+                                locale: "ko-KR"
+                                sourceAttribution:
+                                  source: "KTO_KOR_SERVICE_2"
+                                  sourceDisplayName: "한국관광공사 국문 관광정보"
+                                  sourceRegistryVersion: 4
+                                  attribution: "출처: ⓒ한국관광공사"
+                                  officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                  licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                  license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                              address: null
+                              description: null
                           date: '2026-10-05'
                           position: 0
                           startTime: '14:00:00'
@@ -6110,6 +7025,19 @@ paths:
                           officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                           licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                           license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        textProvenance:
+                          name:
+                            locale: ko-KR
+                            sourceAttribution:
+                              source: KTO_KOR_SERVICE_2
+                              sourceDisplayName: 한국관광공사 국문 관광정보
+                              sourceRegistryVersion: 4
+                              attribution: '출처: ⓒ한국관광공사'
+                              officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                              licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                              license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                          address: null
+                          description: null
                       mappingType: AREA
                       fallbackUsed: false
                       crowd:
@@ -6170,6 +7098,19 @@ paths:
                           officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                           licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                           license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        textProvenance:
+                          name:
+                            locale: ko-KR
+                            sourceAttribution:
+                              source: KTO_KOR_SERVICE_2
+                              sourceDisplayName: 한국관광공사 국문 관광정보
+                              sourceRegistryVersion: 4
+                              attribution: '출처: ⓒ한국관광공사'
+                              officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                              licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                              license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                          address: null
+                          description: null
                       mappingType: AREA_FALLBACK
                       fallbackUsed: true
                       crowd:
@@ -6232,6 +7173,19 @@ paths:
                           officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                           licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                           license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        textProvenance:
+                          name:
+                            locale: ko-KR
+                            sourceAttribution:
+                              source: KTO_KOR_SERVICE_2
+                              sourceDisplayName: 한국관광공사 국문 관광정보
+                              sourceRegistryVersion: 4
+                              attribution: '출처: ⓒ한국관광공사'
+                              officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                              licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                              license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                          address: null
+                          description: null
                       mappingType: NONE
                       fallbackUsed: false
                       crowd: null
@@ -6291,6 +7245,28 @@ paths:
                         officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                         licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                         license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                      textProvenance:
+                        name:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        address:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        description: null
                     dataState: LIVE
                     crowd:
                       state: LIVE
@@ -6366,6 +7342,28 @@ paths:
                         officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                         licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                         license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                      textProvenance:
+                        name:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        address:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        description: null
                     dataState: LIVE
                     crowd:
                       state: LIVE
@@ -6441,6 +7439,28 @@ paths:
                         officialUrl: https://www.data.go.kr/data/15101578/openapi.do
                         licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
                         license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                      textProvenance:
+                        name:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        address:
+                          locale: ko-KR
+                          sourceAttribution:
+                            source: KTO_KOR_SERVICE_2
+                            sourceDisplayName: 한국관광공사 국문 관광정보
+                            sourceRegistryVersion: 4
+                            attribution: '출처: ⓒ한국관광공사'
+                            officialUrl: https://www.data.go.kr/data/15101578/openapi.do
+                            licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do
+                            license: 이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)
+                        description: null
                     dataState: LIVE
                     crowd:
                       state: LIVE

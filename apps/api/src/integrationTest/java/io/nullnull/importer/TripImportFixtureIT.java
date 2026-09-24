@@ -159,8 +159,12 @@ class TripImportFixtureIT {
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, latitude, longitude, region_code,"
                 + " status, created_at, updated_at) VALUES (?, ?, 'HS', 37.579617, 126.977041, '11', 'ACTIVE', ?, ?)",
                 id, name, now, now);
-        jdbc.update("INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at)"
-                + " VALUES (?, ?, 'ko-KR', ?, NULL, ?)", UUID.randomUUID(), id, name, now);
+        // With the KorService2 revision it was collected under, as JdbcCanonicalCatalogStore writes a KTO
+        // place's Korean text (V047): that is what the fixtures' textProvenance credits.
+        jdbc.update("INSERT INTO place_localizations (id, place_id, locale, name, address, updated_at,"
+                + " source_code, source_registry_version, source_locale, observed_at)"
+                + " VALUES (?, ?, 'ko-KR', ?, NULL, ?, 'KTO_KOR_SERVICE_2', 4, 'ko-KR', ?)",
+                UUID.randomUUID(), id, name, now, now);
         jdbc.update("INSERT INTO place_external_refs (id, place_id, source_code, source_registry_version,"
                 + " external_id, external_type, verified_at) VALUES (?, ?, 'KTO_KOR_SERVICE_2', 4, ?,"
                 + " 'KTO_CONTENT_TYPE:12', ?)", UUID.randomUUID(), id, "fixture-" + id, now);
@@ -172,12 +176,9 @@ class TripImportFixtureIT {
     }
 
     private static void assertShape(JsonNode body, String fixture) {
-        // The fixture Frontend mocks this step against has the keys the server sends, everywhere.
-        // textProvenance (BA-086) is left out of this shape comparison because only
-        // places/place-detail.json carries it among the fixtures with a sourceAttribution. Remove
-        // this exclusion once the representative fixtures carry textProvenance - until then the
-        // FE's mocks for this response never see the field. Tracked in #60 (BA-086 FE handoff).
-        assertThat(JsonShape.withoutField(body, "textProvenance")).as(fixture)
+        // The fixture Frontend mocks this step against has the keys the server sends, everywhere,
+        // textProvenance (BA-086) included (#60).
+        assertThat(JsonShape.of(body)).as(fixture)
                 .isEqualTo(JsonShape.of(JsonShape.fixture(fixture)));
         assertEveryPlaceCredited(body);
     }
