@@ -668,6 +668,22 @@ def preserve_open_template_findings(directory, bodies):
         return findings
     return findings + ['template-changed-WebEdge']
 
+def preserve_open_schema_allowed(deployed, target, additive):
+    """Whether a --preserve-open-edge deploy may move the schema from `deployed` to `target` (flywayChecksums lists).
+
+    The edge stays open for the whole deploy, and the old API keeps serving between the migration task and the
+    Services update, so it reads the new schema. Without --accept-additive-schema the schema must not move at all.
+    With it (A-067), the deployed list must be an exact prefix of the release's - every entry the same name and
+    checksum, in the same order - and what the release appends must be exactly the named files, each named once.
+    Whether the old code tolerates those files is the reviewer's question, not this function's: the name is the
+    operator saying it was asked and answered."""
+    if not additive:
+        return deployed == target
+    appended = [entry.split(':')[0] for entry in target[len(deployed):]]
+    # The name comparison is a multiset one: it also refuses a name given twice, and a named file on a schema that
+    # did not grow, since `appended` is then empty.
+    return target[:len(deployed)] == deployed and sorted(appended) == sorted(additive)
+
 def classify_findings(directory, manifest, bodies=None):
     """Fail-closed: any difference that is not the release's own digests/version/web bundle is infra."""
     current = read_current_release(release_bucket())
@@ -774,6 +790,8 @@ def execute(args):
     require(kind in ['app', 'infra'], 'execute-requires-kind-app-or-infra')
     preserve_open = getattr(args, 'preserve_open_edge', False)
     require(not preserve_open or args.action == 'deploy', 'preserve-open-deploy-only')
+    additive = [name.strip() for name in (getattr(args, 'accept_additive_schema', None) or '').split(',') if name.strip()]
+    require(not additive or preserve_open, 'accept-additive-schema-requires-preserve-open-edge')
     verify_images(manifest)
     require_kto_secret_provisioned()
     with DeploymentLock() as lock:
@@ -793,7 +811,8 @@ def execute(args):
             require(not rollback_findings(directory, manifest, data), 'rollback-requires-infra-approval')
         if preserve_open:
             current = read_current_release(release_bucket()) or {}
-            require((current.get('releaseManifest') or {}).get('flywayChecksums') == manifest.get('flywayChecksums'),
+            require(preserve_open_schema_allowed((current.get('releaseManifest') or {}).get('flywayChecksums') or [],
+                                                 manifest.get('flywayChecksums') or [], additive),
                     'preserve-open-schema-change')
             require(edge_traffic_enabled() == 'true', 'preserve-open-requires-open-edge')
             # The web bundle asset may change, but its edge behavior, the online services shape and
@@ -1714,6 +1733,8 @@ def main():
     parser.add_argument('--approved-plan-sha256','--approved-diff-sha256',dest='approved_plan_sha256')
     parser.add_argument('--kind',choices=['app','infra'])
     parser.add_argument('--preserve-open-edge',action='store_true',help='deploy only: retain an already-open edge with unchanged schema and edge/service templates')
+    parser.add_argument('--accept-additive-schema',help='with --preserve-open-edge only: the migration files, comma-separated, '
+                        'this release appends to the deployed schema; nothing else about the schema may change')
     parser.add_argument('--days',type=int,default=14);parser.add_argument('--estimated-total',type=float)
     parser.add_argument('--cost-basis')
     parser.add_argument('--previous-plan');parser.add_argument('--previous-plan-sha256')

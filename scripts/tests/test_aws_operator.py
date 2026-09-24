@@ -62,7 +62,7 @@ class OperatorRegressions(unittest.TestCase):
     def run_execute(self, action, kind, live_change=None, deployed=None, target=None, accept=False, classification=True,
                     stale_baseline=False, env=None, source_state='clean', fail_on=None, cli_writes=False,
                     preserve_open_edge=False, live_edge='true', health_statuses=(200,200), missing_webedge=False,
-                    planned_web_cors=None):
+                    planned_web_cors=None, accept_additive_schema=None):
         """execute() with AWS replaced at its edges only: manifest validation (the real node validator), the live
         classification and the lock logic run for real. Returns (cdk mock, migration mock); self.aws_ops lists
         the lock's AWS operations."""
@@ -99,7 +99,8 @@ class OperatorRegressions(unittest.TestCase):
             with patch.dict(os.environ,env or self.PROFILE),patch.object(ops,'verify_plan',return_value=data),patch.object(ops,'identity'),patch.object(ops,'verify_images'),patch.object(ops,'require_kto_secret_provisioned'),patch.object(ops,'read_current_release',return_value=record),patch.object(ops,'release_bucket',return_value='b'),patch.object(ops,'live_bodies',return_value=live),patch.object(ops,'protected_templates',return_value={}),patch.object(ops,'guard_stateful'),patch.object(ops,'output',return_value='synthetic'),patch.object(ops,'aws',side_effect=fake_aws),patch.object(ops.DeploymentLock,'check'),patch.object(ops,'record_release') as release_record,patch.object(ops,'migration') as migration,patch.object(ops,'cdk',side_effect=fake_cdk) as cdk,patch.object(ops,'edge_traffic_enabled',return_value=live_edge),patch.object(ops,'public_health_answers',side_effect=lambda *a,**kw: iter([(next(health),'application/json',None)])):
                 self.release_record=release_record
                 ops.execute(argparse.Namespace(plan=str(plan),approved_plan_sha256='synthetic',action=action,kind=kind,
-                                                    preserve_open_edge=preserve_open_edge))
+                                                    preserve_open_edge=preserve_open_edge,
+                                                    accept_additive_schema=accept_additive_schema))
                 self.approved_assembly_untouched=ops.tree_digest(assembly)==data['assemblySha256']
                 return cdk, migration
     def deployed(self, cdk):
@@ -178,6 +179,39 @@ class OperatorRegressions(unittest.TestCase):
             self.run_execute('deploy','infra',preserve_open_edge=True,health_statuses=(200,503))
         self.release_record.assert_not_called()
         self.assertEqual(['put-item'],self.aws_ops)
+    # A-067: V050 goes out with the edge open. The old API serves between the migration task and the Services update,
+    # so only a schema that grows by exactly the migrations the operator names may ride a preserve-open deploy.
+    V001='V001__init.sql:'+'a'*64
+    V002='V002__places.sql:'+'b'*64
+    V050='V050__kto_eng_service_text_source.sql:'+'c'*64
+    def test_an_open_edge_release_may_append_exactly_the_named_migrations(self):
+        cdk,migration=self.run_execute('deploy','infra',preserve_open_edge=True,deployed=[self.V001,self.V002],
+                                       target=[self.V001,self.V002,self.V050],
+                                       accept_additive_schema='V050__kto_eng_service_text_source.sql')
+        migration.assert_called_once()
+        web=[c.args[0] for c in cdk.call_args_list if c.args[0][1]=='NullnullStgWebEdge'][0]
+        self.assertIn('NullnullStgWebEdge:TrafficEnabled=true',web)
+        self.release_record.assert_called_once()
+    def test_an_open_edge_release_refuses_any_other_schema_change_before_any_write(self):
+        named='V050__kto_eng_service_text_source.sql'
+        for label,deployed,target,accepted in [
+                ('an existing migration reordered',[self.V001,self.V002],[self.V002,self.V001,self.V050],named),
+                ('an existing migration changed',[self.V001,self.V002],[self.V001,'V002__places.sql:'+'d'*64,self.V050],named),
+                ('an existing migration dropped',[self.V001,self.V002],[self.V001,self.V050],named),
+                ('an extra migration nobody named',[self.V001],[self.V001,self.V050,'V051__more.sql:'+'e'*64],named),
+                ('a named migration that is not appended',[self.V001],[self.V001,'V051__more.sql:'+'e'*64],named),
+                ('a name given twice',[self.V001],[self.V001,self.V050],named+','+named),
+                ('a name for an unchanged schema',[self.V001],[self.V001],named),
+                ('no name, a grown schema',[self.V001],[self.V001,self.V050],None)]:
+            with self.subTest(label),self.assertRaisesRegex(ops.OpsError,'preserve-open-schema-change'):
+                self.run_execute('deploy','infra',preserve_open_edge=True,deployed=deployed,target=target,
+                                 accept_additive_schema=accepted)
+            self.assertEqual(['put-item','delete-item'],self.aws_ops)
+    def test_an_accepted_additive_schema_needs_the_open_edge_mode(self):
+        with self.assertRaisesRegex(ops.OpsError,'accept-additive-schema-requires-preserve-open-edge'):
+            self.run_execute('deploy','infra',deployed=[self.V001],target=[self.V001,self.V050],
+                             accept_additive_schema='V050__kto_eng_service_text_source.sql')
+        self.assertNotIn('put-item',self.aws_ops)
     def test_app_release_with_infra_drift_is_refused_before_any_deploy(self):
         with self.assertRaisesRegex(ops.OpsError,'infra-change-requires-infra-approval'):
             self.run_execute('deploy', 'app', live_change='Data')
