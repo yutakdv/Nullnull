@@ -2122,10 +2122,10 @@ paths:
                     rules read it, so a synthesised one would be exactly the fabricated evidence invariant 8
                     exists to prevent. This value is schema-shaped, not a captured server response: it is pinned to the fixture
                     Frontend mocks against so the two cannot drift, and packages/contracts/fixtures/manifest.json
-                    records which sets are server-verified. The SIMILAR item is the relation our own catalog rule
-                    derives (NULLNULL_CATALOG_RULE), and CatalogRelatedPlacesApiIT holds it against a real response.
-                    The EXACT item has no producer - its one possible source, KTO_RELATED_PLACES, is not approved -
-                    and stays as the mock of that Figma state, credited to that source's registered values.
+                    records which sets are server-verified. Both items are relations our own catalog rule derives
+                    (NULLNULL_CATALOG_RULE), in the server's order - target place id ascending - and
+                    CatalogRelatedPlacesApiIT holds the page against a real response. The EXACT state is
+                    exactAlternatives.
                   value:
                     sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
                     state: "SIMILAR"
@@ -2205,6 +2205,93 @@ paths:
                           mappingType: "INTERNAL_RULE"
                           fallbackUsed: false
                           provenanceId: "018f5a00-0000-7000-8000-000000000003"
+                      - place:
+                          id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12"
+                          name: "서울숲"
+                          categoryCode: "HS"
+                          regionCode: "11"
+                          categoryName: null
+                          regionName: null
+                          thumbnailUrl: null
+                          thumbnailAttribution: null
+                          address: "서울 성동구 뚝섬로"
+                          sourceAttribution:
+                            source: "KTO_KOR_SERVICE_2"
+                            sourceDisplayName: "한국관광공사 국문 관광정보"
+                            sourceRegistryVersion: 4
+                            attribution: "출처: ⓒ한국관광공사"
+                            officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                            licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                            license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                          textProvenance:
+                            name:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            address:
+                              locale: "ko-KR"
+                              sourceAttribution:
+                                source: "KTO_KOR_SERVICE_2"
+                                sourceDisplayName: "한국관광공사 국문 관광정보"
+                                sourceRegistryVersion: 4
+                                attribution: "출처: ⓒ한국관광공사"
+                                officialUrl: "https://www.data.go.kr/data/15101578/openapi.do"
+                                licenseUrl: "https://www.data.go.kr/ugs/selectPortalPolicyView.do"
+                                license: "이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)"
+                            description: null
+                        relation: "SIMILAR"
+                        relationReason: "같은 분류·지역"
+                        crowd: null
+                        provenance:
+                          source: "NULLNULL_CATALOG_RULE"
+                          sourceDisplayName: "널널 카탈로그 규칙"
+                          sourceRegistryVersion: 1
+                          sourceState: "QUALITATIVE"
+                          observedAt: null
+                          targetAt: null
+                          freshness: "FRESH"
+                          fetchedAt: "2026-09-11T05:35:00Z"
+                          staleAt: "2026-09-18T05:35:00Z"
+                          confidence: null
+                          license: null
+                          officialUrl: null
+                          licenseUrl: null
+                          attribution: "널널 내부 규칙"
+                          metricDefinition: "동일 taxonomy·region 기반 SIMILAR 규칙"
+                          normalizationVersion: "rule-v1"
+                          qualityFlags: []
+                          forecastIssueId: null
+                          comparisonAxis: null
+                          comparisonEligible: false
+                          comparisonReasonCode: "QUALITATIVE_ONLY"
+                          comparisonGroupId: null
+                          collectorRunId: null
+                          snapshotSetId: null
+                          observedAtSkewSeconds: null
+                          scope: "PLACE"
+                          scopeLabel: null
+                          mappingType: "INTERNAL_RULE"
+                          fallbackUsed: false
+                          provenanceId: "018f5a00-0000-7000-8000-000000000008"
+                exactAlternatives:
+                  summary: "An alternative a provider states as EXACT"
+                  description: |
+                    No server path produces this today: the one source that could state EXACT, KTO_RELATED_PLACES,
+                    is not approved, and BA-024-T7 pins that only SIMILAR and UNKNOWN are emitted. It is kept as the
+                    mock of the Figma state (FIGMA_HANDOFF "Candidate relation"), credited to that source's
+                    registered values; whether to keep it is an owner decision. The page state is EXACT because any
+                    EXACT item makes it so (CatalogRelationProjectionService).
+                  value:
+                    sourcePlaceId: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b01"
+                    state: "EXACT"
+                    reason: null
+                    items:
                       - place:
                           id: "018f4b20-1a44-7e11-9c02-5d7e3f1a2b12"
                           name: "서울숲"

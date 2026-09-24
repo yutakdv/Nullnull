@@ -244,39 +244,52 @@ class CatalogRelatedPlacesApiIT {
     }
 
     /**
-     * The fixture Frontend mocks listRelatedPlaces with, held against a relation written the way
-     * CatalogRelationDeriver writes one - the only producer of relation rows. It used to carry a crowd
-     * forecast's provenance under the KorService2 name, comparisonEligible true included, which the server
-     * can never send for a relation (invariant 8).
+     * The page Frontend mocks listRelatedPlaces with, held against a page the server builds from relations
+     * written the way CatalogRelationDeriver writes them - the only producer of relation rows. It used to
+     * carry a crowd forecast's provenance under the KorService2 name, comparisonEligible true included,
+     * and an EXACT item under state SIMILAR: neither is a page the server can send (invariant 8, and any
+     * EXACT item makes the page EXACT). So the whole page is compared - its state, how many items and in
+     * what order - not one item of it: JsonShape merges array elements, and an extra item passes a shape.
      *
-     * <p>Only the SIMILAR item is compared. The fixture's EXACT item has no producer: its one possible
-     * source, KTO_RELATED_PLACES, is disabled and unapproved (BA-024-T7 pins that EXACT is never emitted),
-     * so there is no response to hold it against. It stays as the mock of the Figma state
-     * (FIGMA_HANDOFF "Candidate relation"), credited to that provider's registered values.
+     * <p>places/related-page-exact.json is not compared. EXACT has no producer: its one possible source,
+     * KTO_RELATED_PLACES, is disabled and unapproved (BA-024-T7 pins that EXACT is never emitted), so there
+     * is no response to hold it against. It stays as the mock of the Figma state (FIGMA_HANDOFF "Candidate
+     * relation"), credited to that provider's registered values.
      */
     @Test
-    @DisplayName("BA-024 places/related-page.json's SIMILAR item is what listRelatedPlaces sends for a derived relation")
-    void theRelatedPageFixtureDescribesADerivedRelation() throws Exception {
+    @DisplayName("BA-024 places/related-page.json is the page listRelatedPlaces sends for derived relations")
+    void theRelatedPageFixtureDescribesDerivedRelations() throws Exception {
         SessionService.Bootstrap owner = owner();
         UUID source = ktoPlace("대조 출발 장소");
-        derived(source, ktoPlace("대조 대상 장소"));
+        derived(source, ktoPlace("대조 대상 장소 하나"));
+        derived(source, ktoPlace("대조 대상 장소 둘"));
 
         tools.jackson.databind.JsonNode body = new tools.jackson.databind.ObjectMapper().readTree(
                 related(owner, source).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         tools.jackson.databind.JsonNode fixture = JsonShape.fixture("places/related-page.json");
 
         assertThat(JsonShape.of(body)).isEqualTo(JsonShape.of(fixture));
-        assertThat(body.get("state")).isEqualTo(fixture.get("state"));
-        assertThat(body.get("reason")).isEqualTo(fixture.get("reason"));
-        tools.jackson.databind.JsonNode served = body.get("items").get(0);
-        tools.jackson.databind.JsonNode similar = fixture.get("items").get(0);
-        for (String field : List.of("relation", "relationReason", "crowd")) {
-            assertThat(served.get(field)).as(field).isEqualTo(similar.get(field));
+        for (String field : List.of("state", "reason")) {
+            assertThat(body.get(field)).as(field).isEqualTo(fixture.get(field));
         }
-        // Every provenance field but the three a row owns: when it was recorded, when it lapses, its id.
-        assertThat(withoutRowFields(served.get("provenance")))
-                .isEqualTo(withoutRowFields(similar.get("provenance")));
-        PlaceCredits.assertSameAs(served, similar, "places/related-page.json SIMILAR");
+        assertThat(body.get("items")).as("item count").hasSameSizeAs(fixture.get("items"));
+        // The server orders a page's SIMILAR relations by target place id (JdbcCatalogRelationQuery).
+        assertThat(placeIds(fixture)).as("the fixture in the server's order").isSorted();
+        assertThat(placeIds(body)).as("the server's order").isSorted();
+        for (int i = 0; i < fixture.get("items").size(); i++) {
+            tools.jackson.databind.JsonNode served = body.get("items").get(i);
+            tools.jackson.databind.JsonNode onDisk = fixture.get("items").get(i);
+            for (String field : List.of("relation", "relationReason", "crowd")) {
+                assertThat(served.get(field)).as("item %d %s", i, field).isEqualTo(onDisk.get(field));
+            }
+            // Every provenance field but the three a row owns: when it was recorded, when it lapses, its id...
+            assertThat(withoutRowFields(served.get("provenance"))).as("item %d provenance", i)
+                    .isEqualTo(withoutRowFields(onDisk.get("provenance")));
+            // ...and the window between the first two, which is the registry's, not the row's. The dates
+            // themselves describe a response as of its fetchedAt, as every time-bound fixture here does.
+            assertThat(window(onDisk)).as("item %d fetchedAt to staleAt", i).isEqualTo(window(served));
+        }
+        PlaceCredits.assertSameAs(body, fixture, "places/related-page.json");
     }
 
     @Test
@@ -354,6 +367,18 @@ class CatalogRelatedPlacesApiIT {
                 VALUES (?, ?, ?, 'SIMILAR', 'INTERNAL_RULE', 'CONFIRMED', '같은 분류·지역', ?, 1, ?, ?, ?)
                 """, UUID.randomUUID(), source, target, RULE, timestamp(effective),
                 timestamp(effective.plusSeconds(604_800)), timestamp(effective));
+    }
+
+    private static List<String> placeIds(tools.jackson.databind.JsonNode page) {
+        List<String> ids = new ArrayList<>();
+        page.get("items").forEach(item -> ids.add(item.get("place").get("id").asString()));
+        return ids;
+    }
+
+    private static java.time.Duration window(tools.jackson.databind.JsonNode item) {
+        tools.jackson.databind.JsonNode provenance = item.get("provenance");
+        return java.time.Duration.between(Instant.parse(provenance.get("fetchedAt").asString()),
+                Instant.parse(provenance.get("staleAt").asString()));
     }
 
     private static tools.jackson.databind.JsonNode withoutRowFields(tools.jackson.databind.JsonNode provenance) {

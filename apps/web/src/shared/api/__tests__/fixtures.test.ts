@@ -148,6 +148,7 @@ const SCHEMA_OF: Record<string, string> = {
   'placeFixtures.searchPageEmpty': 'PlaceSearchPage',
   'placeFixtures.detail': 'PlaceDetail',
   'relatedFixtures.page': 'RelatedPlaceResult',
+  'relatedFixtures.pageExact': 'RelatedPlaceResult',
   'relatedFixtures.none': 'RelatedPlaceResult',
   'relatedFixtures.checking': 'RelatedPlaceResult',
   'candidateFixtures.page': 'CandidatePage',
