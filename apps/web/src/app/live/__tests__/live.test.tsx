@@ -438,6 +438,48 @@ describe('FE-401 Live area list', () => {
     expect(screen.getByRole('searchbox')).toHaveValue('경복궁');
   });
 
+  it('FE-401-T3 returns from a place detail to the same area with focus on the followed link', async () => {
+    const user = userEvent.setup();
+    renderLive();
+    await user.click(await screen.findByRole('button', { name: /광화문·덕수궁/ }));
+    const link = await screen.findByRole('link', {
+      name: 'View Live information for 북촌한옥마을',
+    });
+    await user.click(link);
+    await screen.findByRole('heading', { level: 1, name: '경복궁' });
+
+    await user.click(screen.getByRole('button', { name: 'Back to Live' }));
+
+    // The area is expanded again and the link that was followed holds focus,
+    // rather than the list remounting collapsed with focus at the top.
+    const back = await screen.findByRole('link', {
+      name: 'View Live information for 북촌한옥마을',
+    });
+    await waitFor(() => expect(back).toHaveFocus());
+    expect(screen.getByRole('button', { name: /광화문·덕수궁/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
+  it('FE-401-T3 returns from a search result to the same words with focus on the result', async () => {
+    const user = userEvent.setup();
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    await user.click(
+      await screen.findByRole('link', { name: /View Live information for 경복궁/i }),
+    );
+    await screen.findByRole('heading', { level: 1, name: '경복궁' });
+
+    await user.click(screen.getByRole('button', { name: 'Back to Live' }));
+
+    expect(await screen.findByRole('searchbox')).toHaveValue('경복궁');
+    const result = await screen.findByRole('link', {
+      name: /View Live information for 경복궁/i,
+    });
+    await waitFor(() => expect(result).toHaveFocus());
+  });
+
   it('FE-401-T3 opens a named search result link with the keyboard', async () => {
     const user = userEvent.setup();
     const areas = liveFixture<LiveAreaResult>('area-result-live');

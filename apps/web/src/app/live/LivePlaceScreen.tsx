@@ -1,7 +1,13 @@
 import type { components } from '@nullnull/api-client';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { useAddTripCandidate, useLivePlace } from '../../shared/api/index.js';
@@ -17,6 +23,7 @@ import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
+import { readLiveReturn } from './live-return.js';
 
 const STATES: SourceState[] = [
   'LIVE',
@@ -60,6 +67,7 @@ function canCompareCrowd(
 export function LivePlaceScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
+  const liveReturn = readLiveReturn(useLocation().state);
   const { locale, t } = useI18n();
   const { activeTripId, activeTripReady, sessionReady } =
     useOutletContext<AppShellOutletContext>();
@@ -142,7 +150,9 @@ export function LivePlaceScreen() {
     <section aria-labelledby="live-place-heading" className={styles.screen}>
       <NavBar
         backLabel={t('live.detail.back')}
-        onBack={() => void navigate('/live')}
+        onBack={() =>
+          void navigate('/live', liveReturn ? { state: { liveReturn } } : undefined)
+        }
         title={t('live.detail.title')}
         titleSize="large"
       />

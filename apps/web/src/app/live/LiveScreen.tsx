@@ -1,7 +1,7 @@
 import type { components } from '@nullnull/api-client';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
-import { Link, useNavigate, useOutletContext } from 'react-router';
+import { Link, useLocation, useNavigate, useOutletContext } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
@@ -21,6 +21,8 @@ import {
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
 import type { AppShellOutletContext } from '../AppShell.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
+import { readLiveReturn } from './live-return.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
@@ -45,8 +47,14 @@ export function LiveScreen() {
     (notify) => onlineManager.subscribe(notify),
     () => onlineManager.isOnline(),
   );
-  const [query, setQuery] = useState('');
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const location = useLocation();
+  // Back from a place detail brings its origin: the expanded area, the search
+  // words and the link that was followed.
+  const returned = readLiveReturn(location.state);
+  const [query, setQuery] = useState(returned?.query ?? '');
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(
+    returned?.areaId ?? null,
+  );
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
@@ -72,12 +80,35 @@ export function LiveScreen() {
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
+  const returnState = useCallback(
+    (placeId: string) => ({ liveReturn: { areaId: selectedAreaId, query, placeId } }),
+    [query, selectedAreaId],
+  );
   const openPlace = useCallback(
     (placeId: string) => {
-      void navigate(`/live/places/${placeId}`);
+      void navigate(`/live/places/${placeId}`, { state: returnState(placeId) });
     },
-    [navigate],
+    [navigate, returnState],
   );
+  // Focus goes back to the followed link once the list that holds it has
+  // rendered again: the area's places or the search results arrive
+  // asynchronously. When neither can hold it any more (the place left the
+  // area), focus falls back to <main> rather than to the top of the document.
+  const restoredFor = useRef<string | null>(null);
+  const areaSettled = !returned?.areaId || places.isSuccess || places.isError;
+  const searchSettled = !returned?.query || search.isSuccess || search.isError;
+  useEffect(() => {
+    if (!returned || restoredFor.current === location.key) return;
+    // Compared by value rather than built into a selector: the id comes from
+    // router state, and no string from there should become selector syntax.
+    const link =
+      Array.from(document.querySelectorAll<HTMLElement>('[data-live-place-link]')).find(
+        (candidate) => candidate.dataset.livePlaceLink === returned.placeId,
+      ) ?? null;
+    if (!link && !(areaSettled && searchSettled)) return;
+    restoredFor.current = location.key;
+    restoreFocusTo(link);
+  });
   const selectedArea = areas.data?.areas.find((area) => area.id === selectedAreaId);
   const observedAt = areas.data?.areas.find((area) => area.crowd)?.crowd?.provenance
     .observedAt;
@@ -138,6 +169,8 @@ export function LiveScreen() {
                     <Link
                       aria-label={t('live.searchOpen', { name: place.name })}
                       className={styles.searchResult}
+                      data-live-place-link={place.id}
+                      state={returnState(place.id)}
                       to={`/live/places/${place.id}`}
                     >
                       <span>{place.name}</span>
@@ -299,6 +332,8 @@ export function LiveScreen() {
                                   name: item.place.name,
                                 })}
                                 className={styles.placeLink}
+                                data-live-place-link={item.place.id}
+                                state={returnState(item.place.id)}
                                 to={`/live/places/${item.place.id}`}
                               >
                                 <span className={styles.placeName}>
