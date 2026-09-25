@@ -319,6 +319,7 @@ python3 "${test_report_checker}" \
   --gate-junit-dir "${artifact_dir}/gate-evidence" \
   --e2e-junit-dir "${artifact_dir}/playwright" \
   --vitest-junit-dir "${artifact_dir}/vitest" \
+  --vitest-source-dir "${project_root}/apps/web" \
   --backend-plan "${project_root}/docs/engineering/backend-plan.json" \
   --manifest "${project_root}/apps/ai/tests/recommendation/manifest.json" \
   --evaluation "${recommendation_report}" \
