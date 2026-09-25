@@ -93,13 +93,13 @@ Figma 원본의 지도 복구 반영은 별도 확인이며 이 문서 변경으
 | FCR-012 | `FR-LIV-01` | `queryLiveAreas`, `listLiveAreaPlaces`, map capability | map OFF 목록을 기본 acceptance로 먼저 완성 |
 | FCR-013 | `FR-TRP-01`, `FR-DAT-02`, `FR-DAT-05` | `getTrip`, `getPlaceCrowdForecast`, `comparisonEligible` | 계약 연결·비교 규칙이 없으면 banner를 구현하지 않음 |
 | FCR-014 | `FR-OPT-03` | `getOptimization`; cancel operation 없음 | navigation과 server run 취소를 구분한 copy/state 승인 |
-| FCR-015 | `FR-OPT-09` | `ApplyOptimizationDecision`, `RevertOptimizationDecision`, `REVERT_WINDOW_EXPIRED` | OpenAPI 0.2.0 생성 union으로 persistent applied/revert/expired state와 keyboard 접근성 구현 |
+| FCR-015 | `FR-OPT-09` | `ApplyOptimizationDecision`, `RevertOptimizationDecision`, `REVERT_WINDOW_EXPIRED` | 퇴역(A-074, 오너 2026-09-25): 구현하지 않는다. 옛 지시(OpenAPI 0.2.0 생성 union으로 persistent applied/revert/expired state와 keyboard 접근성 구현)는 기록으로만 남긴다 |
 
 ## 권장 문구와 시각 규칙
 
 - A-2 helper: `한국어와 English를 지원해요. 日本語와 中文은 준비 중이에요.`
 - S14 guest: `로그인 없이 시작했어요` / `여행은 이 기기의 익명 세션에 저장돼요.`
-- S14 login: `로그인 · 준비 중`을 disabled control로 제공하거나 제출 profile에서 숨긴다.
+- S14 login: A-075(오너 2026-09-25)로 대체 — /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 요청 0건)와 프로필 `TEST` 표기. 옛 지시(`로그인 · 준비 중` disabled control 또는 숨김)는 기록으로만 남긴다.
 - ITEM loading: `혼잡 정보와 고정한 조건을 확인하고 있어요.`
 - ITEM loading 이탈: `내 여행으로 돌아가기` — server run 취소를 의미하지 않는다.
 - ITEM decision: 긍정 단일 `확인` 대신 `이 변경 적용`과 `현재 일정 유지`를 같은
@@ -342,6 +342,8 @@ breaking 변경이고, PM-011이 답하는 날 구현만 움직이면 되게 한
 > **BE/AI 검토 메모 (조건부 해제).** 위 3번의 교체 칩 자체에는 남은 문제가 있다 — `가까운 순`은 좌표와 기준점이 필요한데 이 문서 아래 표가 `PlaceSummary`에 좌표가 없고 기준점도 계약에 없다고 기록하고 있으며, `혼잡 낮은 순`은 provenance·비교 자격 없는 혼잡 순위라 안전 불변식 8에 걸린다. 다만 `418:2523`의 정렬 control은 **`FCR-025`(P0 blocker, Open)가 이미 추적**하고 있으므로 여기서 중복 추적하지 않는다. `FCR-005`의 route 수치 제거 범위는 이 조건 없이 승인한다.
 
 ## FCR-006 증거
+
+> **A-075(오너 2026-09-25)로 대체**: 아래는 2026-09-07의 Figma 변경 기록이다. 제출 build의 로그인 표현은 /sign-in 흉내와 프로필 `TEST` 표기이고, 이 절의 `로그인 · 준비 중` row는 앱에 없다.
 
 - 수정일: 2026-09-07, 수정자: Frontend (Claude Code Figma MCP)
 - 상태: Figma 수정 완료. [권장 문구](#권장-문구와-시각-규칙)의 S14 guest/login copy를 그대로 적용했다. 종료 조건 4(BE/AI·PM 승인)와 5(구현 후 test ID)는 대기 중이다.

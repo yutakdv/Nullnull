@@ -252,7 +252,7 @@ BE/AI가 제공해야 하는 contract SHA·canonical examples·state machine·mi
 
 Frontend는 심사위원이 외부망·익명창·로그인 없이 핵심 흐름을 완주할 수 있다는 **실제 화면 증거**를 담당한다.
 
-- `일정 입력·확인 → Feed → +Trip 후보 저장 → My Trip 일정화/편집 → ITEM 최적화 preview/apply/revert → Live/replay` 녹화와 E2E run을 같은 release SHA에 연결한다.
+- `일정 입력·확인 → Feed → +Trip 후보 저장 → My Trip 일정화/편집 → ITEM 최적화 preview/apply(되돌리기는 A-074로 퇴역) → Live/replay` 녹화와 E2E run을 같은 release SHA에 연결한다.
 - 대표 이미지 1장과 실제 P0 상세 화면 3~5장을 staging이 아닌 제출 production release에서 캡처한다.
 - 출처를 `출처: ⓒ한국관광공사` 등 승인된 텍스트로 표시하고 공식 CI/BI logo를 허가 없이 사용하지 않는다.
 - source state, 관측/발표·대상 시각, freshness, 비교 불가 이유가 screenshot에서도 판독 가능하게 한다.

@@ -325,8 +325,8 @@
       ],
       "designRequests": [],
       "steps": [
-        "S14 프로필 shell을 guest 상태·여행 목록·데이터 안내 진입으로 구현한다",
-        "로그인 CTA는 요청을 보내지 않는 disabled 준비 중으로 둔다",
+        "S14 프로필 shell을 `TEST` 계정 표기(A-075)·여행 목록·데이터 안내 진입으로 구현한다",
+        "로그인 표현은 A-075대로 onboarding의 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 요청 0건)와 프로필 `TEST` 표기로 두고, 로그인 없이 쓰는 경로를 유지한다",
         "삭제 receipt/status 화면을 상태별로 구현한다",
         "BA-011/BA-012가 열리면 fixture를 실제 응답으로 교체한다"
       ],
@@ -1730,14 +1730,14 @@
       "designRequests": [],
       "steps": [
         "BA-081의 magic-link·transfer preview·confirm·conflict·recovery 계약을 승인된 example로 검토한다",
-        "submission profile에서는 현재 guest와 로그인 준비 중 상태를 유지하고 인증 요청을 보내지 않는다",
+        "submission profile에서는 A-075의 로그인 표현(/sign-in 흉내, 프로필 `TEST` 표기)을 유지하고 인증 요청을 보내지 않는다",
         "capability 승인 뒤 프로필의 로그인·승계 preview·충돌·실패·복구 상태를 구현한다"
       ],
       "safety": "로그인 capability가 OFF인 제출 profile에서는 요청을 보내지 않는다. 익명 owner 데이터는 preview와 명시적 confirm 전 이동·병합하지 않고 session fixation과 owner isolation을 보존한다.",
       "tests": [
         {
           "id": "FE-P1-106-T1",
-          "assertion": "submission profile은 로그인 준비 중 상태를 유지하고 인증 요청이 0건이며 enabled profile은 magic-link 상태를 구분한다"
+          "assertion": "submission profile은 A-075의 로그인 표현을 유지하고 인증 요청이 0건이며 enabled profile은 magic-link 상태를 구분한다"
         },
         {
           "id": "FE-P1-106-T2",

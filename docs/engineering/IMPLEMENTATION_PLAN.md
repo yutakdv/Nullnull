@@ -279,7 +279,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
 | `FE-503` | B06 | before/after MetricDelta, 근거, decision bar | `655:4067` |
 | `FE-504` | B06 | 오류 6종·stale·no improvement 상태 | `417:2567`, `485:3517` |
-| `FE-505` | B06 | applied/undo/recompute flow | `417:2412` |
+| `FE-505` | B06 | applied/undo/recompute flow — deferred: undo 진입점 퇴역(A-074) | `417:2412` |
 | `FE-506` | B06 | S14 최적화 이력 상태/scope/시각/decision과 상세 진입 | `422:2925` |
 | `FE-104` | B07 | browser-first 한국어 parser와 correction UI | `401:1221` |
 | `FE-601` | B08 | 전체 P0 responsive/긴 텍스트/200% zoom pass | 전 P0 화면 |
