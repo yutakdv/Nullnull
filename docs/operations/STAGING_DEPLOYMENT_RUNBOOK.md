@@ -292,7 +292,7 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 여유(창 − 주기)가 덮어야 하는 늦음은 두 가지다. Scheduler의 전달은 `maxEventAge`(1시간)가 묶는다. 그보다 오래된 호출은 늦게 보내지 않고 버린다. 그 뒤의 Fargate 기동과 앞 장소 처리는 분 단위로 보지만, 여기서 막는 장치는 없고 재지도 않았다. 위 test는 여유를 전달 한도와만 대조한다.
 
-KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
+KTO 호출은 목록(`FORECAST_DEMO_PLACES`)의 장소가 N곳일 때 예보 하루 약 2N건(12시간마다 장소마다 1건), detail 5일에 약 N건이다. A-070·A-071의 후보를 모두 넣어도 N은 20이라 예보는 하루 약 40건이고, 등록된 quota(source당 하루 1000건, `V007`의 `perDay`)의 4% 안이다. 지금 N은 `infra/src/staging.ts`의 그 상수에서 센다.
 
 **무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있다. `DemoRefreshFailed`가 그때 울린다. 해제는 사람이 원인을 확인한 뒤 ops task `release-source-quarantine`으로 한다(§11).
 
@@ -488,7 +488,7 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 **시나리오 2 — KTO 쿼터.** KTO 호출이 하루 한도(개발 계정, API별 1,000건)에 가까워진다. 비용은 A-050으로 이 tabletop에서 뺐다.
 
 - 호출 경로: KTO gateway를 부르는 것은 운영 명령뿐이다(`KtoSmokeMain`·`KtoForecastSmokeMain`·`KtoDemoRefresh`). **앱의 요청 경로는 KTO를 부르지 않고 저장된 snapshot만 읽는다** — 공개 뒤 심사 트래픽은 쿼터를 쓰지 않는다.
-- 양: schedule은 장소 둘(`FORECAST_DEMO_PLACES`)을 예보 12시간·detail 5일 간격으로, 만료가 가까운 것만 갱신한다(A-044, 하루 약 4건). 호출 실패 시 schedule 재시도는 최대 3회다. 사람이 돌리는 `kto-smoke`·수동 재적재는 한 번에 1~5건이다. task마다 `KTO_DEMO_REFRESH_QUOTA … per_day=1000 planned_ratio=…` 줄이 남는다.
+- 양: schedule은 목록(`FORECAST_DEMO_PLACES`, A-044·A-070·A-071)의 장소를 예보 12시간·detail 5일 간격으로, 만료가 가까운 것만 갱신한다(N곳이면 예보 하루 약 2N건, 후보 전부인 20곳이면 약 40건). 호출 실패 시 schedule 재시도는 최대 3회다. 사람이 돌리는 `kto-smoke`·수동 재적재는 한 번에 1~5건이다. task마다 `KTO_DEMO_REFRESH_QUOTA … per_day=1000 planned_ratio=…` 줄이 남는다.
 - 쿼터보다 큰 위험: 거절된 응답(schema drift·provider 오류)은 `KTO_KOR_SERVICE_2` source를 격리한다. 그 동안 화면은 `UNAVAILABLE`을 사실대로 표시한다. 해제는 오너가 원인을 보고 판단한 뒤 ops task `release-source-quarantine`으로 한다(§11).
 - 오너 판단(2026-09-20): 쿼터로 멈출 지점 없음을 받아들인다. 개발 키의 활용기간이 운영 종료일 뒤까지인지는 오너가 data.go.kr에서 확인한다. 2026-09-25 오너 확인: KTO 개발 키와 서울 키·proxy 모두 2026-10-31 이후까지 유효하다.
 
