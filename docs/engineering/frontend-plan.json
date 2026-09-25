@@ -2086,9 +2086,13 @@
         {
           "id": "FE-603-T11",
           "assertion": "출처 링크는 버튼·링크·선택 컨트롤(radio 등) 안에 두지 않는다"
+        },
+        {
+          "id": "FE-603-T12",
+          "assertion": "서버가 준 URL은 https일 때만 href·src에 넣고, 그 밖의 scheme이면 링크·이미지로 그리지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. 서버 URL이 href·src에 닿는 다섯 자리(출처 링크 둘, 장소 썸네일, feed·게시물 표지)는 isSafeUrl(https만)을 거치고, 자리마다 거부·통과 양방향 render test가 있다(T12, src/shared/url/__tests__/safe-url-sites.test.tsx·post.test.tsx). ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },

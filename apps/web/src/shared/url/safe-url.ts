@@ -2,10 +2,16 @@
 //
 // WHAT THIS IS FOR. A response URL reaches a DOM attribute in five places
 // (PostScreen, FeedPostCard, PlaceThumbnail, and both anchors in
-// DataAttribution) with no validation today. The two anchors are the execution
-// path: a browser will not run `<img src="javascript:…">`, but it does run
-// `<a href="javascript:…">` on click. `rel="noreferrer noopener"` is a
-// tabnabbing control and says nothing about the scheme.
+// DataAttribution), and each of them asks this function first (FE-603-T12,
+// measured per place in safe-url-sites.test.tsx and post.test.tsx). The two
+// anchors are the execution path: a browser will not run
+// `<img src="javascript:…">`, but it does run `<a href="javascript:…">` on
+// click. `rel="noreferrer noopener"` is a tabnabbing control and says nothing
+// about the scheme.
+//
+// For a while this file existed and nothing imported it but its own test, so
+// every rejection that test proves reached no page. A guard that exists and a
+// guard that runs are different claims; the per-place tests are the second.
 //
 // The contract cannot carry this check: `format: uri` asks whether a string
 // parses as a URI, not what scheme it names, so `javascript:alert(1)` and

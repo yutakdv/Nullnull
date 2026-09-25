@@ -402,6 +402,41 @@ describe('FE-202 the cover is shown only on terms its licence allows', () => {
     expect(screen.queryByRole('img')).toBeNull();
   });
 
+  // FE-603-T12 for the fifth place a response URL reaches an attribute (the
+  // other four are in safe-url-sites.test.tsx). Both directions, because
+  // "a script URL draws no image" alone is satisfied by a screen that draws
+  // no image at all.
+  it('FE-603-T12 draws the cover from an https URL', async () => {
+    detailWithAsset({ ...base, attributionRequired: true, attributionText: CREDIT });
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(post.coverUrl.startsWith('https://')).toBe(true);
+    expect(screen.getByRole('presentation', { hidden: true })).toHaveAttribute(
+      'src',
+      post.coverUrl,
+    );
+  });
+
+  it('FE-603-T12 draws no cover, and no credit for it, from a script URL', async () => {
+    // With a credit the licence demands, so the credit line is present in the
+    // accept case above: its absence here is the image being withheld, not a
+    // licence that asked for no credit.
+    server.use(
+      http.get(`${API_BASE}/posts/:postId`, () =>
+        HttpResponse.json({
+          ...post,
+          coverUrl: 'javascript:alert(1)',
+          coverAsset: { ...base, attributionRequired: true, attributionText: CREDIT },
+        }),
+      ),
+    );
+    renderPost();
+    await screen.findByRole('heading', { level: 1, name: post.title });
+    expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.queryByText(CREDIT)).toBeNull();
+  });
+
   it('uses the alt text the server supplied', async () => {
     const alt = '고궁 담장을 걷는 사람들 일러스트';
     detailWithAsset({

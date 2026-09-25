@@ -1,4 +1,5 @@
 import type { components } from '@nullnull/api-client';
+import { isSafeUrl } from '../../url/safe-url.js';
 import { CrowdLevel } from './CrowdLevel.js';
 import { PlaceAttribution } from './PlaceAttribution.js';
 import type { StateWording } from './StateLabel.js';
@@ -64,7 +65,11 @@ export function FeedPostCard({
         onClick={() => onOpenPost?.(post.id)}
         aria-label={post.title}
       >
-        <img src={post.coverUrl} alt="" loading="lazy" />
+        {/* Only an https cover is drawn (FE-603-T12). The button stays either
+            way: it is the control that opens the post, not the picture's. */}
+        {isSafeUrl(post.coverUrl) ? (
+          <img src={post.coverUrl} alt="" loading="lazy" />
+        ) : null}
       </button>
 
       <div className={styles.body}>
