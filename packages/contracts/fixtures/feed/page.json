@@ -57,46 +57,7 @@
       },
       "savedPost": false,
       "candidateState": "NOT_SAVED",
-      "crowd": {
-        "state": "FORECAST",
-        "value": 62,
-        "unit": "상대 집중률",
-        "ordinalLevel": null,
-        "ordinalScale": null,
-        "label": "관광지별 집중률 예측",
-        "provenance": {
-          "source": "KTO_KOR_SERVICE_2",
-          "sourceDisplayName": "한국관광공사 국문 관광정보",
-          "sourceRegistryVersion": 4,
-          "sourceState": "FORECAST",
-          "observedAt": null,
-          "targetAt": "2026-10-05T00:00:00Z",
-          "freshness": "FRESH",
-          "fetchedAt": "2026-09-11T05:35:00Z",
-          "staleAt": "2026-09-12T05:35:00Z",
-          "confidence": 0.72,
-          "license": "이용허락범위 제한 없음",
-          "officialUrl": "https://www.data.go.kr/data/15128555/openapi.do",
-          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
-          "attribution": "출처: ⓒ한국관광공사",
-          "metricDefinition": "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측",
-          "normalizationVersion": "1.0.0",
-          "qualityFlags": [],
-          "forecastIssueId": "2026-09-11",
-          "comparisonAxis": "TEMPORAL",
-          "comparisonEligible": true,
-          "comparisonReasonCode": "SAME_METRIC_AND_ISSUE",
-          "comparisonGroupId": "KTO_CONCENTRATION_FORECAST",
-          "collectorRunId": "018f5a00-0000-7000-8000-000000000001",
-          "snapshotSetId": "018f5a00-0000-7000-8000-000000000002",
-          "observedAtSkewSeconds": 0,
-          "scope": "PLACE",
-          "scopeLabel": "장소",
-          "mappingType": "DIRECT",
-          "fallbackUsed": false,
-          "provenanceId": "018f5a00-0000-7000-8000-000000000003"
-        }
-      }
+      "crowd": null
     },
     {
       "post": {
@@ -155,46 +116,7 @@
       },
       "savedPost": true,
       "candidateState": "SAVED_TO_SELECTED_TRIP",
-      "crowd": {
-        "state": "UNAVAILABLE",
-        "value": null,
-        "unit": null,
-        "ordinalLevel": null,
-        "ordinalScale": null,
-        "label": "관광지별 집중률 예측",
-        "provenance": {
-          "source": "KTO_KOR_SERVICE_2",
-          "sourceDisplayName": "한국관광공사 국문 관광정보",
-          "sourceRegistryVersion": 4,
-          "sourceState": "UNAVAILABLE",
-          "observedAt": null,
-          "targetAt": null,
-          "freshness": "UNKNOWN",
-          "fetchedAt": "2026-09-11T05:35:00Z",
-          "staleAt": "2026-09-12T05:35:00Z",
-          "confidence": null,
-          "license": "이용허락범위 제한 없음",
-          "officialUrl": "https://www.data.go.kr/data/15128555/openapi.do",
-          "licenseUrl": "https://www.data.go.kr/ugs/selectPortalPolicyView.do",
-          "attribution": "출처: ⓒ한국관광공사",
-          "metricDefinition": "가장 붐비는 시기를 100으로 둔 날짜 단위 상대 집중률 예측",
-          "normalizationVersion": "1.0.0",
-          "qualityFlags": [],
-          "forecastIssueId": "2026-09-11",
-          "comparisonAxis": null,
-          "comparisonEligible": false,
-          "comparisonReasonCode": "MISSING_PROVENANCE",
-          "comparisonGroupId": "KTO_CONCENTRATION_FORECAST",
-          "collectorRunId": "018f5a00-0000-7000-8000-000000000001",
-          "snapshotSetId": "018f5a00-0000-7000-8000-000000000002",
-          "observedAtSkewSeconds": 0,
-          "scope": "PLACE",
-          "scopeLabel": "장소",
-          "mappingType": "DIRECT",
-          "fallbackUsed": false,
-          "provenanceId": null
-        }
-      }
+      "crowd": null
     },
     {
       "post": {
@@ -252,7 +174,8 @@
         }
       },
       "savedPost": false,
-      "candidateState": "SCHEDULED_IN_SELECTED_TRIP"
+      "candidateState": "SCHEDULED_IN_SELECTED_TRIP",
+      "crowd": null
     },
     {
       "post": {
@@ -310,7 +233,8 @@
         }
       },
       "savedPost": false,
-      "candidateState": "NOT_SAVED"
+      "candidateState": "NOT_SAVED",
+      "crowd": null
     }
   ],
   "page": {

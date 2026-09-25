@@ -53,6 +53,7 @@ const FIXTURE_OF = {
   results: 'places/search-page.json',
   noResults: 'places/search-page-empty.json',
   alternatives: 'places/related-page.json',
+  exactAlternatives: 'places/related-page-exact.json',
   noAlternatives: 'places/related-none.json',
   checking: 'places/related-checking.json',
   history: 'optimizations/history-page.json',
