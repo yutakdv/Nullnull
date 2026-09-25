@@ -2581,7 +2581,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-092
 
-**Live replay·장애 fallback·전체 P0 최종 gate** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Live replay·장애 fallback·전체 P0 최종 gate** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-091](#ba-091)
 - 기능 ID: `FR-LIV-07`
@@ -2598,6 +2598,28 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: replay는 실제 현재값/분산 성과/실제 KTO 호출 증거가 아니다. 이 단계 이후는 출시 검증·회귀 수정이며 새 비Live 기능은 다음 범위로 별도 선정한다.
 
+진행 상태(`in-progress`, 절마다 test 본문과 대조): 14개 절 가운데 replay·Live 판정 13개는 main 게이트에서 초록이고 rc.23에 배포돼 있다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 조회·후보·replay 행에 있고, report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`과 `TEST-io.nullnull.operations.application.DemoCapabilityQueryTest.xml`(`T11`)이다.
+
+| 절 | test | 무엇을 재나 |
+| --- | --- | --- |
+| `T1` | `ReplayManifestMigrationIT` 두 case | 승인 시점과 entry checksum이 맞지 않는 manifest, 다른 source revision의 snapshot |
+| `T2` | `LiveAreaReadingSelectorTest`·`ReplayLiveQueryIT`·`ReplayManifestMigrationIT` | replay가 자기 state·관측시각을 지키고 현재 LIVE로 보이지 않는다 |
+| `T4`~`T7` | `ReplayManifestMigrationIT` | capture window, snapshot 삭제 금지, manifest·entry 불변, scrub column 부재 |
+| `T8`~`T10`, `T12`, `T13` | `ReplayManifestMigrationIT` | 손상된 최신 승인에서 후퇴 금지, 승인 계획의 관측만 capture, 철회된 source, 비활성 구역, metric·normalization |
+| `T11` | `DemoCapabilityQueryTest.replayReadinessRequiresAnApprovedManifest` | flag가 켜져도 승인 manifest 전에는 READY가 아니다 |
+| `T14` | `LiveAreaReadingSelectorTest` | 구역 목록과 장소 상세가 같은 source 단위 LIVE 판정을 쓴다 |
+
+**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴다. 여섯 모두 이 ID를 단 testcase가 없어 `integration-ready`로 올리지 않는다. 게이트가 재는 부분과 남은 것:
+
+- `T3`(익명 외부망): 재는 것은 사람의 완주뿐이다. staging flows는 verifier 경로라 해당하지 않는다. 최종 release에서 새 시크릿 창·휴대전화 데이터망으로 한다.
+- `T15`(KO/EN): 게이트 E2E `FE-101-T1`(`shell.spec.ts`, 언어 화면이 한국어·영어만 고르게 한다)과 `live-replay-matrix.spec.ts`(Live badge의 KO/EN)가 일부를 잰다. 결정 화면의 영어 문구는 사람 완주에서 본다.
+- `T16`(keyboard): 게이트 E2E `BA-040-T4`(`keyboard-flow.spec.ts`, 일정 편집)와 `BA-070-T5`(focus 표시)가 잰다. 최적화 결정 버튼을 키보드로 누르는 것은 어느 test도 재지 않는다.
+- `T17`(출처): 게이트 E2E `BA-073-T4`(`attribution.integration.spec.ts`)가 여행 응답이 부른 장소를 잰다. 장소 이름을 그리는 다른 자리는 FE 작업(#389)이다.
+- `T18`(위치 OFF): 게이트 E2E `FE-603-T1 BA-073-T5`(`location-off.spec.ts`)가 Live 두 화면을 포함한 22개 화면을 잰다. 모자란 것은 이 절의 ID뿐이다.
+- `T19`(rollback): Wave 4 안에서는 잴 수 없다. rollback이 edge를 닫고 `current.json`을 바꿔 같은 release의 증거를 모두 무효로 만든다. `BA-071-T4`와 같은 자리이고, 미증명으로 기록할지는 오너 결정이다.
+
+게이트 test가 재는 절(`T15`~`T18`)은 그 test 제목에 이 카드의 ID가 붙어야 집계된다. 제목은 FE 소유라 이 카드에서 달지 않았다. 원래 `T3`을 인용한 기록(`DECISIONS_AND_RISKS` A-054·A-033)은 나누기 전의 여섯 절 전체를 가리킨다.
+
 필수 검증:
 
 - `BA-092-T1`: 승인 시점과 entry 목록이 다른 manifest 는 replay 로 쓰이지 않는다
@@ -2613,7 +2635,12 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-092-T12`: 비활성 구역의 관측은 capture 또는 replay할 수 없다
 - `BA-092-T13`: 서울 표준 metric 또는 normalization과 다른 관측은 capture 또는 replay할 수 없다
 - `BA-092-T14`: 구역 목록과 장소 상세는 전체 활성 구역의 현재 LIVE 여부를 같은 기준으로 판정한다
-- `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
+- `BA-092-T3`: 최종 release에서 새 익명 브라우저가 외부망으로 로그인 없이 전체 P0 흐름을 완결한다
+- `BA-092-T15`: 최종 release의 핵심 흐름 화면이 한국어와 영어로 표시된다
+- `BA-092-T16`: 최종 release의 핵심 흐름 결정 동작을 키보드만으로 할 수 있다
+- `BA-092-T17`: 최종 release에서 출처가 붙은 장소는 화면에 그 출처를 표시한다
+- `BA-092-T18`: 최종 release의 전체 P0 화면이 위치 권한을 요청하지 않는다
+- `BA-092-T19`: 이전 release로 rollback한 뒤 외부 smoke가 통과한다
 
 FE 인계·완료 증거: 최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

@@ -4142,7 +4142,7 @@
       "phase": "B10",
       "priority": "P0",
       "title": "Live replay·장애 fallback·전체 P0 최종 gate",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-091"
       ],
@@ -4217,7 +4217,27 @@
         },
         {
           "id": "BA-092-T3",
-          "assertion": "전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"
+          "assertion": "최종 release에서 새 익명 브라우저가 외부망으로 로그인 없이 전체 P0 흐름을 완결한다"
+        },
+        {
+          "id": "BA-092-T15",
+          "assertion": "최종 release의 핵심 흐름 화면이 한국어와 영어로 표시된다"
+        },
+        {
+          "id": "BA-092-T16",
+          "assertion": "최종 release의 핵심 흐름 결정 동작을 키보드만으로 할 수 있다"
+        },
+        {
+          "id": "BA-092-T17",
+          "assertion": "최종 release에서 출처가 붙은 장소는 화면에 그 출처를 표시한다"
+        },
+        {
+          "id": "BA-092-T18",
+          "assertion": "최종 release의 전체 P0 화면이 위치 권한을 요청하지 않는다"
+        },
+        {
+          "id": "BA-092-T19",
+          "assertion": "이전 release로 rollback한 뒤 외부 smoke가 통과한다"
         }
       ],
       "handoff": "최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다.",
