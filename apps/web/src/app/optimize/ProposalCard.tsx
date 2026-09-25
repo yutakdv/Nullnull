@@ -1,6 +1,18 @@
 import type { components } from '@nullnull/api-client';
-import { DataAttribution, MetricDelta } from '../../shared/ui/index.js';
-import { changeRows, crowdComparison, moveKind, type ChangeRow } from './preview.js';
+import {
+  DataAttribution,
+  MetricDelta,
+  PlaceAttribution,
+  sourceContext,
+  unitCredits,
+} from '../../shared/ui/index.js';
+import {
+  changeRows,
+  crowdComparison,
+  moveKind,
+  type ChangeRow,
+  type ProposalPlaces,
+} from './preview.js';
 import styles from './ProposalCard.module.css';
 
 // One proposal from a READY optimization run (S12, FE-503, FR-OPT-04).
@@ -30,6 +42,16 @@ export interface ProposalCardProps {
   selected?: boolean;
   /** Present only when selecting is possible. See `selected`. */
   onSelect?: (proposalId: string) => void;
+  /**
+   * Whether this card is the group's one Tab stop (roving tabindex). The
+   * screen moves focus between cards with the arrow keys (FE-503-T3).
+   */
+  tabbable?: boolean;
+  /**
+   * The places the changes name, from the trip the screen holds
+   * (`proposalPlaces`). Null while that trip is still loading.
+   */
+  places?: ProposalPlaces | null;
   /** Localized copy from the caller; the shared components keep Korean defaults. */
   labels: {
     crowdLabel: string;
@@ -60,6 +82,12 @@ export interface ProposalCardProps {
     constraintsOk: string;
     constraintsBroken: string;
     licenseTerms: string;
+    /** Shown while the trip that supplies the named places' credits loads. */
+    placeCreditPending: string;
+    /** Shown when none of the named places has a credit the card can draw. */
+    placeCreditMissingAll: string;
+    /** Shown when some of the named places have one and some do not. */
+    placeCreditMissingSome: string;
   };
 }
 
@@ -132,6 +160,8 @@ export function ProposalCard({
   selected,
   onSelect,
   labels,
+  places = null,
+  tabbable = false,
 }: ProposalCardProps) {
   const rows = changeRows(proposal.changes);
   const comparison = crowdComparison(proposal);
@@ -141,117 +171,158 @@ export function ProposalCard({
   const constraintsPreserved =
     proposal.validation.allConstraintsPreserved && failed.length === 0;
   const selectable = onSelect !== undefined;
+  // A selectable card is a radio inside the screen's radiogroup, and a
+  // radiogroup must own its radios directly — an `<article>` between them
+  // would stand in the way. Only the single, non-selectable card is an article.
+  const Card = selectable ? 'div' : 'article';
 
   return (
-    // `role="radio"` and not a checkbox or a plain button: the run takes ONE
-    // decision, so the proposals are mutually exclusive and a screen reader
-    // should say "1 of 3" rather than announce three independent toggles. The
-    // screen owns the surrounding `radiogroup`.
-    //
-    // The attributes appear only when selecting is possible. A non-selectable
-    // card is an `<article>` with no role and no tabindex, which is what the
-    // single-proposal case needs — see `selected` above.
-    <article
-      aria-checked={selectable ? selected === true : undefined}
+    <Card
       className={selected === true ? `${styles.card} ${styles.selected}` : styles.card}
-      onClick={selectable ? () => onSelect(proposal.id) : undefined}
-      onKeyDown={
-        selectable
-          ? (event) => {
-              // Space and Enter, which is what a radio answers to. Without this
-              // the card is reachable by Tab and does nothing when pressed,
-              // which is worse than not being focusable at all.
-              if (event.key !== ' ' && event.key !== 'Enter') return;
-              event.preventDefault();
-              onSelect(proposal.id);
-            }
-          : undefined
-      }
-      role={selectable ? 'radio' : undefined}
-      tabIndex={selectable ? 0 : undefined}
     >
-      {/* The server's sentence, verbatim. It is generated from the change set
-          it describes, so rewriting or truncating it here would state something
-          the optimizer did not. */}
-      <p className={styles.summary}>{proposal.summary}</p>
+      {/* `role="radio"` and not a checkbox or a plain button: the run takes ONE
+          decision, so the proposals are mutually exclusive and a screen reader
+          should say "1 of 3" rather than announce three independent toggles.
+          The screen owns the surrounding `radiogroup`.
 
-      <section aria-label={labels.changesTitle} className={styles.section}>
-        <h3 className={styles.sectionTitle}>
-          {labels.changeCount.replace('{count}', String(rows.length))}
-        </h3>
-        <ChangeList labels={labels} rows={rows} />
-      </section>
+          The attributes appear only when selecting is possible — see
+          `selected` above.
 
-      {/* Invariant 8, held structurally.
+          The radio holds what the proposal SAYS and nothing that links out: a
+          radio's children are presentational, so a credit link inside it is no
+          link to a screen reader, and the radio takes its Enter, Space and
+          click. The credits are its sibling below (FE-603-T11). */}
+      <div
+        aria-checked={selectable ? selected === true : undefined}
+        className={styles.choice}
+        onClick={selectable ? () => onSelect(proposal.id) : undefined}
+        onKeyDown={
+          selectable
+            ? (event) => {
+                // Space and Enter, which is what a radio answers to. Without
+                // this the card is reachable by Tab and does nothing when
+                // pressed, which is worse than not being focusable at all.
+                if (event.key !== ' ' && event.key !== 'Enter') return;
+                event.preventDefault();
+                onSelect(proposal.id);
+              }
+            : undefined
+        }
+        role={selectable ? 'radio' : undefined}
+        tabIndex={selectable ? (tabbable ? 0 : -1) : undefined}
+      >
+        {/* The server's sentence, verbatim. It is generated from the change
+            set it describes, so rewriting or truncating it here would state
+            something the optimizer did not. */}
+        <p className={styles.summary}>{proposal.summary}</p>
 
-          `crowdComparison` returns either a delta WITH its provenance or a
-          blocked reason with no delta to reach for. The `shown` branch renders
-          both together and there is no expression here that can produce the
-          number on its own — dropping the attribution would mean deleting a
-          variable the same branch destructured, not quietly omitting a line.
+        <section aria-label={labels.changesTitle} className={styles.section}>
+          <h3 className={styles.sectionTitle}>
+            {labels.changeCount.replace('{count}', String(rows.length))}
+          </h3>
+          <ChangeList labels={labels} rows={rows} />
+        </section>
 
-          The alternative — reading `proposal.metrics.crowdDelta` and checking a
-          boolean beside it — is what lets a later edit keep the figure and lose
-          the credit. That is why this file never touches `proposal.metrics`. */}
-      {comparison.kind === 'shown' ? (
-        <div className={styles.section}>
-          {/* Arrow, word and figure all come off the same sign, read once. The
-              word is what a screen reader gets in place of the arrow, so a
-              second reading of `delta` here could put them out of step — the
-              glyph saying down while the announcement said up. */}
-          <MetricDelta
-            direction={deltaDirection(comparison.delta)}
-            directionLabel={
-              comparison.delta < 0
-                ? labels.crowdDown
-                : comparison.delta > 0
-                  ? labels.crowdUp
-                  : undefined
-            }
-            eligible
-            label={labels.crowdLabel}
-            value={formatDelta(comparison.delta)}
-          />
+        {/* Invariant 8, held structurally.
+
+            `crowdComparison` returns either a delta WITH its provenance or a
+            blocked reason with no delta to reach for. The figure here and its
+            credit in the credits below both come off that one value and the
+            same `shown` test; there is no expression that can produce the
+            number without the provenance that has to be printed with it.
+
+            The alternative — reading `proposal.metrics.crowdDelta` and checking
+            a boolean beside it — is what lets a later edit keep the figure and
+            lose the credit. That is why this file never touches
+            `proposal.metrics`. */}
+        {comparison.kind === 'shown' ? (
+          <div className={styles.section}>
+            {/* Arrow, word and figure all come off the same sign, read once.
+                The word is what a screen reader gets in place of the arrow, so
+                a second reading of `delta` here could put them out of step —
+                the glyph saying down while the announcement said up. */}
+            <MetricDelta
+              direction={deltaDirection(comparison.delta)}
+              directionLabel={
+                comparison.delta < 0
+                  ? labels.crowdDown
+                  : comparison.delta > 0
+                    ? labels.crowdUp
+                    : undefined
+              }
+              eligible
+              label={labels.crowdLabel}
+              value={formatDelta(comparison.delta)}
+            />
+          </div>
+        ) : (
+          <div className={styles.section}>
+            {/* One sentence for every blocked reason, and the server's code is
+                never shown.
+
+                `comparisonReasonCode` is a free-form string in the contract —
+                no enum, maxLength 100 — and the fixtures already carry three
+                different values (SAME_METRIC_AND_ISSUE, SAME_SOURCE_SCOPE_SET,
+                MISSING_PROVENANCE). A key built from the code would render the
+                literal token for any value added after this build shipped,
+                which is the bug `failureMessage` in OptimizationRunScreen
+                measured as "[undefined]" on screen. ReplaceSheet made the same
+                call for the same reason: it maps to fixed copy rather than
+                echoing the code.
+
+                The distinction the user needs is "we cannot compare these",
+                not which of the server's internal predicates said so.
+
+                `reason` is always passed, so MetricDelta's own Korean fallback
+                (`reason ?? '확인 불가'`) is unreachable FROM THIS SCREEN. That
+                is a property of this call site, not of the component — another
+                caller that omits `reason` would still hit it. */}
+            <MetricDelta
+              eligible={false}
+              label={labels.crowdLabel}
+              reason={labels.comparisonUnavailable}
+            />
+          </div>
+        )}
+
+        <p className={styles.validation} data-ok={constraintsPreserved}>
+          {constraintsPreserved ? labels.constraintsOk : labels.constraintsBroken}
+        </p>
+      </div>
+
+      {/* CMP-ATT-001: the summary names places, so the card credits them — in
+          both comparison branches, not only beside a figure. While the trip
+          that supplies them loads, and for any named place it cannot supply,
+          the card says so rather than showing the name with nothing under it
+          (`proposalPlaces`). The forecast's credit follows, only when its
+          figure is shown; reading the same words as a KTO place credit, it
+          names its source beside it (FE-603-T7). */}
+      <div className={styles.credits}>
+        <PlaceAttribution compact place={places?.places ?? []} />
+        {places === null ? (
+          <p className={styles.creditNote}>{labels.placeCreditPending}</p>
+        ) : places.missing > 0 ? (
+          <p className={styles.creditNote}>
+            {places.places.length === 0
+              ? labels.placeCreditMissingAll
+              : labels.placeCreditMissingSome}
+          </p>
+        ) : null}
+        {comparison.kind === 'shown' ? (
           <DataAttribution
             compact
+            context={sourceContext(
+              comparison.provenance,
+              unitCredits(places?.places ?? []),
+              true,
+            )}
             provenance={comparison.provenance}
             showLicense
             termsLabel={labels.licenseTerms}
           />
-        </div>
-      ) : (
-        <div className={styles.section}>
-          {/* One sentence for every blocked reason, and the server's code is
-              never shown.
-
-              `comparisonReasonCode` is a free-form string in the contract — no
-              enum, maxLength 100 — and the fixtures already carry three
-              different values (SAME_METRIC_AND_ISSUE, SAME_SOURCE_SCOPE_SET,
-              MISSING_PROVENANCE). A key built from the code would render the
-              literal token for any value added after this build shipped, which
-              is the bug `failureMessage` in OptimizationRunScreen measured as
-              "[undefined]" on screen. ReplaceSheet made the same call for the
-              same reason: it maps to fixed copy rather than echoing the code.
-
-              The distinction the user needs is "we cannot compare these", not
-              which of the server's internal predicates said so.
-
-              `reason` is always passed, so MetricDelta's own Korean fallback
-              (`reason ?? '확인 불가'`) is unreachable FROM THIS SCREEN. That is
-              a property of this call site, not of the component — another
-              caller that omits `reason` would still hit it. */}
-          <MetricDelta
-            eligible={false}
-            label={labels.crowdLabel}
-            reason={labels.comparisonUnavailable}
-          />
-        </div>
-      )}
-
-      <p className={styles.validation} data-ok={constraintsPreserved}>
-        {constraintsPreserved ? labels.constraintsOk : labels.constraintsBroken}
-      </p>
-    </article>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 

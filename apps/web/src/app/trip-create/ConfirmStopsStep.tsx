@@ -9,9 +9,11 @@ import {
 import { crowdPointForDate } from '../../shared/crowd/forecast.js';
 import {
   BottomCta,
-  DataAttribution,
   IconPinVisit,
   IconPinVisitFilled,
+  PlaceAttribution,
+  unitCredits,
+  type AttributionSource,
 } from '../../shared/ui/index.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ConfirmStopsStep.module.css';
@@ -51,7 +53,15 @@ export interface ConfirmStopsStepProps {
   isSubmitting: boolean;
 }
 
-function LazyStopCrowd({ placeId, date }: { placeId: string; date: string }) {
+function LazyStopCrowd({
+  placeId,
+  date,
+  alongside,
+}: {
+  placeId: string;
+  date: string;
+  alongside: readonly AttributionSource[];
+}) {
   const anchor = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -86,7 +96,10 @@ function LazyStopCrowd({ placeId, date }: { placeId: string; date: string }) {
         loading={forecast.isFetching}
         series={forecast.data}
       />
-      <CrowdForecastReading point={crowdPointForDate(forecast.data, date)} />
+      <CrowdForecastReading
+        alongside={alongside}
+        point={crowdPointForDate(forecast.data, date)}
+      />
     </span>
   );
 }
@@ -182,13 +195,12 @@ export function ConfirmStopsStep({
                           forecast below carries a second one for its own
                           dataset; neither stands in for the other
                           (SOURCE_CATALOG, provenance primitives). */}
-                        {stop.place.sourceAttribution ? (
-                          <DataAttribution
-                            compact
-                            provenance={stop.place.sourceAttribution}
-                          />
-                        ) : null}
-                        <LazyStopCrowd date={date} placeId={stop.place.id} />
+                        <PlaceAttribution compact place={stop.place} />
+                        <LazyStopCrowd
+                          alongside={unitCredits([stop.place])}
+                          date={date}
+                          placeId={stop.place.id}
+                        />
                       </span>
                       {/* A toggle, so it announces its own state rather than
                         relying on the pin glyph — which is colour-and-shape

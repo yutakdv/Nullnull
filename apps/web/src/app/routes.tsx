@@ -103,7 +103,9 @@ export const routes: RouteObject[] = [
       { path: 'feed', element: <FeedScreen /> },
       { path: 'trips/select', element: <TripSelectScreen /> },
       { path: 'trip/:tripId', element: <TripScreen /> },
-      // S11 live, a 준비 중 screen until BA-091 opens the data (FE-401).
+      // S11 live: the list-first area screen with the map when its key is
+      // approved (FE-401) and a place's detail (FE-402). Operations and Figma
+      // nodes: frontend-plan.json FE-401, the canonical list.
       { path: 'live', element: <LiveScreen /> },
       { path: 'live/places/:placeId', element: <LivePlaceScreen /> },
       { path: 'profile', element: <ProfileScreen /> },

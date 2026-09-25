@@ -3,9 +3,10 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem } from '../../shared/api/index.js';
 import {
   BottomCta,
-  DataAttribution,
   IconPinVisit,
   IconPinVisitFilled,
+  PlaceAttribution,
+  unitCredits,
 } from '../../shared/ui/index.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './RecommendedDraftStep.module.css';
@@ -158,12 +159,9 @@ export function RecommendedDraftStep({
                                 {meta(stop) ? (
                                   <span className={styles.meta}>{meta(stop)}</span>
                                 ) : null}
-                                {stop.place.sourceAttribution ? (
+                                {unitCredits([stop.place]).length > 0 ? (
                                   <span className={styles.source}>
-                                    <DataAttribution
-                                      compact
-                                      provenance={stop.place.sourceAttribution}
-                                    />
+                                    <PlaceAttribution compact place={stop.place} />
                                   </span>
                                 ) : null}
                               </span>

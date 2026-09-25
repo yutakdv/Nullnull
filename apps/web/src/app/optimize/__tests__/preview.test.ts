@@ -6,6 +6,7 @@ import {
   crowdComparison,
   decisionPhase,
   isStale,
+  proposalPlaces,
   type DecisionState,
 } from '../preview.js';
 
@@ -13,6 +14,7 @@ type OptimizationProposal = components['schemas']['OptimizationProposal'];
 type OptimizationChange = components['schemas']['OptimizationChange'];
 type OptimizationStatus = components['schemas']['OptimizationStatus'];
 type TripItemState = components['schemas']['TripItemState'];
+type TripDetail = components['schemas']['TripDetail'];
 
 // The approved example, not a hand-written object: a fixture that drifts from
 // the contract is caught by the ajv check in verify:ci, and a literal here
@@ -339,5 +341,48 @@ describe('changeRows gives each row only the sides it has', () => {
 
   it('returns nothing for no changes', () => {
     expect(changeRows([])).toEqual([]);
+  });
+});
+
+describe('proposalPlaces: which places a proposal names, as the trip knows them', () => {
+  // The trip the run was computed from. Its 인사동 stop is the one the fixture
+  // proposal moves (item …3c02, place …2b03).
+  const TRIP = JSON.parse(
+    readFileSync(
+      '../../packages/contracts/fixtures/trips/trip-detail-scheduled.json',
+      'utf8',
+    ),
+  ) as TripDetail;
+  const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
+  const ELSEWHERE = '018f4b20-1a44-7e11-9c02-5d7e3f1a2bff';
+
+  it('FE-603-T5 finds the place a move names in the trip', () => {
+    const found = proposalPlaces(proposal(), TRIP);
+
+    expect(found.places.map((place) => place.id)).toEqual([INSADONG]);
+    expect(found.places[0]?.sourceAttribution?.source).toBe('KTO_KOR_SERVICE_2');
+  });
+
+  it('FE-603-T9 counts a place the trip does not hold', () => {
+    // A REPLACE names a place that is not in the trip yet. The contract allows
+    // it and nothing produces it today (ItemProposalMapper emits MOVE only),
+    // which is why it is counted rather than assumed away.
+    const replacing = proposal();
+    const [move] = replacing.changes;
+    if (!move || move.operation === 'ADD' || move.operation === 'REMOVE') {
+      throw new Error('the fixture proposal lost its move');
+    }
+    replacing.changes = [
+      { ...move, operation: 'REPLACE', after: { ...move.after, placeId: ELSEWHERE } },
+    ] as OptimizationChange[];
+
+    const found = proposalPlaces(replacing, TRIP);
+
+    expect(found.places.map((place) => place.id)).toEqual([INSADONG]);
+    expect(found.missing).toBe(1);
+  });
+
+  it('FE-603-T9 counts every named place when there is no trip to read', () => {
+    expect(proposalPlaces(proposal(), null)).toEqual({ places: [], missing: 1 });
   });
 });

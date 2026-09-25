@@ -5,7 +5,7 @@ import type { MessageKey } from '../../i18n/messages.js';
 import { usePlaceSearch } from '../../shared/api/index.js';
 import {
   BottomCta,
-  DataAttribution,
+  PlaceAttribution,
   PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
@@ -76,7 +76,7 @@ export function ManualStopsStep({
   // picker under the day whose button was pressed.
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(addingTo === null ? '' : query);
+  const search = usePlaceSearch(addingTo === null ? '' : query, locale);
 
   const days = tripDays(draft);
 
@@ -114,7 +114,12 @@ export function ManualStopsStep({
           {index + 1}
         </span>
         <div className={styles.card}>
-          <span className={styles.stopName}>{stop.place.name}</span>
+          {/* CMP-ATT-001: the row a picked place becomes keeps the credit its
+              search result carried. Without it the name stood alone. */}
+          <span className={styles.stopText}>
+            <span className={styles.stopName}>{stop.place.name}</span>
+            <PlaceAttribution compact place={stop.place} />
+          </span>
           {/* 오전 ▾ / 오후 ▾. A real control, not the frame's static text — but
               it only groups and orders the stop, and never becomes a
               startTime. seedItemsOf says why at length. */}
@@ -219,12 +224,7 @@ export function ManualStopsStep({
                                 <span className={styles.resultMeta}>{meta(place)}</span>
                                 {/* FCR-031 / CMP-ATT-001: the credit the server
                                   approved, verbatim. Never composed here. */}
-                                {place.sourceAttribution ? (
-                                  <DataAttribution
-                                    compact
-                                    provenance={place.sourceAttribution}
-                                  />
-                                ) : null}
+                                <PlaceAttribution compact place={place} />
                               </span>
                               <button
                                 type="button"

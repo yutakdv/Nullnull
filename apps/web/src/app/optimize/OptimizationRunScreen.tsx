@@ -11,7 +11,7 @@ import {
   useTrip,
 } from '../../shared/api/index.js';
 import { BottomCta, DecisionBar, NavBar } from '../../shared/ui/index.js';
-import { decisionPhase, isStale } from './preview.js';
+import { decisionPhase, isStale, proposalPlaces, radioStep } from './preview.js';
 import { ProposalCard, type ProposalCardProps } from './ProposalCard.js';
 import styles from './OptimizationRunScreen.module.css';
 
@@ -371,6 +371,9 @@ export function OptimizationRunScreen() {
     constraintsOk: t('run.proposal.constraintsOk'),
     constraintsBroken: t('run.proposal.constraintsBroken'),
     licenseTerms: t('license.terms'),
+    placeCreditPending: t('run.proposal.placeCreditPending'),
+    placeCreditMissingAll: t('run.proposal.placeCreditMissingAll'),
+    placeCreditMissingSome: t('run.proposal.placeCreditMissingSome'),
   };
 
   if (working || (progressStarted && !progressComplete)) {
@@ -501,15 +504,55 @@ export function OptimizationRunScreen() {
           // it replaces this attribute and nothing else.
           aria-labelledby={selectable ? 'run-heading' : undefined}
           className={styles.proposals}
+          // The standard radiogroup keys (FE-503-T3): the arrows, Home and End
+          // move focus and choice together, so one Tab stop enters the group
+          // and the next one leaves it — past the credit links between cards
+          // rather than onto every card.
+          onKeyDown={
+            selectable
+              ? (event) => {
+                  const radios = [
+                    ...event.currentTarget.querySelectorAll<HTMLElement>(
+                      '[role="radio"]',
+                    ),
+                  ];
+                  const at = radios.indexOf(event.target as HTMLElement);
+                  if (at < 0) return;
+                  const next = radioStep(event.key, at, radios.length);
+                  const proposal = next === null ? undefined : proposals[next];
+                  if (next === null || !proposal) return;
+                  event.preventDefault();
+                  setChosenId(proposal.id);
+                  radios[next]?.focus();
+                }
+              : undefined
+          }
           role={selectable ? 'radiogroup' : undefined}
         >
-          {proposals.map((proposal) => (
+          {proposals.map((proposal, index) => (
             <ProposalCard
               key={proposal.id}
               labels={proposalLabels}
               onSelect={selectable ? setChosenId : undefined}
+              // The named places come from the trip this screen already reads.
+              // Still loading: the card says it is checking. Failed: every place
+              // counts as missing. A stale run is credited from today's trip, text
+              // credits included: a missing credit is worse than one the summary
+              // did not need (FE-603-T10).
+              places={
+                trip.data
+                  ? proposalPlaces(proposal, trip.data.trip)
+                  : trip.isError
+                    ? proposalPlaces(proposal, null)
+                    : null
+              }
               proposal={proposal}
               selected={selectable ? proposal.id === selectedId : undefined}
+              // One Tab stop for the group: the chosen card, or the first when
+              // nothing is chosen yet.
+              tabbable={
+                proposal.id === selectedId || (selectedId === null && index === 0)
+              }
             />
           ))}
         </div>

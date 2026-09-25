@@ -390,6 +390,10 @@
         {
           "id": "FE-103-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-103-T4",
+          "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1787,6 +1791,14 @@
         {
           "id": "FE-401-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live에 바로 들어와도 권역 조회는 세션이 생긴 뒤에 나가고 오류 상태를 남기지 않는다"
+        },
+        {
+          "id": "FE-401-T5",
+          "assertion": "Live 장소 행은 계약에 없는 경로 수치(돌아가도 +N분·도보·우회·거리)를 ko·en 어디에서도 그리지 않는다"
+        },
+        {
+          "id": "FE-401-T6",
+          "assertion": "보낸 session cookie가 거절되면 /live 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1843,6 +1855,10 @@
         {
           "id": "FE-402-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live/places/:placeId에 바로 들어와도 장소 조회는 세션이 생긴 뒤에 나간다"
+        },
+        {
+          "id": "FE-402-T5",
+          "assertion": "보낸 session cookie가 거절되면 /live/places/:placeId 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1885,6 +1901,14 @@
         {
           "id": "FE-403-T3",
           "assertion": "list-first 화면의 keyboard focus·접근성 이름과 360px·200% zoom·ko/en·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-403-T4",
+          "assertion": "혼잡 막대는 서버 ordinalScale의 칸 수로 그리고 source가 발표하지 않는 칸은 비운 칸으로 둔다(서울은 5칸 중 1~4, A-060)"
+        },
+        {
+          "id": "FE-403-T5",
+          "assertion": "혼잡 막대의 접근성 이름은 source가 발행한 단계 수로 읽고 막대 칸 수로 읽지 않는다(서울은 4단계 중 N번째)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1952,7 +1976,8 @@
         "제출 build에서 geolocation·permission prompt·좌표 전송이 0건임을 앱 전체 화면에서 검증한다",
         "ship하는 이미지가 허용 목록과 정확히 일치하고 각 항목에 사유가 있는지 검사한다",
         "TourAPI가 provider display name 없이 단독으로 나타나면 실패시킨다",
-        "sourceAttribution을 읽는 모든 파일이 DataAttribution을 렌더하는지 정적으로 대조하고, 대상이 0건이면 실패시킨다"
+        "장소 기록(sourceAttribution을 가진 타입)의 이름을 읽는 모든 자리를 타입 검사기로 찾아, 같은 파일이 그 장소의 PlaceAttribution을 그리는지 대조하고, 그리지 않는 자리는 사유와 함께 명시 제외 목록에 있게 한다. 파일·표현식마다 자리 수와 출처 수를 고정해, 새 자리나 한 단위의 출처 삭제가 숫자를 바꾸게 한다. 출처 링크가 버튼·링크(react-router Link 포함)·선택 컨트롤, 그리고 children이나 children을 실을 수 있는 props를 그런 컨트롤 안에 그리는 컴포넌트 안에 있어도 실패시킨다. 대상이 0건이거나 제외 항목이 실제 자리를 가리키지 않으면 실패시킨다",
+        "장소를 보여 주는 단위(목록 행·카드·장소를 대표하는 칩과 버튼·지도 표지 묶음·최적화 제안 카드·상세 머리)는 PlaceAttribution으로 장소 출처와 텍스트 출처(textProvenance)를 서버 문구 그대로 그린다. 상태·aria-live 문구, 확인 대화상자, 이미 출처가 붙은 카드를 가리키는 시트의 문맥 줄, 드래그 잔상은 UI 피드백으로 제외한다"
       ],
       "safety": "위치 capability는 OFF이고 geolocation API·permission prompt·좌표 request를 만들지 않는다. 승인되지 않은 기관 CI/BI image를 ship하지 않고, 출처 문구는 승인된 텍스트를 그대로 표시한다.",
       "tests": [
@@ -1970,10 +1995,38 @@
         },
         {
           "id": "FE-603-T4",
-          "assertion": "sourceAttribution을 읽는 파일이 전부 DataAttribution을 렌더하고 측정 대상이 0건이 아니다"
+          "assertion": "장소 기록의 이름을 읽는 자리는 전부 같은 파일에서 그 장소의 출처를 그리거나 사유와 함께 명시 제외 목록에 있고, 측정 대상이 0건이 아니다"
+        },
+        {
+          "id": "FE-603-T5",
+          "assertion": "장소를 보여 주는 단위마다 그 장소의 출처를 그린다"
+        },
+        {
+          "id": "FE-603-T6",
+          "assertion": "텍스트 출처가 장소 출처와 다른 dataset이면 따로 그린다"
+        },
+        {
+          "id": "FE-603-T7",
+          "assertion": "한 단위에 같은 문구·다른 source의 출처가 함께 있으면 뒤의 출처 옆에 서버의 sourceDisplayName을 보이는 문맥으로 붙인다"
+        },
+        {
+          "id": "FE-603-T8",
+          "assertion": "같은 출처는 한 단위에 한 번만 그린다"
+        },
+        {
+          "id": "FE-603-T9",
+          "assertion": "최적화 제안 카드는 변경이 가리키는 장소의 출처를 아직 확인 중이거나 이을 수 없으면 조용히 빠뜨리지 않고 그 사실을 표시한다"
+        },
+        {
+          "id": "FE-603-T10",
+          "assertion": "실행 뒤 trip이 바뀐(stale) 최적화 제안에도 현재 trip의 장소 기록 출처와 텍스트 출처를 모두 그린다"
+        },
+        {
+          "id": "FE-603-T11",
+          "assertion": "출처 링크는 버튼·링크·선택 컨트롤(radio 등) 안에 두지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },

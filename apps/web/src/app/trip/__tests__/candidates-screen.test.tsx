@@ -24,8 +24,16 @@ import { routes } from '../../routes.js';
 const copy = messages['en-US'];
 const trip = tripFixtures.detailScheduled;
 const page = candidateFixtures.page;
-const active = page.items[0];
-const scheduled = page.items[2];
+// Candidates are picked by what they are, not by where the fixture lists them:
+// the server sends them newest first (`created_at DESC`) and the fixture may
+// follow it or not (#60). Position-based picks broke on the reversed order.
+/** The one the default match handler answers SIMILAR for (handlers.ts). */
+const active = page.items.find((c) => c.id.endsWith('0001'));
+/** An ACTIVE candidate that is answered EXACT and carries a credit. */
+const exact = page.items.find(
+  (c) => c.status === 'ACTIVE' && !c.id.endsWith('0001') && c.place.sourceAttribution,
+);
+const scheduled = page.items.find((c) => c.status === 'SCHEDULED');
 
 interface Sent {
   ifMatch: string | null;
@@ -193,7 +201,7 @@ describe('FE-303-T2 the panel renders each state', () => {
 
 describe('FE-303-T2 the five match states each say their own thing', () => {
   it('shows eligible dates for an EXACT match', async () => {
-    await openDates(page.items[1]?.place.name ?? '');
+    await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     // Three rows in the fixture, of which two can be pressed. The blocked one
     // is in the same list, disabled — S07-10 `527:4732` draws every day of the
@@ -258,7 +266,7 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
   });
 
   it('shows a blocked date with a reason rather than dropping it', async () => {
-    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
+    const { sheet } = await openDates(exact?.place.name ?? '');
     // A date that simply is not there reads as a bug.
     expect(await within(sheet).findByText(/10\/4.*|.*10\. 4\./)).toBeInTheDocument();
     // The fixture's reasonCode is TIME_CONFLICT, and the row says what that
@@ -423,7 +431,7 @@ describe('FE-303-T2 NOT_ACTIVE after the candidate list was read', () => {
 
 describe('FE-303-T1 scheduling is one atomic request', () => {
   it('sends candidateId with the item so the server does both together', async () => {
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -432,12 +440,12 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
     });
     // One request, not two: adding the item and marking the candidate
     // scheduled is a single transaction (invariant 5).
-    expect(sent[0]?.body.candidateId).toBe(page.items[1]?.id);
-    expect(sent[0]?.body.placeId).toBe(page.items[1]?.place.id);
+    expect(sent[0]?.body.candidateId).toBe(exact?.id);
+    expect(sent[0]?.body.placeId).toBe(exact?.place.id);
   });
 
   it('carries If-Match and an Idempotency-Key', async () => {
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -458,7 +466,7 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
     // date, the user presses it again, and a fresh key makes the server treat
     // that as a new command — scheduling the same place on the day twice.
     server.use(http.post(`${API_BASE}/trips/:tripId/items`, () => HttpResponse.error()));
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     const first = within(dates).getAllByRole('button')[0] as HTMLElement;
     await user.click(first);
@@ -474,7 +482,7 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
   it('mints a new key for a different date, which is a different command', async () => {
     // The other direction, so the fix cannot be "hold one key forever".
     server.use(http.post(`${API_BASE}/trips/:tripId/items`, () => HttpResponse.error()));
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     const buttons = within(dates).getAllByRole('button');
     await user.click(buttons[0] as HTMLElement);
@@ -488,7 +496,7 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
   });
 
   it('appends to the end of the chosen day', async () => {
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     // The first eligible slot is 2026-10-05, which already holds one item.
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
@@ -504,7 +512,7 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
     server.use(
       http.post(`${API_BASE}/trips/:tripId/items`, () => problemResponse('TRIP_CHANGED')),
     );
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -512,14 +520,14 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
     // The candidate is still a candidate: nothing was marked scheduled by the
     // client on its own.
     expect(
-      screen.getByRole('heading', { level: 2, name: page.items[1]?.place.name ?? '' }),
+      screen.getByRole('heading', { level: 2, name: exact?.place.name ?? '' }),
     ).toBeInTheDocument();
     expect(screen.queryByText(copy['candidates.scheduled'])).toBeInTheDocument();
   });
 
   it('reports a plain failure without claiming the place was added', async () => {
     server.use(http.post(`${API_BASE}/trips/:tripId/items`, () => HttpResponse.error()));
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -527,7 +535,7 @@ describe('FE-303-T1 scheduling is one atomic request', () => {
   });
 
   it('marks the candidate scheduled once the server confirms it', async () => {
-    const { user } = await openDates(page.items[1]?.place.name ?? '');
+    const { user } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -713,7 +721,7 @@ describe('FE-303-T3 the panel is reachable and named', () => {
   });
 
   it('names the date list so its buttons are not bare numbers', async () => {
-    await openDates(page.items[1]?.place.name ?? '');
+    await openDates(exact?.place.name ?? '');
     expect(
       await screen.findByRole('list', { name: copy['candidates.pickDate'] }),
     ).toBeInTheDocument();
@@ -793,7 +801,7 @@ describe('FE-303-T3 focus survives the panel closing', () => {
     // was standing on is removed from the DOM. Focus then resets to
     // document.body, so the next Tab restarts from the top of the page and a
     // keyboard user loses their place in a list that can run to twenty cards.
-    const { user, card } = await openDates(page.items[1]?.place.name ?? '');
+    const { user, card } = await openDates(exact?.place.name ?? '');
     const dates = await screen.findByRole('list', { name: copy['candidates.pickDate'] });
     await user.click(within(dates).getAllByRole('button')[0] as HTMLElement);
 
@@ -875,7 +883,7 @@ describe('FE-303 a candidate card shows an image only when it can be credited', 
 // provable before, so they are asserted rather than assumed.
 describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   it('opens focused on the one control every state has', async () => {
-    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
+    const { sheet } = await openDates(exact?.place.name ?? '');
     // Cancel, not the first date: while the match is still being checked, or
     // came back NONE, there is no date to land on.
     expect(
@@ -884,7 +892,7 @@ describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   });
 
   it('closes on Escape without scheduling anything', async () => {
-    const { user, card, sheet } = await openDates(page.items[1]?.place.name ?? '');
+    const { user, card, sheet } = await openDates(exact?.place.name ?? '');
     await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(sheet).not.toBeVisible();
@@ -900,7 +908,7 @@ describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   it('says which place it is placing', async () => {
     // The sheet asks "어느 날에 추가할까요?" — about nothing in particular
     // unless it names the place, and that question is identical for every card.
-    const name = page.items[1]?.place.name ?? '';
+    const name = exact?.place.name ?? '';
     const { sheet } = await openDates(name);
     expect(within(sheet).getByText(name)).toBeInTheDocument();
     expect(
@@ -909,7 +917,7 @@ describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   });
 
   it('is titled, so it is not an unnamed dialog', async () => {
-    const { sheet } = await openDates(page.items[1]?.place.name ?? '');
+    const { sheet } = await openDates(exact?.place.name ?? '');
     expect(sheet).toHaveAccessibleName(copy['candidates.sheet.title']);
   });
 });

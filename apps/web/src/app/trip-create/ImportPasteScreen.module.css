@@ -74,6 +74,13 @@
   gap: var(--space-2);
 }
 
+/* An offered place: its button, and its credit under it. */
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* One rule for both: a pick and a drop differ in what they say, not in how
    they are built. Splitting them cost more gzip than the distinction earned. */
 .pick,

@@ -9,8 +9,8 @@ import {
 } from '../../shared/api/post-authoring.js';
 import {
   ConfirmDialog,
-  DataAttribution,
   NavBar,
+  PlaceAttribution,
   SearchField,
 } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
@@ -23,7 +23,7 @@ type Place = components['schemas']['PlaceSummary'];
 // #312 / Figma 04 (920:257). Existing feed stays public; a trip is the
 // authoring workflow prerequisite, not a replacement for session authorization.
 export function PostCreateScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const trips = useTrips();
   const reserve = useCreatePostImageUpload();
@@ -34,7 +34,7 @@ export function PostCreateScreen() {
   const [body, setBody] = useState('');
   const [alt, setAlt] = useState('');
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const [places, setPlaces] = useState<Place[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -366,9 +366,7 @@ export function PostCreateScreen() {
                     />
                     {place.name}
                   </label>
-                  {place.sourceAttribution ? (
-                    <DataAttribution provenance={place.sourceAttribution} />
-                  ) : null}
+                  <PlaceAttribution place={place} />
                 </li>
               ))}
             </ul>
@@ -384,6 +382,10 @@ export function PostCreateScreen() {
                     >
                       {place.name} ×
                     </button>
+                    {/* The chip stands for the place while the post is written,
+                        so it carries the place's credit too — beside the
+                        button, since a link cannot sit inside one. */}
+                    <PlaceAttribution compact place={place} />
                   </li>
                 ))}
               </ul>

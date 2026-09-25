@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { components } from '@nullnull/api-client';
 import { ProposalCard } from '../ProposalCard.js';
 
 type OptimizationProposal = components['schemas']['OptimizationProposal'];
 type TripItemState = components['schemas']['TripItemState'];
+type TripDetail = components['schemas']['TripDetail'];
 
 const RUN = JSON.parse(
   readFileSync('../../packages/contracts/fixtures/optimizations/run-ready.json', 'utf8'),
@@ -39,6 +40,9 @@ const LABELS = {
   constraintsOk: 'CONSTRAINTS_OK',
   constraintsBroken: 'CONSTRAINTS_BROKEN',
   licenseTerms: 'LICENSE_TERMS',
+  placeCreditPending: 'PLACE_CREDIT_PENDING',
+  placeCreditMissingAll: 'PLACE_CREDIT_MISSING_ALL',
+  placeCreditMissingSome: 'PLACE_CREDIT_MISSING_SOME',
 };
 
 /**
@@ -409,5 +413,152 @@ describe('FE-503-T1 lock validation is stated, not implied (FCR-004 trace)', () 
 
     expect(screen.getByText('CONSTRAINTS_BROKEN')).toBeInTheDocument();
     expect(screen.queryByText('CONSTRAINTS_OK')).toBeNull();
+  });
+});
+
+describe('the card credits the places its summary names (CMP-ATT-001)', () => {
+  // The summary is the server's sentence and it names a place ("인사동 방문을
+  // …"). The only credit the card drew was the forecast's, beside the figure,
+  // and the blocked branch drew none. The place comes from the trip fixture the
+  // proposal was computed from; the run screen supplies it the same way.
+  const TRIP = JSON.parse(
+    readFileSync(
+      '../../packages/contracts/fixtures/trips/trip-detail-scheduled.json',
+      'utf8',
+    ),
+  ) as TripDetail;
+  const insadong = TRIP.days
+    .flatMap((day) => day.items)
+    .find((item) => item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03')?.place;
+  const credit = insadong?.sourceAttribution;
+  if (!insadong || !credit) throw new Error('the trip fixture lost its credited 인사동');
+
+  function placeCreditIn(card: HTMLElement): HTMLElement | undefined {
+    return within(card)
+      .queryAllByRole('link', { name: credit?.attribution })
+      .find((link) => link.getAttribute('href') === credit?.officialUrl);
+  }
+
+  it('FE-603-T5 draws the named place’s credit beside a shown comparison', () => {
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={proposal()}
+      />,
+    );
+    expect(placeCreditIn(screen.getByRole('article'))).toBeVisible();
+  });
+
+  it('FE-603-T5 draws it when the comparison is blocked too', () => {
+    const blocked = proposal();
+    blocked.metrics.comparisonEligible = false;
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={blocked}
+      />,
+    );
+    expect(screen.getByText('COMPARISON_UNAVAILABLE')).toBeVisible();
+    expect(placeCreditIn(screen.getByRole('article'))).toBeVisible();
+  });
+
+  it('FE-603-T7 names the forecast’s source when it reads like the place’s', () => {
+    // Both credits are `출처: ⓒ한국관광공사`; one links KorService2, the other the
+    // concentration forecast. The forecast's is the later one in the card.
+    const [forecast] = proposal().dataProvenance;
+    if (!forecast) throw new Error('the fixture proposal lost its provenance');
+    expect(forecast.attribution).toBe(credit.attribution);
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={proposal()}
+      />,
+    );
+    const forecastLink = within(screen.getByRole('article'))
+      .getAllByRole('link', { name: credit.attribution })
+      .find((link) => link.getAttribute('href') === forecast.officialUrl);
+    expect(forecastLink).toHaveAccessibleDescription(forecast.sourceDisplayName);
+  });
+
+  it('FE-603-T9 says so when no named place can be credited', () => {
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [], missing: 1 }}
+        proposal={proposal()}
+      />,
+    );
+    expect(screen.getByText('PLACE_CREDIT_MISSING_ALL')).toBeVisible();
+  });
+
+  it('FE-603-T9 says "some" only when some named places are credited', () => {
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 1 }}
+        proposal={proposal()}
+      />,
+    );
+    expect(screen.getByText('PLACE_CREDIT_MISSING_SOME')).toBeVisible();
+    expect(screen.queryByText('PLACE_CREDIT_MISSING_ALL')).toBeNull();
+  });
+
+  it('FE-603-T9 says the credits are being checked while the trip loads', () => {
+    // The summary names a place from the first frame; the trip that supplies
+    // its credit arrives later. Until it does, the card says so rather than
+    // showing the name with nothing under it.
+    render(<ProposalCard labels={LABELS} places={null} proposal={proposal()} />);
+    expect(screen.getByText('PLACE_CREDIT_PENDING')).toBeVisible();
+  });
+
+  it('FE-603-T9 says nothing extra when every named place is credited', () => {
+    render(
+      <ProposalCard
+        labels={LABELS}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={proposal()}
+      />,
+    );
+    for (const note of [
+      'PLACE_CREDIT_PENDING',
+      'PLACE_CREDIT_MISSING_ALL',
+      'PLACE_CREDIT_MISSING_SOME',
+    ]) {
+      expect(screen.queryByText(note)).toBeNull();
+    }
+  });
+
+  it('FE-603-T11 keeps every credit link outside a selectable card’s radio', () => {
+    // A radio's children are presentational: a link inside one is not a link
+    // to a screen reader, Enter and Space are taken by the radio, and a click
+    // selects the card instead of opening the source. The place credit and
+    // the forecast credit both sit beside the radio, not in it.
+    const onSelect = vi.fn();
+    const { container } = render(
+      <ProposalCard
+        labels={LABELS}
+        onSelect={onSelect}
+        places={{ places: [insadong], missing: 0 }}
+        proposal={proposal()}
+        selected={false}
+      />,
+    );
+    const radio = screen.getByRole('radio');
+    const links = within(container).getAllByRole('link');
+    // The place credit, the forecast credit and its licence link.
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    for (const link of links) expect(radio.contains(link)).toBe(false);
+    const placeLink = links.find(
+      (link) => link.getAttribute('href') === credit.officialUrl,
+    );
+    if (!placeLink) throw new Error('the place credit is not drawn');
+    placeLink.addEventListener('click', (event) => {
+      event.preventDefault();
+    });
+    placeLink.click();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

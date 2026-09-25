@@ -514,33 +514,55 @@ test.describe('app shell', () => {
 
     const trips = page.getByRole('region', { name: '내 여행 목록' });
     const history = page.getByRole('region', { name: 'AI 최적화 이력' });
-    const tripBounds = await trips.boundingBox();
-    const tripHeadingBounds = await page.locator('#profile-trips-heading').boundingBox();
-    const historyBounds = await history.boundingBox();
-    const historyHeadingBounds = await page
-      .locator('#profile-history-heading')
-      .boundingBox();
-
-    expect((tripHeadingBounds?.x ?? 0) - (tripBounds?.x ?? 0)).toBe(16);
-    expect((tripHeadingBounds?.y ?? 0) - (tripBounds?.y ?? 0)).toBe(16);
-    expect((historyHeadingBounds?.x ?? 0) - (historyBounds?.x ?? 0)).toBe(16);
-    expect((historyHeadingBounds?.y ?? 0) - (historyBounds?.y ?? 0)).toBe(16);
-    expect(
-      (historyBounds?.y ?? 0) - ((tripBounds?.y ?? 0) + (tripBounds?.height ?? 0)),
-    ).toBe(12);
-
     const tripCount = page
       .locator('#profile-trips-heading')
       .locator('..')
       .locator('span');
     const firstDelete = trips.getByRole('button', { name: /삭제/ }).first();
+    // The loaded list is the screen compared with the frame. Until it answers, the card holds a
+    // loading line whose `line-height: normal` follows whichever font is in: held back 800ms
+    // locally, the trips card went from 111px to 109px when Pretendard arrived.
     await expect(tripCount).toBeVisible();
     await expect(firstDelete).toBeVisible();
-    const countBounds = await tripCount.boundingBox();
-    const deleteBounds = await firstDelete.boundingBox();
-    const countCenter = (countBounds?.x ?? 0) + (countBounds?.width ?? 0) / 2;
-    const deleteCenter = (deleteBounds?.x ?? 0) + (deleteBounds?.width ?? 0) / 2;
-    expect(Math.abs(countCenter - deleteCenter)).toBeLessThanOrEqual(0.5);
+
+    // Every rectangle from one layout. Separate boundingBox() calls are separate moments, and a
+    // card that moved between two of them reads as a gap no frame ever had: the gate measured
+    // 10 for this 12px gap on #386's first attempt.
+    const box = await page.evaluate(
+      (elements) => {
+        const rect = (element: HTMLElement | SVGElement | null) => {
+          if (!element) throw new Error('an element S14 measures is missing');
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return { x, y, width, height };
+        };
+        return {
+          trips: rect(elements.trips),
+          tripsHeading: rect(elements.tripsHeading),
+          history: rect(elements.history),
+          historyHeading: rect(elements.historyHeading),
+          count: rect(elements.count),
+          firstDelete: rect(elements.firstDelete),
+        };
+      },
+      {
+        trips: await trips.elementHandle(),
+        tripsHeading: await page.locator('#profile-trips-heading').elementHandle(),
+        history: await history.elementHandle(),
+        historyHeading: await page.locator('#profile-history-heading').elementHandle(),
+        count: await tripCount.elementHandle(),
+        firstDelete: await firstDelete.elementHandle(),
+      },
+    );
+
+    expect(box.tripsHeading.x - box.trips.x).toBe(16);
+    expect(box.tripsHeading.y - box.trips.y).toBe(16);
+    expect(box.historyHeading.x - box.history.x).toBe(16);
+    expect(box.historyHeading.y - box.history.y).toBe(16);
+    expect(box.history.y - (box.trips.y + box.trips.height)).toBe(12);
+    const center = (bounds: { x: number; width: number }) => bounds.x + bounds.width / 2;
+    expect(Math.abs(center(box.count) - center(box.firstDelete))).toBeLessThanOrEqual(
+      0.5,
+    );
   });
 });
 

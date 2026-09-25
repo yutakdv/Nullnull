@@ -24,8 +24,15 @@ export { SearchField, type SearchFieldProps } from './SearchField.js';
 export { Segment, type SegmentOption, type SegmentProps } from './Segment.js';
 export { SheetGrab } from './SheetGrab.js';
 export { TripPicker, type TripPickerLabels, type TripPickerProps } from './TripPicker.js';
-export { StateLabel, type SourceState, type StateLabelProps } from './StateLabel.js';
+export {
+  StateLabel,
+  type SourceState,
+  type StateLabelProps,
+  type StateWording,
+} from './StateLabel.js';
 export { NavBar, type NavBarProps } from './NavBar.js';
+export { PlaceAttribution, type PlaceAttributionProps } from './PlaceAttribution.js';
+export { sourceContext, unitCredits, type AttributionSource } from './credits.js';
 export { PlaceThumbnail, type PlaceThumbnailProps } from './PlaceThumbnail.js';
 export { TabBar, type TabBarProps, type TabKey } from './TabBar.js';
 export { Tag, type TagProps } from './Tag.js';

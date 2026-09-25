@@ -128,7 +128,7 @@ describe('a cookie-less deep link onto Live reads after the session exists', () 
     expect(paths.filter((p) => p === 'POST /api/v1/demo/sessions')).toHaveLength(1);
   });
 
-  it('still does not start a session when a cookie was sent and failed', async () => {
+  it('FE-401-T6 still does not start a session when a cookie was sent and failed', async () => {
     // The other direction, so the fix cannot widen into "any 401 bootstraps":
     // an expired, revoked or forged cookie must never mint a different
     // anonymous owner (SessionSafetyIT.expiration), on Live as anywhere else.

@@ -10,7 +10,6 @@ import {
 } from '../../shared/api/index.js';
 import { formatTripPeriod } from '../../shared/i18n/trip-period.js';
 import {
-  CROWD_LEVEL_STEPS,
   FeedPostCard,
   IconCheck,
   IconChevronDown,
@@ -333,6 +332,7 @@ export function FeedScreen() {
       STALE: t('state.STALE'),
       UNAVAILABLE: t('state.UNAVAILABLE'),
       REPLAY: t('state.REPLAY'),
+      PROVIDER_INCIDENT: t('crowd.providerIncident'),
     },
     crowdStages: {
       1: t('crowd.stage.1'),
@@ -598,14 +598,10 @@ export function FeedScreen() {
                     : undefined
                 }
                 addState={addStates[card.primaryPlace.id]}
-                labels={{
-                  ...cardLabels,
-                  // Interpolated per card: the level is part of the sentence.
-                  crowdLevel: t('crowd.level', {
-                    steps: CROWD_LEVEL_STEPS,
-                    level: Number(card.crowd?.ordinalLevel) || 0,
-                  }),
-                }}
+                // The bar's name is built by CrowdLevel from the steps the
+                // reading's source publishes; a fixed "of 5" here named a
+                // Seoul reading on a scale it does not have.
+                labels={cardLabels}
               />
             </li>
           ))}

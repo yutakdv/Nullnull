@@ -13,7 +13,7 @@ const dir = 'src/shared/ui/components';
 /**
  * Components with no story yet, each with the reason.
  *
- * Both need a contract fixture to render honestly — a hand-written object in a
+ * Each needs a contract fixture to render honestly — a hand-written object in a
  * story would be the parallel model TEST_STRATEGY.md:117 forbids — so they wait
  * for BE/AI's real responses rather than getting invented data.
  */
