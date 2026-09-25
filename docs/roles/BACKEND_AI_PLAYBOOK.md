@@ -2615,13 +2615,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 | `T11` | `DemoCapabilityQueryTest.replayReadinessRequiresAnApprovedManifest` | flag가 켜져도 승인 manifest 전에는 READY가 아니다 |
 | `T14` | `LiveAreaReadingSelectorTest` | 구역 목록과 장소 상세가 같은 source 단위 LIVE 판정을 쓴다 |
 
-**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴다. 여섯 모두 이 ID를 단 testcase가 없어 `integration-ready`로 올리지 않는다. 게이트가 재는 부분과 남은 것:
+**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴고, 위치 OFF는 지도 SDK 상태에 따라 다시 `T18`·`T20`으로 나눴다. 일곱 모두 이 ID를 단 testcase가 없어 `integration-ready`로 올리지 않는다. 게이트가 재는 부분과 남은 것:
 
 - `T3`(익명 외부망): 재는 것은 사람의 완주뿐이다. staging flows는 verifier 경로라 해당하지 않는다. 최종 release에서 새 시크릿 창·휴대전화 데이터망으로 한다.
 - `T15`(KO/EN): 게이트 E2E `FE-101-T1`(`shell.spec.ts`, 언어 화면이 한국어·영어만 고르게 한다)과 `live-replay-matrix.spec.ts`(Live badge의 KO/EN)가 일부를 잰다. 결정 화면의 영어 문구는 사람 완주에서 본다.
 - `T16`(keyboard): 게이트 E2E `BA-040-T4`(`keyboard-flow.spec.ts`, 일정 편집)와 `BA-070-T5`(focus 표시)가 잰다. 최적화 결정 버튼을 키보드로 누르는 것은 어느 test도 재지 않는다.
 - `T17`(출처): 게이트 E2E `BA-073-T4`(`attribution.integration.spec.ts`)가 여행 응답이 부른 장소를 잰다. 장소 이름을 그리는 다른 자리는 FE 작업(#389)이다.
-- `T18`(위치 OFF): 게이트 E2E `FE-603-T1 BA-073-T5`(`location-off.spec.ts`)가 Live 두 화면을 포함한 22개 화면을 잰다. 모자란 것은 이 절의 ID뿐이다.
+- `T18`(위치 OFF, 지도 SDK 꺼짐): 게이트 E2E `FE-603-T1 BA-073-T5`(`location-off.spec.ts`)가 22개 화면을 잰다. 다만 게이트는 `FEATURE_LIVE_DATA=false`로 돌아 Live 두 화면(`/live`, `/live/places/:id`)은 capability 거절 상태로만 측정되고, 최종 release는 Live가 켜져 있다(`infra/src/staging.ts`). Live가 켜진 목록·상세는 FE가 `live-replay-matrix.spec.ts`에 감시를 더하는 중이다(FE R4b). 모자란 것은 그것과 이 절의 ID다.
+- `T20`(위치 OFF, Kakao 지도 SDK 켜짐): 게이트에서 잴 수 없다. 게이트 build에는 `VITE_KAKAO_MAP_APP_KEY`가 없고 egress가 막혀 SDK가 로드되지 않는다. 지도 키가 들어간 staging에서 사람이나 operator가 확인한다.
 - `T19`(rollback): Wave 4 안에서는 잴 수 없다. rollback이 edge를 닫고 `current.json`을 바꿔 같은 release의 증거를 모두 무효로 만든다. `BA-071-T4`와 같은 자리이고, 미증명으로 기록할지는 오너 결정이다.
 
 게이트 test가 재는 절(`T15`~`T18`)은 그 test 제목에 이 카드의 ID가 붙어야 집계된다. 제목은 FE 소유라 이 카드에서 달지 않았다. 원래 `T3`을 인용한 기록(`DECISIONS_AND_RISKS` A-054·A-033)은 나누기 전의 여섯 절 전체를 가리킨다.
@@ -2645,8 +2646,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-092-T15`: 최종 release의 핵심 흐름 화면이 한국어와 영어로 표시된다
 - `BA-092-T16`: 최종 release의 핵심 흐름 결정 동작을 키보드만으로 할 수 있다
 - `BA-092-T17`: 최종 release에서 출처가 붙은 장소는 화면에 그 출처를 표시한다
-- `BA-092-T18`: 최종 release의 전체 P0 화면이 위치 권한을 요청하지 않는다
+- `BA-092-T18`: 최종 release의 전체 P0 화면이 지도 SDK가 꺼진 상태에서 위치 권한을 요청하지 않는다
 - `BA-092-T19`: 이전 release로 rollback한 뒤 외부 smoke가 통과한다
+- `BA-092-T20`: Kakao 지도 SDK가 켜진 최종 release의 Live 지도 화면이 위치 권한을 요청하지 않는다
 
 FE 인계·완료 증거: 최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

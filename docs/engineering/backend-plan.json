@@ -4255,11 +4255,15 @@
         },
         {
           "id": "BA-092-T18",
-          "assertion": "최종 release의 전체 P0 화면이 위치 권한을 요청하지 않는다"
+          "assertion": "최종 release의 전체 P0 화면이 지도 SDK가 꺼진 상태에서 위치 권한을 요청하지 않는다"
         },
         {
           "id": "BA-092-T19",
           "assertion": "이전 release로 rollback한 뒤 외부 smoke가 통과한다"
+        },
+        {
+          "id": "BA-092-T20",
+          "assertion": "Kakao 지도 SDK가 켜진 최종 release의 Live 지도 화면이 위치 권한을 요청하지 않는다"
         }
       ],
       "handoff": "최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다.",
