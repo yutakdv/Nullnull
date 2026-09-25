@@ -1,7 +1,13 @@
 import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { NavBar, StateLabel, type SourceState } from '../../shared/ui/index.js';
+import {
+  DataAttribution,
+  NavBar,
+  StateLabel,
+  type SourceState,
+} from '../../shared/ui/index.js';
+import { GUIDE_SOURCES } from './guide-sources.js';
 import styles from './DataGuideScreen.module.css';
 
 // Figma: S15 data-guide `423:2967`.
@@ -85,8 +91,23 @@ export function DataGuideScreen() {
           ))}
         </ul>
 
-        {/* Required attribution for the KTO and Seoul sources (invariant 12). */}
-        <p className={styles.attribution}>{t('dataGuide.attribution')}</p>
+        {/* Required attribution (invariant 12), one line per dataset and never
+            merged (SOURCE_CATALOG): the server's credit linked to the dataset's
+            official page and its licence linked beside it. The server's dataset
+            name is shown on every line and is part of both links' names, so the
+            three KTO credits that read alike - and the four licence links - are
+            distinct links to a screen reader too. */}
+        {GUIDE_SOURCES.map((credit) => (
+          <p className={styles.attribution} key={credit.source}>
+            <DataAttribution
+              context={credit.sourceDisplayName}
+              nameWithContext
+              provenance={credit}
+              showLicense
+              termsLabel={t('license.terms')}
+            />
+          </p>
+        ))}
       </div>
     </section>
   );
