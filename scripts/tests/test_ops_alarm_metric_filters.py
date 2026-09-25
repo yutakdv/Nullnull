@@ -247,7 +247,9 @@ class ScheduleConstants(unittest.TestCase):
         assert places
         value = ts_const("FORECAST_DEMO_PLACES")
         self.assertRegex(value, f"^{places.group(1)}$")
-        self.assertEqual(len(set(value.split(","))), len(value.split(",")), "duplicate-places")
+        # By contentId, the rule KtoDemoRefresh.places applies: a repeated contentId fails the whole list.
+        content_ids = [entry.split(":")[0] for entry in value.split(",")]
+        self.assertEqual(len(set(content_ids)), len(content_ids), "duplicate-places")
 
 
 class DeployRoleCanCreateTheSchedule(unittest.TestCase):

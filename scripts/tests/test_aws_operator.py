@@ -653,7 +653,7 @@ class OpsTaskRegressions(unittest.TestCase):
             os.environ.pop('NULLNULL_KTO_SMOKE_APPROVED',None)
             for bad,reason in [('','invalid-places'),('126508','invalid-places'),('126508:12,','invalid-places'),
                                ('0126508:12','invalid-places'),('126508:12;rm -rf /','invalid-places'),
-                               ('126508:12,126508:12','duplicate-places')]:
+                               ('126508:12,126508:12','duplicate-places'),('126508:12,126508:14','duplicate-places')]:
                 with self.subTest(places=bad),self.assertRaisesRegex(ops.OpsError,reason):
                     ops.ops_task(self.args(task='kto-demo-detail',places=bad))
             # A valid list passes validation and then still needs the owner's own approval variable.
