@@ -261,8 +261,10 @@ class CatalogRelatedPlacesApiIT {
     void theRelatedPageFixtureDescribesDerivedRelations() throws Exception {
         SessionService.Bootstrap owner = owner();
         UUID source = ktoPlace("대조 출발 장소");
-        derived(source, ktoPlace("대조 대상 장소 하나"));
-        derived(source, ktoPlace("대조 대상 장소 둘"));
+        UUID one = ktoPlace("대조 대상 장소 하나");
+        UUID two = ktoPlace("대조 대상 장소 둘");
+        derived(source, one);
+        derived(source, two);
 
         tools.jackson.databind.JsonNode body = new tools.jackson.databind.ObjectMapper().readTree(
                 related(owner, source).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
@@ -276,6 +278,11 @@ class CatalogRelatedPlacesApiIT {
         // The server orders a page's SIMILAR relations by target place id (JdbcCatalogRelationQuery).
         assertThat(placeIds(fixture)).as("the fixture in the server's order").isSorted();
         assertThat(placeIds(body)).as("the server's order").isSorted();
+        // Count and order both hold for a page that names one place twice, so the pair is pinned too: the
+        // response is exactly the two relations written above, and the fixture names two different places.
+        assertThat(placeIds(body)).as("the two relations this test wrote, each once")
+                .containsExactlyInAnyOrder(one.toString(), two.toString());
+        assertThat(placeIds(fixture)).as("the fixture's places, each once").doesNotHaveDuplicates();
         for (int i = 0; i < fixture.get("items").size(); i++) {
             tools.jackson.databind.JsonNode served = body.get("items").get(i);
             tools.jackson.databind.JsonNode onDisk = fixture.get("items").get(i);
