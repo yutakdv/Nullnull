@@ -315,6 +315,51 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
     expect(screen.getByRole('button', { name: copy['language.next'] })).toHaveFocus();
   });
 
+  // WEB-RT-1: the UI starts in the browser's language, and the owner record in
+  // ko-KR. Place names are projected in the OWNER locale while search follows
+  // the UI, so a traveller who read the screen in English and pressed Next
+  // without touching an option saw English search results beside Korean trip
+  // and place names. Next saves what the screen is showing.
+  it('FE-101-T4 saves the locale on screen when continuing without choosing', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/language');
+    // The screen is in the browser's language before anything is chosen.
+    await screen.findByText(copy['language.description']);
+    expect(localStorage.getItem('nullnull.locale')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: copy['language.next'] }));
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-US' }]);
+    });
+  });
+
+  it('FE-101-T4 does not save the same choice twice on Next', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/language');
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await screen.findByRole('heading', { level: 1, name: /./ });
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }]);
+    });
+  });
+
   it('continues to the intro screen', async () => {
     const user = userEvent.setup();
     renderAt('/language');

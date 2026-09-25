@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { SupportedLocale } from '../../i18n/locales.js';
@@ -57,13 +58,21 @@ export function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
   const updatePreferences = useUpdatePreferences();
+  // The locale last sent to the owner record from this screen, so Next does
+  // not send a choice the tap already sent.
+  const saved = useRef<SupportedLocale | null>(null);
+
+  function save(next: SupportedLocale) {
+    saved.current = next;
+    updatePreferences.mutate({ locale: next });
+  }
 
   function choose(next: SupportedLocale) {
     setLocale(next);
     // Best effort: the local draft is already applied, and BA-011 is not open
     // yet. A rejection must not block onboarding, but it is not swallowed
     // either — the mutation's error state stays readable to this screen.
-    updatePreferences.mutate({ locale: next });
+    save(next);
   }
 
   return (
@@ -126,6 +135,11 @@ export function LanguageScreen() {
       <BottomCta
         label={t('language.next')}
         onClick={() => {
+          // The screen may be showing the browser's language with nothing
+          // tapped. The owner record starts at ko-KR and place names are
+          // projected in it, while search follows the UI (WEB-RT-1), so the
+          // language the traveller is reading is saved here too.
+          if (saved.current !== locale) save(locale);
           void navigate('/intro');
         }}
       />

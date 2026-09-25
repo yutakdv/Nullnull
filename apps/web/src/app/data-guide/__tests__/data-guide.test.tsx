@@ -26,6 +26,21 @@ const spec = load(
 ) as { components: { schemas: { SourceState: { enum: string[] } } } };
 const contractStates = spec.components.schemas.SourceState.enum;
 
+// The attribution each provider approved, from the source catalog's own entry
+// (attributionTemplate) rather than written out here, so the screen follows the
+// catalog when the catalog changes.
+const catalog = readFileSync(
+  resolve(process.cwd(), '../../docs/data/SOURCE_CATALOG.md'),
+  'utf8',
+);
+function catalogAttribution(code: string): string {
+  const block = catalog.slice(catalog.indexOf(`code: ${code}`));
+  const match = /attributionTemplate: "([^"]+)"/.exec(block);
+  if (!match?.[1])
+    throw new Error(`SOURCE_CATALOG has no attributionTemplate for ${code}`);
+  return match[1];
+}
+
 function renderGuide() {
   // Wrapped in a router: the screen's NavBar navigates to a named destination
   // rather than calling history.go(-1), so it needs the router context.
@@ -127,13 +142,40 @@ describe('the guide states the product rules it is there to explain', () => {
       /preview only/i,
     );
   });
+
+  // A-074 (owner, 2026-09-25): the 24-hour undo entry left the trip screen
+  // (93de5679) and is retired, so this guide may not promise it.
+  it('FE-404-T5 promises no undo the app does not offer', () => {
+    renderGuide();
+    expect(screen.getByText(copy['dataGuide.rule4.body'])).not.toHaveTextContent(
+      /revert|undo/i,
+    );
+    expect(messages['ko-KR']['dataGuide.rule4.body']).not.toContain('되돌');
+  });
 });
 
 describe('required attribution and structure', () => {
-  it('shows the approved source line', () => {
+  it('FE-404-T4 credits each provider on its own line, in the catalog words', () => {
     renderGuide();
-    // Invariant 12: the approved Korean wording, in both locales.
-    expect(screen.getByText(/ⓒ한국관광공사/)).toBeInTheDocument();
+    // Invariant 12 and SOURCE_CATALOG: each provider's approved wording as
+    // written, never two providers merged into one credit.
+    const kto = screen.getByText(catalogAttribution('KTO_KOR_SERVICE_2'), {
+      exact: true,
+    });
+    const seoul = screen.getByText(catalogAttribution('SEOUL_CITYDATA'), { exact: true });
+    expect(kto).not.toBe(seoul);
+    expect(kto.textContent).not.toContain(catalogAttribution('SEOUL_CITYDATA'));
+    expect(screen.queryByText(/ⓒ한국관광공사\s*·/)).toBeNull();
+  });
+
+  it('FE-404-T4 uses the same approved wording in both locales', () => {
+    // The credit is the provider's wording, not UI copy to translate.
+    for (const key of [
+      'dataGuide.attribution.kto',
+      'dataGuide.attribution.seoul',
+    ] as const) {
+      expect(messages['en-US'][key]).toBe(messages['ko-KR'][key]);
+    }
   });
 
   it('gives each section a heading its list is labelled by', () => {
@@ -152,7 +194,7 @@ describe('required attribution and structure', () => {
     const seen: string[] = [];
     server.events.on('request:start', ({ request }) => seen.push(request.url));
     renderGuide();
-    await screen.findByText(copy['dataGuide.attribution']);
+    await screen.findByText(copy['dataGuide.attribution.kto']);
     expect(seen).toEqual([]);
     server.events.removeAllListeners();
   });

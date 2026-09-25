@@ -285,6 +285,10 @@
         {
           "id": "FE-101-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-101-T4",
+          "assertion": "언어 화면에서 선택하지 않고 다음으로 넘어가도 화면이 보여 주는 locale을 owner 선호에 저장하고, 이미 저장한 선택은 다시 보내지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -439,6 +443,14 @@
         {
           "id": "FE-404-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-404-T4",
+          "assertion": "데이터 안내의 출처는 provider마다 한 줄씩 SOURCE_CATALOG attributionTemplate 그대로 두 locale에서 같게 표시하고 합치지 않는다"
+        },
+        {
+          "id": "FE-404-T5",
+          "assertion": "데이터 안내는 배포 UI에 없는 되돌리기를 약속하지 않는다(A-074)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1146,6 +1158,10 @@
         {
           "id": "FE-502-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-502-T4",
+          "assertion": "개선을 찾지 못한 실행은 확인한 후보 범위에서 찾지 못했다고 말하고 더 나은 일정이 없다고 단정하지 않는다(FCR-028)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

@@ -85,8 +85,10 @@ export function DataGuideScreen() {
           ))}
         </ul>
 
-        {/* Required attribution for the KTO and Seoul sources (invariant 12). */}
-        <p className={styles.attribution}>{t('dataGuide.attribution')}</p>
+        {/* Required attribution for the KTO and Seoul sources (invariant 12):
+            one line per provider, never merged into one credit (SOURCE_CATALOG). */}
+        <p className={styles.attribution}>{t('dataGuide.attribution.kto')}</p>
+        <p className={styles.attribution}>{t('dataGuide.attribution.seoul')}</p>
       </div>
     </section>
   );
