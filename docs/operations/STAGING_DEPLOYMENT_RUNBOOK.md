@@ -752,7 +752,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-072-T3` | 수신자 부재·비용/쿼터·rollback 판단 tabletop 기록(A-049, 실제 재현 아님). secondary는 A-043으로 없다 |
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
 | `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
-| `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
+| `BA-073-T4` | 제출 release의 게이트 E2E report에 `BA-073-T4`를 단 testcase가 통과한 기록. `attribution.integration.spec.ts`(#382)의 제목이 그 ID를 단다 |
 | `BA-073-T5` | 제출 release의 게이트 E2E report에 `BA-073-T5`를 단 testcase가 모두 통과한 기록. FE-603-T1(`location-off.spec.ts`)의 제목이 그 ID를 단다(화면마다 1건과 전체 1건) |
 | `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
