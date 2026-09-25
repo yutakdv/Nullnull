@@ -312,11 +312,11 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 ## 12. 별도 결정 — 정기 갱신 목록 확대
 
-이 계획은 정기 갱신 목록을 바꾸지 않는다. 오너 결정(#351 댓글)대로 호출량과 관측 가능성을 본 뒤 따로 정한다. 아래는 그 결정에 필요한 사실이다.
+**결정됨(A-070, 2026-09-25)**: 배치 적재와 예보 측정 결과로 목록을 만든다. 기존 두 곳을 맨 앞에 두고, 예보 `coverage>0`이고 거절이 없던 새 장소만 넣는다. 예보 없는 장소는 한 번 적재만 한다. 아래는 그 결정에 쓴 사실이다(당시 기록).
 
 - **목록 하나가 두 스케줄을 움직인다**: `infra/src/staging.ts`의 `FORECAST_DEMO_PLACES`가 detail(5일)과 예보(12시간) 스케줄의 입력이다.
-  - 두 스케줄은 같은 설정으로 만들어진다. 종료는 2026-10-25T14:59:59Z(`FORECAST_SCHEDULE_END`)이고, scheduler 재시도는 `retryAttempts: 3`이다.
-  - 스케줄은 `Migration` stack에 있다. 목록을 바꾸면 `infra/` 코드를 고치지만 app release로 나간다.
+  - 두 스케줄은 같은 설정으로 만들어진다. 종료는 `FORECAST_SCHEDULE_END`(A-069로 2026-10-31T14:59:59Z)이고, scheduler 재시도는 `retryAttempts: 3`이다.
+  - 스케줄은 `Migration` stack에 있다. 목록이나 종료를 바꾸면 Migration template이 바뀌어 classify가 **infra**로 판정한다(`template-changed-Migration`). 이전 판의 "app release로 나간다"는 틀렸다. `--preserve-open-edge`는 Migration만 바뀐 infra plan을 받는다.
 - **#363 전의 detail 갱신 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361), 고쳐졌다):
   - 등급: `[읽음]` 코드 분석이다. #361의 staging 로그 측정에서는 예보가 한 번 갱신하고 한 번 건너뛰기를 되풀이했다.
   - 그때는 `rate 5일 + DETAIL_RENEW_BEFORE 2일 = 수명 7일`이라 갱신 여부가 기동 지연 차이로 갈렸다. 건너뛴 주기에는 detail snapshot이 약 3일 비고, 그동안 예보 갱신이 `NO_VERIFIED_KTO_MAPPING`으로 실패했다.
