@@ -436,7 +436,7 @@ describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credi
     ).toBeGreaterThan(0);
   });
 
-  it('credits every site that names a place, or says why not', () => {
+  it('BA-092-T17 credits every site that names a place, or says why not', () => {
     const missing = found.sites
       .filter((site) => !isCredited(found, site))
       .filter(
@@ -468,7 +468,7 @@ describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credi
     }
   });
 
-  it('finds the credit a parent draws for its child', () => {
+  it('BA-092-T17 finds the credit a parent draws for its child', () => {
     for (const entry of CREDITED_ELSEWHERE) {
       expect(
         isCredited(found, entry.by),
@@ -477,7 +477,7 @@ describe('FE-603-T4 CMP-ATT-001 a sourced place is never shown without its credi
     }
   });
 
-  it('has the sites and credits COUNTS pins, group by group', () => {
+  it('BA-092-T17 has the sites and credits COUNTS pins, group by group', () => {
     // (file, expression) matching cannot see a second site in an exempt file,
     // or one unit losing its credit while a sibling keeps the expression
     // credited. A count can. Re-read the group before changing a number here.
