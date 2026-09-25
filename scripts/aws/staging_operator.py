@@ -28,7 +28,7 @@ PREFIX = 'NullnullStg'
 TOOLKIT_STACK = 'NullnullStgCDKToolkit'
 LOCK_TABLE = 'nullnull-stg-deployment-lock'
 KTO_SECRET = 'nullnull-stg/kto-service-key'
-EXPIRY = dt.datetime(2026, 10, 25, 14, 59, 59, tzinfo=dt.timezone.utc)
+EXPIRY = dt.datetime(2026, 10, 31, 14, 59, 59, tzinfo=dt.timezone.utc)  # A-069: judging plus the 10-28 final presentation
 PROTECTED = ['Foundation', 'Network', 'Data', 'Platform', 'GlobalWaf', 'Observability']
 # Foundation leads: only the runtime-phase Foundation template carries the exports Migration/Services
 # import (the bootstrap-phase one has no consumers, so no exports).

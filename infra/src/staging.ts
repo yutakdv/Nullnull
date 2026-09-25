@@ -57,8 +57,9 @@ export const ROLE_BOUNDARY_POLICY = "NullnullStgRoleBoundary";
 // Metric namespace for everything this app publishes from its own log lines.
 export const METRIC_NAMESPACE = "Nullnull/Staging";
 // The forecast refresh schedule (A-044). The end instant is staging_operator.py's EXPIRY, not a second
-// date: judging closes 2026-10-25 23:59:59 KST and nothing here may outlive it.
-export const FORECAST_SCHEDULE_END = new Date("2026-10-25T14:59:59Z");
+// date: the service ends 2026-10-31 23:59:59 KST (A-069; the stack `Expiry` tag stays 2026-10-25 on purpose,
+// see A-069) and nothing here may outlive it.
+export const FORECAST_SCHEDULE_END = new Date("2026-10-31T14:59:59Z");
 // Every 12 h. A run renews the sets that lapse within KtoDemoRefresh.FORECAST_RENEW_BEFORE of its start,
 // six hours longer than this cadence, so the set one run fetched is renewed by the next as long as a
 // run's call comes less than six hours later after its tick than the previous run's did. Lateness is
@@ -83,7 +84,7 @@ export const DETAIL_MAIN =
 // A forecast request is built from a detailCommon2 snapshot, and the registry stales that snapshot after
 // 604800 s (V007__sources.sql). Once it lapses the forecast refresh has nothing to ask with and ends
 // NO_VERIFIED_KTO_MAPPING (KtoDemoRefresh.refreshForecast), so a forecast-only schedule would fail from
-// the seventh day of a thirty-six day judging period onward. Every 5 days, with
+// the seventh day of the judging period onward. Every 5 days, with
 // KtoDemoRefresh.DETAIL_RENEW_BEFORE longer than that by a day, so each run renews the snapshot the run
 // before it fetched as long as its call is not a day later after its tick than that run's (the same
 // lateness as above). "5 + 2 = the 7 the registry allows" was the defect (#361): it put that snapshot
@@ -243,6 +244,9 @@ export function createStacks(
       Project: "Nullnull",
       Environment: "staging",
       ManagedBy: "CDK",
+      // Stays at the original date on purpose (A-069): changing it retags 86 resources, RDS, Secrets, S3,
+      // DynamoDB and the VPC among them, and staging_operator.py refuses that as a stateful change.
+      // Nothing reads this tag; the service end is staging_operator.EXPIRY.
       Expiry: "2026-10-25",
     }))
       cdk.Tags.of(s).add(k, v);

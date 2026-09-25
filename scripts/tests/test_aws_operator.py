@@ -1499,6 +1499,10 @@ class CoverClassificationRegressions(unittest.TestCase):
         self.assertEqual(base,ops.normalize_template(self.template('bundle-2.zip','covers-1.zip')))
         self.assertNotEqual(base,ops.normalize_template(self.template('bundle-1.zip','covers-2.zip')))
 
+# Plan and edge paths compare the wall clock with the staging end (ops.EXPIRY). A test that runs them for real
+# turns red the day the service ends, and with it every main PR's docs-contract, the #307 teardown record
+# included (A-069). They pin the end instead; the end itself is held by test_ops_alarm_metric_filters.
+FAR_FUTURE_EXPIRY=ops.dt.datetime(2099,1,1,tzinfo=ops.dt.timezone.utc)
 class PlanStagesCoversRegressions(unittest.TestCase):
     """#183: a release plan carries the cover photos into its assembly - only them, and never none."""
     def run_plan(self, covers, manifest=None, **overrides):
@@ -1516,6 +1520,7 @@ class PlanStagesCoversRegressions(unittest.TestCase):
                                     'cost_basis':str(cost),**overrides})
             out=io.StringIO()
             with patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),patch.object(ops,'ROOT',root),\
+                 patch.object(ops,'EXPIRY',FAR_FUTURE_EXPIRY),\
                  patch.object(ops,'validate_manifest',return_value=manifest or {'kind':'release'}),patch.object(ops,'check_artifacts'),\
                  patch.object(ops,'run'),patch.object(ops,'cdk',side_effect=lambda command,**kw:calls.append(command)),\
                  patch.object(ops,'verifier_hash',return_value='c'*64),patch.object(ops,'tree_digest',return_value='t'),\
@@ -1837,7 +1842,8 @@ class EdgeRegressions(unittest.TestCase):
         (root/'plan.json').write_text(json.dumps(data))
         return root/'plan.json',ops.digest(root/'plan.json')
     def test_the_deployed_plan_is_usable_days_later_but_every_hash_still_has_to_hold(self):
-        with tempfile.TemporaryDirectory() as d,patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}):
+        with tempfile.TemporaryDirectory() as d,patch.dict(os.environ,{'NULLNULL_AWS_ACCOUNT_ID':'1'*12}),\
+             patch.object(ops,'EXPIRY',FAR_FUTURE_EXPIRY):
             root=Path(d)
             plan,sha=self.deployed_plan(root)
             self.assertEqual('deploy',ops.verify_deployed_plan(plan,sha)['action'])

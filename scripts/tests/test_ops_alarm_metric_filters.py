@@ -92,19 +92,43 @@ class ForecastPhrases(unittest.TestCase):
         self.assertTrue(any(p.startswith(ts_const("INT04_CONTENT_ID") + ":") for p in places), places)
 
 
+def operator_expiry() -> dt.datetime:
+    expiry = re.search(
+        r"EXPIRY = dt\.datetime\((\d+), (\d+), (\d+), (\d+), (\d+), (\d+), tzinfo=dt\.timezone\.utc\)",
+        OPERATOR.read_text(),
+    )
+    assert expiry, "EXPIRY is no longer a literal datetime in staging_operator.py"
+    return dt.datetime(*(int(g) for g in expiry.groups()), tzinfo=dt.timezone.utc)
+
+
 class ScheduleConstants(unittest.TestCase):
     def test_the_schedule_ends_when_the_operator_expires(self):
-        expiry = re.search(
-            r"EXPIRY = dt\.datetime\((\d+), (\d+), (\d+), (\d+), (\d+), (\d+), tzinfo=dt\.timezone\.utc\)",
-            OPERATOR.read_text(),
-        )
-        assert expiry, "EXPIRY is no longer a literal datetime in staging_operator.py"
-        operator_end = dt.datetime(*(int(g) for g in expiry.groups()), tzinfo=dt.timezone.utc)
         end = re.search(r'FORECAST_SCHEDULE_END = new Date\("([^"]+)"\)', STAGING_TS.read_text())
         assert end
         self.assertEqual(
-            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_end
+            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_expiry()
         )
+
+    def test_the_seoul_live_collection_ends_when_the_operator_expires(self):
+        # A-069 moved the end once and this pair had no witness: leaving the Java constant behind stops
+        # the Seoul collection at the old date with every gate green, and nothing alarms (SNS unsubscribed).
+        scheduler = JAVA / "live" / "infrastructure" / "SeoulLiveRefreshScheduler.java"
+        end = re.search(r'JUDGING_END = Instant\.parse\("([^"]+)"\)', scheduler.read_text())
+        assert end, "JUDGING_END is no longer a literal Instant in SeoulLiveRefreshScheduler.java"
+        self.assertEqual(
+            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_expiry()
+        )
+
+    def test_the_shell_expiry_date_is_the_operator_expiry_date(self):
+        # common.sh spells the date twice, a default and the value it insists on; the shell scripts die
+        # with unexpected-expiry-date when either differs from the other, and neither was held to EXPIRY.
+        common = (ROOT / "scripts" / "aws" / "common.sh").read_text()
+        default = re.search(r'NULLNULL_EXPIRY_DATE="\$\{NULLNULL_EXPIRY_DATE:-([0-9-]+)\}"', common)
+        insisted = re.search(r'"\$NULLNULL_EXPIRY_DATE" == \'([0-9-]+)\' \]\] \|\| fail \'unexpected-expiry-date\'', common)
+        assert default and insisted, "common.sh no longer spells the expiry date the way this test reads it"
+        expected = operator_expiry().date().isoformat()
+        self.assertEqual(default.group(1), expected)
+        self.assertEqual(insisted.group(1), expected)
 
     def test_the_scheduled_mains_are_the_ones_the_operator_runs_with_the_same_approvals(self):
         operator = OPERATOR.read_text()

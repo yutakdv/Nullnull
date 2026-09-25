@@ -21,7 +21,7 @@ class SeoulLiveRefreshSchedulerTest {
         var gateway = mock(SeoulLiveAreaGateway.class);
 
         new SeoulLiveRefreshScheduler(claims, gateway,
-                Clock.fixed(Instant.parse("2026-10-25T14:59:59Z"), ZoneOffset.UTC)).refresh();
+                Clock.fixed(Instant.parse("2026-10-31T14:59:59Z"), ZoneOffset.UTC)).refresh();
 
         verifyNoInteractions(claims, gateway);
     }
@@ -32,7 +32,7 @@ class SeoulLiveRefreshSchedulerTest {
         var gateway = mock(SeoulLiveAreaGateway.class);
 
         new SeoulLiveRefreshScheduler(claims, gateway,
-                Clock.fixed(Instant.parse("2026-10-25T14:59:58Z"), ZoneOffset.UTC)).refresh();
+                Clock.fixed(Instant.parse("2026-10-31T14:59:58Z"), ZoneOffset.UTC)).refresh();
 
         verify(claims).claim("서울숲공원");
         verifyNoInteractions(gateway);
