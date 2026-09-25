@@ -11,13 +11,15 @@
 // hand-kept copy.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { load } from 'js-yaml';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
+import * as contracts from '@nullnull/contracts';
 import { DataGuideScreen } from '../DataGuideScreen.js';
+import { GUIDE_SOURCES } from '../guide-sources.js';
 
 const copy = messages['en-US'];
 
@@ -26,20 +28,36 @@ const spec = load(
 ) as { components: { schemas: { SourceState: { enum: string[] } } } };
 const contractStates = spec.components.schemas.SourceState.enum;
 
-// The attribution each provider approved, from the source catalog's own entry
-// (attributionTemplate) rather than written out here, so the screen follows the
-// catalog when the catalog changes.
-const catalog = readFileSync(
-  resolve(process.cwd(), '../../docs/data/SOURCE_CATALOG.md'),
-  'utf8',
-);
-function catalogAttribution(code: string): string {
-  const block = catalog.slice(catalog.indexOf(`code: ${code}`));
-  const match = /attributionTemplate: "([^"]+)"/.exec(block);
-  if (!match?.[1])
-    throw new Error(`SOURCE_CATALOG has no attributionTemplate for ${code}`);
-  return match[1];
+// The credits this static screen draws, checked against what the server
+// actually sends for each source: the approved examples in packages/contracts
+// (kept truthful to the server since #390) and, for the English text source
+// that no example carries yet, its registry migration (V050). The screen calls
+// no API, so without this a URL or a credit could drift from the server's
+// source registry and nothing would notice.
+function exampleProvenance(source: string) {
+  const found = new Map<
+    string,
+    {
+      attribution: string;
+      officialUrl: string;
+      licenseUrl: string;
+      sourceDisplayName: string;
+    }
+  >();
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === 'object') {
+      const record = node as Record<string, unknown>;
+      if (record.source === source && typeof record.officialUrl === 'string') {
+        found.set(record.officialUrl, record as never);
+      }
+      Object.values(record).forEach(walk);
+    }
+  };
+  walk(Object.values(contracts));
+  return [...found.values()];
 }
+const migrations = resolve(process.cwd(), '../api/src/main/resources/db/migration');
 
 function renderGuide() {
   // Wrapped in a router: the screen's NavBar navigates to a named destination
@@ -155,26 +173,64 @@ describe('the guide states the product rules it is there to explain', () => {
 });
 
 describe('required attribution and structure', () => {
-  it('FE-404-T4 credits each provider on its own line, in the catalog words', () => {
+  it('FE-404-T4 credits each source on its own line, linked to its official page and licence', () => {
     renderGuide();
-    // Invariant 12 and SOURCE_CATALOG: each provider's approved wording as
-    // written, never two providers merged into one credit.
-    const kto = screen.getByText(catalogAttribution('KTO_KOR_SERVICE_2'), {
-      exact: true,
-    });
-    const seoul = screen.getByText(catalogAttribution('SEOUL_CITYDATA'), { exact: true });
-    expect(kto).not.toBe(seoul);
-    expect(kto.textContent).not.toContain(catalogAttribution('SEOUL_CITYDATA'));
-    expect(screen.queryByText(/ⓒ한국관광공사\s*·/)).toBeNull();
+    for (const credit of GUIDE_SOURCES) {
+      const links = screen
+        .getAllByRole('link', { name: credit.attribution })
+        .filter((link) => link.getAttribute('href') === credit.officialUrl);
+      // One line per source: its own words, linked to its own page.
+      expect(links, `${credit.source} credit`).toHaveLength(1);
+      const line = links[0]?.closest('p');
+      expect(line).not.toBeNull();
+      expect(
+        within(line as HTMLElement).getByRole('link', { name: copy['license.terms'] }),
+      ).toHaveAttribute('href', credit.licenseUrl);
+    }
+    // Never two providers merged into one credit.
+    expect(screen.queryByText(/ⓒ한국관광공사\s*·\s*서울/)).toBeNull();
   });
 
-  it('FE-404-T4 uses the same approved wording in both locales', () => {
-    // The credit is the provider's wording, not UI copy to translate.
-    for (const key of [
-      'dataGuide.attribution.kto',
-      'dataGuide.attribution.seoul',
-    ] as const) {
-      expect(messages['en-US'][key]).toBe(messages['ko-KR'][key]);
+  it('FE-404-T4 names the dataset beside each of the KTO credits that read alike', () => {
+    renderGuide();
+    const kto = GUIDE_SOURCES.filter(
+      (credit) => credit.attribution === '출처: ⓒ한국관광공사',
+    );
+    expect(kto.length).toBeGreaterThan(1);
+    for (const credit of kto) {
+      expect(screen.getByText(credit.sourceDisplayName)).toBeInTheDocument();
+    }
+  });
+
+  it('FE-404-T4 credits exactly what the server sends for each source', () => {
+    for (const credit of GUIDE_SOURCES) {
+      if (credit.source === 'KTO_ENG_SERVICE') {
+        const sql = readFileSync(
+          resolve(migrations, 'V050__kto_eng_service_text_source.sql'),
+          'utf8',
+        );
+        for (const value of [
+          credit.sourceDisplayName,
+          credit.officialUrl,
+          credit.licenseUrl,
+          credit.attribution,
+        ]) {
+          expect(sql, `${credit.source} ${value}`).toContain(`'${value}'`);
+        }
+        continue;
+      }
+      const examples = exampleProvenance(credit.source).filter(
+        (example) => example.officialUrl === credit.officialUrl,
+      );
+      expect(
+        examples,
+        `${credit.source} has an approved example with this URL`,
+      ).not.toHaveLength(0);
+      for (const example of examples) {
+        expect(example.attribution).toBe(credit.attribution);
+        expect(example.licenseUrl).toBe(credit.licenseUrl);
+        expect(example.sourceDisplayName).toBe(credit.sourceDisplayName);
+      }
     }
   });
 
@@ -194,7 +250,7 @@ describe('required attribution and structure', () => {
     const seen: string[] = [];
     server.events.on('request:start', ({ request }) => seen.push(request.url));
     renderGuide();
-    await screen.findByText(copy['dataGuide.attribution.kto']);
+    await screen.findAllByRole('link', { name: copy['license.terms'] });
     expect(seen).toEqual([]);
     server.events.removeAllListeners();
   });

@@ -446,7 +446,7 @@
         },
         {
           "id": "FE-404-T4",
-          "assertion": "데이터 안내의 출처는 provider마다 한 줄씩 SOURCE_CATALOG attributionTemplate 그대로 두 locale에서 같게 표시하고 합치지 않는다"
+          "assertion": "데이터 안내의 출처는 dataset마다 한 줄씩 서버가 보내는 credit 그대로 공식 페이지와 이용조건에 연결해 표시하고 합치지 않는다"
         },
         {
           "id": "FE-404-T5",

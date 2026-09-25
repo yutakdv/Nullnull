@@ -429,11 +429,6 @@ export const messages = {
     'dataGuide.rule5.title': '모든 혼잡 표시에는 출처가 있어요',
     'dataGuide.rule5.body':
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
-    // One line per provider, each the SOURCE_CATALOG attributionTemplate as
-    // written: never merged, and the same in both locales (the provider's words).
-    'dataGuide.attribution.kto': '출처: ⓒ한국관광공사',
-    'dataGuide.attribution.seoul':
-      '출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)',
 
     // S02-4B must-visit places (438:3158).
     'mustVisit.step': 'STEP 4',
@@ -1500,11 +1495,6 @@ export const messages = {
     'dataGuide.rule5.title': 'Every crowd figure has a source',
     'dataGuide.rule5.body':
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
-    // One line per provider, each the SOURCE_CATALOG attributionTemplate as
-    // written: never merged, and the same in both locales (the provider's words).
-    'dataGuide.attribution.kto': '출처: ⓒ한국관광공사',
-    'dataGuide.attribution.seoul':
-      '출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)',
 
     // S02-4B must-visit places (438:3158). Figma has no EN frame.
     'mustVisit.step': 'STEP 4',

@@ -1,7 +1,13 @@
 import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { NavBar, StateLabel, type SourceState } from '../../shared/ui/index.js';
+import {
+  DataAttribution,
+  NavBar,
+  StateLabel,
+  type SourceState,
+} from '../../shared/ui/index.js';
+import { GUIDE_SOURCES } from './guide-sources.js';
 import styles from './DataGuideScreen.module.css';
 
 // Figma: S15 data-guide `423:2967`.
@@ -85,10 +91,28 @@ export function DataGuideScreen() {
           ))}
         </ul>
 
-        {/* Required attribution for the KTO and Seoul sources (invariant 12):
-            one line per provider, never merged into one credit (SOURCE_CATALOG). */}
-        <p className={styles.attribution}>{t('dataGuide.attribution.kto')}</p>
-        <p className={styles.attribution}>{t('dataGuide.attribution.seoul')}</p>
+        {/* Required attribution (invariant 12), one line per dataset and never
+            merged (SOURCE_CATALOG): the server's credit linked to the dataset's
+            official page, its licence linked beside it, and - where two KTO
+            datasets read the same - the server's dataset name as context. */}
+        {GUIDE_SOURCES.map((credit) => (
+          <p className={styles.attribution} key={credit.source}>
+            <DataAttribution
+              context={
+                GUIDE_SOURCES.some(
+                  (other) =>
+                    other.source !== credit.source &&
+                    other.attribution === credit.attribution,
+                )
+                  ? credit.sourceDisplayName
+                  : null
+              }
+              provenance={credit}
+              showLicense
+              termsLabel={t('license.terms')}
+            />
+          </p>
+        ))}
       </div>
     </section>
   );

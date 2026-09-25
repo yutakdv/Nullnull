@@ -58,13 +58,20 @@ export function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
   const updatePreferences = useUpdatePreferences();
-  // The locale last sent to the owner record from this screen, so Next does
-  // not send a choice the tap already sent.
+  // The locale the owner record is known to hold, so Next does not send a
+  // choice a tap already SAVED. Written only once the server has answered: a
+  // tap whose save failed must leave Next to send it again (#399 review).
   const saved = useRef<SupportedLocale | null>(null);
 
   function save(next: SupportedLocale) {
-    saved.current = next;
-    updatePreferences.mutate({ locale: next });
+    updatePreferences.mutate(
+      { locale: next },
+      {
+        onSuccess: () => {
+          saved.current = next;
+        },
+      },
+    );
   }
 
   function choose(next: SupportedLocale) {
