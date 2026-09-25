@@ -368,17 +368,25 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
   // Codex on #399: "saved" was written before the PATCH answered, so a tap
   // whose save FAILED still counted as saved and Next sent nothing - WEB-RT-1
   // stayed open in exactly that case.
-  // Codex on #399 (second pass): with the tap's PATCH still in flight, Next
-  // saw nothing saved and sent the same locale a second time.
-  it('FE-101-T4 does not send a locale that is still being saved when Next is pressed', async () => {
+  // #399 review, third pass: Next used to trust a tap whose save was still in
+  // flight. If that save then failed after the screen had moved on, nothing
+  // sent the locale again. PATCH /me has no If-Match and is idempotent, so a
+  // second identical request is harmless while a skipped one is permanent.
+  it('FE-101-T4 saves on Next even while the tap is still saving, and wins if the tap fails', async () => {
     const bodies: unknown[] = [];
-    let release: (() => void) | undefined;
+    let failTap: (() => void) | undefined;
     server.use(
       http.patch(`${API_BASE}/me`, async ({ request }) => {
         bodies.push(await request.json());
-        await new Promise<void>((resolve) => {
-          release = resolve;
-        });
+        if (bodies.length === 1) {
+          await new Promise<void>((resolve) => {
+            failTap = resolve;
+          });
+          return HttpResponse.json(
+            { type: 'about:blank', title: 'Unavailable', status: 503 },
+            { status: 503 },
+          );
+        }
         return HttpResponse.json(sessionFixtures.owner);
       }),
     );
@@ -389,15 +397,19 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
     await waitFor(() => {
       expect(bodies).toHaveLength(1);
     });
-    // The tap's save is still waiting for the server.
+    // The tap's save is still waiting for the server when Next is pressed.
     await user.click(
       await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
     );
-    release?.();
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'ko-KR' }]);
+    });
+    // The tap fails after the screen has moved on; Next's save already went.
+    failTap?.();
     await waitFor(() => {
       expect(client.isMutating()).toBe(0);
     });
-    expect(bodies).toEqual([{ locale: 'ko-KR' }]);
+    expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'ko-KR' }]);
   });
 
   it('FE-101-T4 sends the locale again on Next when the tap failed to save it', async () => {

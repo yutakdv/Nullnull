@@ -61,21 +61,19 @@ export function LanguageScreen() {
   // The locale the owner record is known to hold, so Next does not send a
   // choice a tap already SAVED. Written only once the server has answered: a
   // tap whose save failed must leave Next to send it again (#399 review).
+  //
+  // A save still in flight does NOT count: Next sends again. PATCH /me takes
+  // no If-Match and the same {locale} is idempotent, so a duplicate is
+  // harmless, while skipping it would make a tap that fails after the screen
+  // has moved on permanent (#399 review).
   const saved = useRef<SupportedLocale | null>(null);
-  // The locale a save is still in flight for, so Next does not send the same
-  // one a second time while the tap's request is waiting for the server.
-  const sending = useRef<SupportedLocale | null>(null);
 
   function save(next: SupportedLocale) {
-    sending.current = next;
     updatePreferences.mutate(
       { locale: next },
       {
         onSuccess: () => {
           saved.current = next;
-        },
-        onSettled: () => {
-          if (sending.current === next) sending.current = null;
         },
       },
     );
@@ -153,7 +151,7 @@ export function LanguageScreen() {
           // tapped. The owner record starts at ko-KR and place names are
           // projected in it, while search follows the UI (WEB-RT-1), so the
           // language the traveller is reading is saved here too.
-          if (saved.current !== locale && sending.current !== locale) save(locale);
+          if (saved.current !== locale) save(locale);
           void navigate('/intro');
         }}
       />
