@@ -318,10 +318,10 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 **예보 측정 순서(A-071)**. 측정은 목록을 정하는 입력이라 R4 plan 전에 끝나야 한다.
 
-- **위험**: 예보 요청의 `tAtsNm`은 detail snapshot의 제목이고, 이 operation에서 key가 아니라 filter다. 제목이 여러 관광지와 겹치면(`totalCount`가 받은 행 수와 다르거나 100을 넘으면) `MAPPING_UNCERTAIN`으로 거절된다(`KtoForecastResponseValidator`). 거절은 서울만 예외인 `PROVIDER_ERROR` 재시도 밖이라 `KTO_CONCENTRATION_FORECAST` 전체를 격리하고, 격리 중에는 INT-04(126508)의 정기 갱신도 `SOURCE_QUARANTINED`로 막힌다. 겹치는 이름이 하나도 없으면 거절이 아니라 `coverage=0`이다.
+- **위험**: 예보 요청의 `tAtsNm`은 detail snapshot의 제목이고, 이 operation에서 key가 아니라 filter다. 제목이 여러 관광지와 겹치면(`totalCount`가 받은 행 수와 다르거나 `MAX_RECORDS` 31을 넘으면) `MAPPING_UNCERTAIN`으로 거절된다(`KtoForecastResponseValidator`). 거절은 서울만 예외인 `PROVIDER_ERROR` 재시도 밖이라 `KTO_CONCENTRATION_FORECAST` 전체를 격리하고, 격리 중에는 INT-04(126508)의 정기 갱신도 `SOURCE_QUARANTINED`로 막힌다. 겹치는 이름이 하나도 없으면 거절이 아니라 `coverage=0`이다.
 - **순서**: 09-19에 `coverage=30`이 잰 기존 셋을 먼저, 그다음 P, 그다음 B, C 순서로 돈다. 한 명령 안에서 격리가 나면 뒤 장소는 호출 없이 `SOURCE_QUARANTINED`로 끝난다. 그 명령은 거기서 멈추고, 격리를 푼 뒤 원인 장소를 빼고 남은 장소만 다시 돈다.
 - **시점**: 정기 예보 tick(약 03:33·15:33 KST)이 **끝난 직후**에 시작한다. INT-04의 set이 막 24시간으로 갱신된 때라 격리를 푸는 동안 여유가 가장 크다.
-- **격리가 나면**: `release-source-quarantine --source-code KTO_CONCENTRATION_FORECAST`(오너 승인 변수) → `unlock` → `/api/v1/health/ready`의 `source:KTO_CONCENTRATION_FORECAST`가 READY인지 확인한다. 원인 장소는 목록에 넣지 않는다.
+- **격리가 나면**: 실패한 task는 exit 1로 끝나 잠금을 남기므로 먼저 §7 복구 1대로 `unlock --owner <uuid>`를 한다. 그다음 `release-source-quarantine --source-code KTO_CONCENTRATION_FORECAST`(오너 승인 변수)를 돌린다. 이 task는 성공하면 자기 잠금을 풀고 끝나므로 뒤에 `unlock`이 필요 없다. 마지막으로 `/api/v1/health/ready`의 `source:KTO_CONCENTRATION_FORECAST`가 READY인지 확인한다. 원인 장소는 목록에 넣지 않는다.
 - **판정**: `KTO_DEMO_REFRESH_EVIDENCE contentId=… coverage=…`에서 `REFRESHED`이고 `coverage>0`인 장소만 목록에 넣는다. 장소별 줄은 #351 코멘트에 남긴다.
 
 **배포 시점 제약(A-071)**. 새로 적재한 장소의 detail snapshot은 적재 7일 뒤 만료된다. R3의 schedule은 두 곳만 갱신한다. R4 뒤 첫 정기 detail tick(약 5일 주기, 다음은 2026-09-30 03:32 KST 무렵)이 적재 뒤 7일 안에 오지 않으면, 그 사이 새 장소의 예보 갱신은 `NO_VERIFIED_KTO_MAPPING`으로 실패한다. 그래서 R4를 09-30 03:32 KST 전에 배포하거나, R4 직후 오너가 목록 전체로 `kto-demo-detail`을 한 번 돌린다. 이 명령은 만료 6일 안쪽인 장소만 KTO에 묻는다(`DETAIL_RENEW_BEFORE`).

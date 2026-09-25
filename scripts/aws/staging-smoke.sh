@@ -19,7 +19,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --expect-edge)
-      expect_edge="${2:-}"
+      [[ $# -ge 2 ]] || fail 'expect-edge-must-be-open-or-closed'
+      expect_edge="$2"
       shift 2
       ;;
     *)

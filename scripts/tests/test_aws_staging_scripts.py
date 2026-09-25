@@ -259,7 +259,9 @@ esac
                         "NULLNULL_AWS_AUTH": "profile", "AWS_PROFILE": "test", "AWS_REGION": "ap-northeast-2",
                         "FAKE_STATUS": status, "FAKE_TYPE": ctype, "FAKE_BODY": body})
             command = ["bash", str(AWS_SCRIPTS / "staging-smoke.sh"), "--url", "https://example.test"]
-            if expect_edge is not None:
+            if expect_edge == "<no value>":
+                command += ["--expect-edge"]
+            elif expect_edge is not None:
                 command += ["--expect-edge", expect_edge]
             result = subprocess.run(command, capture_output=True, text=True, env=env, check=False)
         self.assertNotEqual(0, result.returncode, result.stdout)
@@ -278,6 +280,7 @@ esac
             # A CloudFront fallback that serves the SPA for an /api path is 200 but is not the API.
             ("open", "200", "text/html", "<!doctype html>", "reason=public-api-edge-not-open"),
             ("sideways", "200", "application/json", self.UP, "reason=expect-edge-must-be-open-or-closed"),
+            ("<no value>", "200", "application/json", self.UP, "reason=expect-edge-must-be-open-or-closed"),
         ]:
             with self.subTest(expect_edge=expect_edge, status=status, ctype=ctype, body=body):
                 self.assertIn(reason, self.run_smoke(expect_edge, status, ctype, body))
