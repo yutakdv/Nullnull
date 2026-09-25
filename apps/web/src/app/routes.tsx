@@ -22,9 +22,9 @@ import { ProfileScreen } from './profile/ProfileScreen.js';
 import { ImportPasteScreen } from './trip-create/ImportPasteScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
-// P0 route table from docs/design/FIGMA_HANDOFF.md §2. Screens arrive with
-// their own slices; until then each route renders a labelled placeholder and
-// an unknown path renders an explicit not-found screen. Nothing paints blank.
+// P0 route table from docs/design/FIGMA_HANDOFF.md §2. Every route renders its
+// own screen and an unknown path renders an explicit not-found screen. Nothing
+// paints blank.
 //
 // errorElement sits on the layout route so a screen that throws is replaced by
 // the boundary while the shell around it stays mounted (FE-003).

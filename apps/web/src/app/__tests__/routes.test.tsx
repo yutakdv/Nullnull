@@ -23,7 +23,8 @@ function renderAt(path: string) {
 describe('FE-001-T1 P0 route table', () => {
   // Every P0 route now resolves to a real screen. The last placeholder row
   // was /live, which became its own 준비 중 screen rather than the debug
-  // output of PlaceholderScreen — a persistent tab that printed the literal
+  // output of PlaceholderScreen (since deleted: no route used it) — a
+  // persistent tab that printed the literal
   // string "live" read as a broken build. The others left as their slices
   // landed: /, /language and /intro in FE-101, /profile in FE-105,
   // /about-data in FE-404, the optimization run in FE-502.
