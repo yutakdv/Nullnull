@@ -3491,7 +3491,7 @@
           }
         }
       ],
-      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 범위: integration-ready는 설명 template fallback·출력/선호 validator·OPENAI adapter와 그 startup 가드까지다. 미구현: 선호 해석 생산자(apps/ai preference package는 validator만 있고 호출자가 없다), draft 보조 연결(FR-TRC-11), AI 사용 표기(apps/ai 설명 응답의 source를 공개 계약에 싣기). OPENAI를 켜기 전에 AI 사용 표기가 선행돼야 한다 — Spring OptimizeItemHandler가 source를 버리고 summary만 쓰므로 지금 켜면 표기 없이 LLM 문장이 사용자에게 나간다. kill switch는 AI_PROVIDER=NONE 재시작이다(런타임 스위치 없음). OpenAI 외부 전송의 개인정보 경계 문서는 없다. 후속 추적: A-064.",
+      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 범위: integration-ready는 설명 template fallback·출력/선호 validator·OPENAI adapter와 그 startup 가드까지다. 미구현: 선호 해석 생산자(apps/ai preference package는 validator만 있고 호출자가 없다), draft 보조 연결(FR-TRC-11), AI 사용 표기(apps/ai 설명 응답의 source를 공개 계약에 싣기). OPENAI를 켜기 전에 AI 사용 표기가 선행돼야 한다 — Spring OptimizeItemHandler가 source를 버리고 summary만 쓰므로 지금 켜면 표기 없이 LLM 문장이 사용자에게 나간다. kill switch는 AI_PROVIDER=NONE 재시작이다(런타임 스위치 없음). OpenAI 외부 전송의 기술 경계는 PRIVACY_REQUIREMENTS §12에 있다(#365). provider 보존·학습 정책, 외부 processor·국외 이전, 사용자 고지·동의는 오너 결정 대기다. 후속 추적: A-064.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-084"
