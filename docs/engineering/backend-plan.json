@@ -3491,7 +3491,7 @@
           }
         }
       ],
-      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 범위: integration-ready는 설명 template fallback·출력/선호 validator·OPENAI adapter와 그 startup 가드까지다. 미구현: 선호 해석 생산자(apps/ai preference package는 validator만 있고 호출자가 없다), draft 보조 연결(FR-TRC-11), AI 사용 표기(apps/ai 설명 응답의 source를 공개 계약에 싣기). OPENAI를 켜기 전에 AI 사용 표기가 선행돼야 한다 — Spring OptimizeItemHandler가 source를 버리고 summary만 쓰므로 지금 켜면 표기 없이 LLM 문장이 사용자에게 나간다. kill switch는 AI_PROVIDER=NONE 재시작이다(런타임 스위치 없음). OpenAI 외부 전송의 개인정보 경계 문서는 없다. 후속 추적: A-064.",
+      "handoff": "AI 사용 표기·검증 실패·수동 대안·설명 examples, 수치 개선을 방문자 감소로 표현하지 않는 copy. 범위: integration-ready는 설명 template fallback·출력/선호 validator·OPENAI adapter와 그 startup 가드까지다. 미구현: 선호 해석 생산자(apps/ai preference package는 validator만 있고 호출자가 없다), draft 보조 연결(FR-TRC-11), AI 사용 표기(apps/ai 설명 응답의 source를 공개 계약에 싣기). OPENAI를 켜기 전에 AI 사용 표기가 선행돼야 한다 — Spring OptimizeItemHandler가 source를 버리고 summary만 쓰므로 지금 켜면 표기 없이 LLM 문장이 사용자에게 나간다. kill switch는 AI_PROVIDER=NONE 재시작이다(런타임 스위치 없음). OpenAI 외부 전송의 기술 경계는 PRIVACY_REQUIREMENTS §12에 있다(#365). provider 보존·학습 정책, 외부 processor·국외 이전, 사용자 고지·동의는 오너 결정 대기다. 후속 추적: A-064.",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-084"
@@ -3623,7 +3623,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "영문 POI coverage·번역 품질",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022"
       ],
@@ -3683,7 +3683,7 @@
         },
         {
           "id": "BA-086-T11",
-          "assertion": "영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다"
+          "assertion": "영문 dataset probe 는 provider 값을 report 에 베끼지 않는다"
         },
         {
           "id": "BA-086-T12",
@@ -3748,6 +3748,14 @@
         {
           "id": "BA-086-T27",
           "assertion": "호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다"
+        },
+        {
+          "id": "BA-086-T28",
+          "assertion": "영문 dataset probe 는 한글 포함 여부로 언어를 판정한다"
+        },
+        {
+          "id": "BA-086-T29",
+          "assertion": "영문 dataset probe 의 ASCII 글자 비율은 숫자·구두점·공백을 빼고 글자만 센다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
@@ -3976,7 +3984,7 @@
       "phase": "B10",
       "priority": "P0",
       "title": "Live 탭 API·장소 검색·대안·후보 저장",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-090",
         "BA-034",
@@ -4020,10 +4028,10 @@
         },
         {
           "id": "BA-091-T2",
-          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다",
+          "assertion": "Live map OFF 목록을 E2E로 확인한다",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 BA-091-T2 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
             "issue": "#97"
           }
         },
@@ -4130,6 +4138,24 @@
         {
           "id": "BA-091-T28",
           "assertion": "거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다"
+        },
+        {
+          "id": "BA-091-T29",
+          "assertion": "Live relation 의 모든 상태를 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
+        },
+        {
+          "id": "BA-091-T30",
+          "assertion": "Live 화면이 근거 없는 혼잡 차이를 표시하지 않음을 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",
@@ -4142,7 +4168,7 @@
       "phase": "B10",
       "priority": "P0",
       "title": "Live replay·장애 fallback·전체 P0 최종 gate",
-      "status": "planned",
+      "status": "in-progress",
       "dependsOn": [
         "BA-091"
       ],
@@ -4217,7 +4243,31 @@
         },
         {
           "id": "BA-092-T3",
-          "assertion": "전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"
+          "assertion": "최종 release에서 새 익명 브라우저가 외부망으로 로그인 없이 전체 P0 흐름을 완결한다"
+        },
+        {
+          "id": "BA-092-T15",
+          "assertion": "최종 release의 핵심 흐름 화면이 한국어와 영어로 표시된다"
+        },
+        {
+          "id": "BA-092-T16",
+          "assertion": "최종 release의 핵심 흐름 결정 동작을 키보드만으로 할 수 있다"
+        },
+        {
+          "id": "BA-092-T17",
+          "assertion": "최종 release에서 출처가 붙은 장소는 화면에 그 출처를 표시한다"
+        },
+        {
+          "id": "BA-092-T18",
+          "assertion": "최종 release의 전체 P0 화면이 지도 SDK가 꺼진 상태에서 위치 권한을 요청하지 않는다"
+        },
+        {
+          "id": "BA-092-T19",
+          "assertion": "이전 release로 rollback한 뒤 외부 smoke가 통과한다"
+        },
+        {
+          "id": "BA-092-T20",
+          "assertion": "Kakao 지도 SDK가 켜진 최종 release의 Live 지도 화면이 위치 권한을 요청하지 않는다"
         }
       ],
       "handoff": "최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다.",
