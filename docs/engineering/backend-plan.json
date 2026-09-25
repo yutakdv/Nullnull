@@ -3752,6 +3752,10 @@
         {
           "id": "BA-086-T28",
           "assertion": "영문 dataset probe 는 한글 포함 여부로 언어를 판정한다"
+        },
+        {
+          "id": "BA-086-T29",
+          "assertion": "영문 dataset probe 의 ASCII 글자 비율은 숫자·구두점·공백을 빼고 글자만 센다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",

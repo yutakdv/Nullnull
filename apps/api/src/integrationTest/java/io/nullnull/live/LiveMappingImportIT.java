@@ -185,26 +185,37 @@ class LiveMappingImportIT {
                 Instant.parse("2026-09-18T00:00:00Z")))));
 
         ExecutorService importing = Executors.newSingleThreadExecutor();
-        try (Connection holder = dataSource.getConnection()) {
-            holder.setAutoCommit(false);
-            try (PreparedStatement lock = holder.prepareStatement(
-                    "SELECT id FROM live_areas WHERE id = ? FOR UPDATE")) {
-                lock.setObject(1, replacementAreaId);
-                lock.executeQuery().close();
+        try {
+            try (Connection holder = dataSource.getConnection()) {
+                holder.setAutoCommit(false);
+                try (PreparedStatement lock = holder.prepareStatement(
+                        "SELECT id FROM live_areas WHERE id = ? FOR UPDATE")) {
+                    lock.setObject(1, replacementAreaId);
+                    lock.executeQuery().close();
+                }
+                Future<List<UUID>> replacing = importing.submit(() -> importer.importPlan(
+                        new LiveMappingImporter.Plan(List.of(mapping(newName, Instant.parse("2026-09-19T20:00:00Z"))))));
+                try {
+                    // Parked on the new link's INSERT, which the plan reaches only after its DELETE ran.
+                    String parked = awaitStatementBlockedBy(backendPid(holder));
+                    assertThat(parked).as("the statement the import waits in")
+                            .contains("INSERT INTO seoul_live_area_maps");
+                    assertThat(jdbc.queryForList("SELECT live_area_id FROM seoul_live_area_maps WHERE place_id = ?",
+                            UUID.class, placeId)).as("what another connection sees mid-replacement")
+                            .containsExactly(areaId);
+                } finally {
+                    // Released on every path, so the import can finish whether or not the lines above held.
+                    holder.rollback();
+                }
+                assertThat(replacing.get(30, TimeUnit.SECONDS)).containsExactly(placeId);
             }
-            Future<List<UUID>> replacing = importing.submit(() -> importer.importPlan(
-                    new LiveMappingImporter.Plan(List.of(mapping(newName, Instant.parse("2026-09-19T20:00:00Z"))))));
-
-            // Parked on the new link's INSERT, which the plan reaches only after its DELETE ran.
-            String parked = awaitStatementBlockedBy(backendPid(holder));
-            assertThat(parked).as("the statement the import waits in").contains("INSERT INTO seoul_live_area_maps");
-            assertThat(jdbc.queryForList("SELECT live_area_id FROM seoul_live_area_maps WHERE place_id = ?",
-                    UUID.class, placeId)).as("what another connection sees mid-replacement").containsExactly(areaId);
-
-            holder.rollback();
-            assertThat(replacing.get(30, TimeUnit.SECONDS)).containsExactly(placeId);
         } finally {
-            importing.shutdownNow();
+            // Joined, not only interrupted: a JDBC call ignores the interrupt, so a worker still writing when
+            // @AfterEach deletes this test's rows races that cleanup - on a failing path above, and under the
+            // gate's one shared database a neighbour's cleanup too. Bounded, so a stuck worker fails loudly.
+            importing.shutdown();
+            assertThat(importing.awaitTermination(30, TimeUnit.SECONDS))
+                    .as("the import finished before this test's rows are removed").isTrue();
         }
         assertThat(jdbc.queryForList("SELECT live_area_id FROM seoul_live_area_maps WHERE place_id = ?",
                 UUID.class, placeId)).containsExactly(replacementAreaId);

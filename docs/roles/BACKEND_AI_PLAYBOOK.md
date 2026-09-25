@@ -2366,7 +2366,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **데이터 쪽 진행**: 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)는 오너가 직접 검토해 승인했다. #367 이 운영 task 둘(`kto-eng-link-import`·`kto-eng-text-refresh`)과 task definition 의 `KTO_ENG_BASE_URL` 을 넣었고, rc.22 에서 연결 import 가 돌았다(`eng_links_processed=3`, [#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). **남은 것**: R4 배포 뒤 오너 셸의 `kto-eng-text-refresh`(EngService2 `detailCommon2` 3회), 그 뒤 en-US 응답 확인과 영문 coverage 보고서다. refresh 는 덕수궁·북촌의 국문 snapshot 에 `sigungu_code` 가 있어야 영문을 쓴다(`EngLinkRule`). 그 값은 확인되지 않았고 refresh 출력의 연결별 outcome 에 드러난다. 그 전에는 이 카드를 닫지 않는다.
 
-`integration-ready`(절마다 test 대조): `T1`~`T28` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T11` 은 원래 "값을 베끼지 않는다"와 "한글로 언어를 판정한다" 두 절을 묶고 있어 `T11`·`T28` 로 나눴고, 두 절을 함께 재던 test 도 둘로 나눴다(Codex 검토). `T1`~`T5`·`T15`~`T28` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
+`integration-ready`(절마다 test 대조): `T1`~`T29` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T11` 은 원래 "값을 베끼지 않는다"와 "한글로 언어를 판정한다" 두 절을 묶고 있어 `T11`·`T28` 로 나눴고, 두 절을 함께 재던 test 도 둘로 나눴다. 글자 비율을 글자만으로 세는 규칙은 `T29` 로 따로 뗐다. `T11` 은 overview marker 만이 아니라 fixture 의 provider 텍스트 값 전부가 report 에 없는지 본다(모두 Codex 검토). `T1`~`T5`·`T15`~`T29` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
@@ -2400,6 +2400,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T26`: 현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다
 - `BA-086-T27`: 호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다
 - `BA-086-T28`: 영문 dataset probe 는 한글 포함 여부로 언어를 판정한다
+- `BA-086-T29`: 영문 dataset probe 의 ASCII 글자 비율은 숫자·구두점·공백을 빼고 글자만 센다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
