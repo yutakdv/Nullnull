@@ -15,6 +15,7 @@ import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
+import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
@@ -58,7 +59,7 @@ function renderLive(initialEntry = '/live', client = createQueryClient()) {
 }
 
 describe('FE-401 Live area list', () => {
-  it('keeps cached areas visible and distinguishes offline from missing data', async () => {
+  it('FE-401-T2 FE-403-T2 keeps cached areas visible and distinguishes offline from missing data', async () => {
     renderLive();
     await screen.findByTestId('live-persistent-state');
     act(() => onlineManager.setOnline(false));
@@ -78,7 +79,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('reports background refresh and retains readings when it fails', async () => {
+  it('FE-401-T2 FE-403-T2 reports background refresh and retains readings when it fails', async () => {
     const client = createQueryClient();
     renderLive('/live', client);
     await screen.findByTestId('live-persistent-state');
@@ -128,7 +129,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('FE-403-T2 renders loading independently from empty and failure', async () => {
+  it('FE-401-T2 FE-403-T2 renders loading independently from empty and failure', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     let release: (() => void) | undefined;
     server.use(
@@ -169,7 +170,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('FE-403-T2 keeps empty, unavailable and request failure as different states', async () => {
+  it('FE-401-T2 FE-403-T2 keeps empty, unavailable and request failure as different states', async () => {
     const unavailable = liveFixture<LiveAreaResult>('area-result-unavailable');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(unavailable)));
 
@@ -428,6 +429,56 @@ describe('FE-401 Live area list', () => {
       ).toHaveAttribute('href', credit.officialUrl ?? '');
     }
   });
+
+  // FCR-005's Live clause. Figma drew '돌아가도 +8분' on the Live candidate
+  // rows; the contract carries no route, so no row may show a route figure —
+  // in either language, on the rows listLiveAreaPlaces fills, not only on the
+  // area list the FE-401-T1 case above reads in English.
+  for (const locale of ['ko-KR', 'en-US'] as const) {
+    it(`FE-401-T5 draws no route figure on a Live place row in ${locale}`, async () => {
+      localStorage.setItem('nullnull.locale', locale);
+      try {
+        const user = userEvent.setup();
+        const places = liveFixture<LivePlace[]>('area-places');
+        server.use(
+          http.post(`${API_BASE}/live/areas`, () =>
+            HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+          ),
+          http.get(`${API_BASE}/live/areas/:areaId/places`, () =>
+            HttpResponse.json(places),
+          ),
+        );
+        renderLive();
+        await user.click(await screen.findByRole('button', { name: /광화문·덕수궁/ }));
+
+        const open = messages[locale]['live.searchOpen'];
+        const rows = await Promise.all(
+          places.map(async (item) =>
+            (
+              await screen.findByRole('link', {
+                name: open.replace('{name}', item.place.name),
+              })
+            ).closest('li'),
+          ),
+        );
+        // The rows are there before their absence is asserted.
+        expect(rows.every((row) => row !== null)).toBe(true);
+        expect(rows).toHaveLength(places.length);
+        expect(places.length).toBeGreaterThan(0);
+        for (const row of rows) {
+          const text = row?.textContent ?? '';
+          expect(text).not.toMatch(
+            /돌아가도|\+\s*\d+\s*분|도보|우회|\d+(?:\.\d+)?\s*(?:km|㎞)/,
+          );
+          expect(text).not.toMatch(
+            /\b(?:walk|walking|detour)\b|\+\s*\d+\s*min|\d+(?:\.\d+)?\s*(?:km|mi|miles?)\b/i,
+          );
+        }
+      } finally {
+        localStorage.removeItem('nullnull.locale');
+      }
+    });
+  }
 
   it('FE-401-T2 shows searching, then no results, as two different states', async () => {
     const user = userEvent.setup();

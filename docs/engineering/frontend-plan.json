@@ -1791,6 +1791,14 @@
         {
           "id": "FE-401-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live에 바로 들어와도 권역 조회는 세션이 생긴 뒤에 나가고 오류 상태를 남기지 않는다"
+        },
+        {
+          "id": "FE-401-T5",
+          "assertion": "Live 장소 행은 계약에 없는 경로 수치(돌아가도 +N분·도보·우회·거리)를 ko·en 어디에서도 그리지 않는다"
+        },
+        {
+          "id": "FE-401-T6",
+          "assertion": "보낸 session cookie가 거절되면 /live 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1847,6 +1855,10 @@
         {
           "id": "FE-402-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live/places/:placeId에 바로 들어와도 장소 조회는 세션이 생긴 뒤에 나간다"
+        },
+        {
+          "id": "FE-402-T5",
+          "assertion": "보낸 session cookie가 거절되면 /live/places/:placeId 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
