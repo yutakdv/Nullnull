@@ -25,7 +25,7 @@ tags:
 | `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C4 registry v2 `DEV_APPROVED`, operation `tatsCnctrRatedList`, schema `kto-tats-cnctr-rate-v4.1`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측. 가장 붐비는 시기를 100으로 둔 날짜 단위 상대값이며 인원·수용률·시간대 예측이 아니다 |
 | `KTO_ENG_SERVICE` | 한국관광공사 영문 관광정보(포털 15101753) | 오너가 검토해 연결한 장소의 영문 이름·주소(BA-086) | registry v1 `DEV_APPROVED`, `P7D`; `detailCommon2`만; `V050` | 번역이 아니라 provider 영문이다. 연결은 오너 검토로만 생기고, 개요·이미지·좌표·코드는 보존하지 않는다 |
 | `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
-| `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | `DISABLED` (B10 전) | area scope, 장소 목록/field 변경, 품질 사고 |
+| `SEOUL_CITYDATA` | 서울 실시간 도시데이터 | Live area 혼잡·지도/목록 | registry v2 `DEV_APPROVED`, enabled, `PT5M`(stale 300초); `V046` | area scope, 장소 목록/field 변경, 품질 사고 |
 | `DEMO_REPLAY` | 검증된 내부 fixture | 시연/외부 장애 fallback | `DISABLED` (B10 전) | 현재 실시간처럼 표시 금지 |
 | `NULLNULL_CATALOG_RULE` | 내부 taxonomy·region 규칙 | C5 `SIMILAR` 대체 후보 | C1 registry v1 `PROD_APPROVED`, `P7D` | 외부 relation 사실·혼잡 근거로 표시 금지 |
 | `NULLNULL_FIRST_PARTY` | 팀이 직접 제작한 일러스트와 편집 자산 | 게시물 표지(A-024) | registry v1 `PROD_APPROVED`, `P7D`; `V021`이 심는다 | 사진이 아닌 명시적 일러스트만. 실재 장소를 사진처럼 렌더한 합성 이미지는 불변식 6을 깨므로 금지 |

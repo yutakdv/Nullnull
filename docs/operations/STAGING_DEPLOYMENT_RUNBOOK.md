@@ -292,7 +292,7 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
 
-**무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있고, 해제 도구는 없다. `DemoRefreshFailed`가 그때 울린다.
+**무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있다. `DemoRefreshFailed`가 그때 울린다. 해제는 사람이 원인을 확인한 뒤 ops task `release-source-quarantine`으로 한다(§11).
 
 `staging_operator.py`는 ops task를 **local 전용**으로 못박으므로(`ops-tasks-are-local-only`) schedule은 그 operator를 거치지 않고 ECS `RunTask`를 직접 부른다. 같은 task definition·image·revision을 쓰되 operator가 하던 것 중 빠지는 것이 있다.
 
@@ -488,7 +488,7 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 
 - 호출 경로: KTO gateway를 부르는 것은 운영 명령뿐이다(`KtoSmokeMain`·`KtoForecastSmokeMain`·`KtoDemoRefresh`). **앱의 요청 경로는 KTO를 부르지 않고 저장된 snapshot만 읽는다** — 공개 뒤 심사 트래픽은 쿼터를 쓰지 않는다.
 - 양: schedule은 장소 둘(`FORECAST_DEMO_PLACES`)을 예보 12시간·detail 5일 간격으로, 만료가 가까운 것만 갱신한다(A-044, 하루 약 4건). 호출 실패 시 schedule 재시도는 최대 3회다. 사람이 돌리는 `kto-smoke`·수동 재적재는 한 번에 1~5건이다. task마다 `KTO_DEMO_REFRESH_QUOTA … per_day=1000 planned_ratio=…` 줄이 남는다.
-- 쿼터보다 큰 위험: 거절된 응답(schema drift·provider 오류)은 `KTO_KOR_SERVICE_2` source를 격리하고 **해제 도구가 없다**(§11). 그 동안 화면은 `UNAVAILABLE`을 사실대로 표시한다. 해제는 운영자의 DB 작업이다.
+- 쿼터보다 큰 위험: 거절된 응답(schema drift·provider 오류)은 `KTO_KOR_SERVICE_2` source를 격리한다. 그 동안 화면은 `UNAVAILABLE`을 사실대로 표시한다. 해제는 오너가 원인을 보고 판단한 뒤 ops task `release-source-quarantine`으로 한다(§11).
 - 오너 판단(2026-09-20): 쿼터로 멈출 지점 없음을 받아들인다. 개발 키의 활용기간이 운영 종료일(2026-10-25) 뒤까지인지는 오너가 data.go.kr에서 확인한다.
 
 **시나리오 3 — 배포 실패와 rollback 판단.** 이 날 배포 실패 셋이 실제 사례다.
@@ -702,7 +702,8 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - alarm subscription과 synthetic test는 별도 스크립트이며 이메일 값을 출력하지 않는다.
 - restore drill은 plan이 기본이며 `--execute` 뒤에도 restore DB를 자동 삭제하거나 공개 연결하지 않는다.
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
-- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리한다** — 격리 동안 그 source의 호출이 모두 멈추므로, release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `release-source-quarantine`은 최신 collector run이 `QUARANTINED`인 source를 오너 판단으로 다시 연다(`SourceQuarantineReleaseMain`, BA-020-T4~T8). 격리된 run은 그대로 두고 검토된 `RESOLVED` incident만 쓴다. 호출자 환경의 `NULLNULL_SOURCE_RELEASE_APPROVED=true`와 `--source-code`·`--owner-approval`이 필요하다. 성공 줄은 `source_quarantine_released source=… run=…` 하나다. 최신 run이 격리가 아니면 main이 `source_quarantine_release_refused … reason=not-quarantined`를 찍고, operator는 그 실행을 `source-not-released`로 실패시킨다. 그래서 먼저 `GET /api/v1/health/ready`에서 격리를 확인한다. 명령: `NULLNULL_SOURCE_RELEASE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull python3 scripts/aws/staging_operator.py task --task release-source-quarantine --source-code KTO_KOR_SERVICE_2 --owner-approval '<누가·어디서 승인했는지>'`.
 - `kto-eng-link-import`는 `curate-live-maps`와 같은 승인 plan 경로다.
   - 성공 조건: sha 줄, 장소마다 `eng_link <placeId> PROCESSED` 한 줄, `eng_links_processed=<n>`, 그리고 실패 줄이 없어야 한다.
   - 근거 URL은 plan 파일에만 남고 출력되지 않는다.
@@ -752,7 +753,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-072-T3` | 수신자 부재·비용/쿼터·rollback 판단 tabletop 기록(A-049, 실제 재현 아님). secondary는 A-043으로 없다 |
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
 | `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
-| `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
+| `BA-073-T4` | 제출 release의 게이트 E2E report에 `BA-073-T4`를 단 testcase가 통과한 기록. `attribution.integration.spec.ts`(#382)의 제목이 그 ID를 단다 |
 | `BA-073-T5` | 제출 release의 게이트 E2E report에 `BA-073-T5`를 단 testcase가 모두 통과한 기록. FE-603-T1(`location-off.spec.ts`)의 제목이 그 ID를 단다(화면마다 1건과 전체 1건) |
 | `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
