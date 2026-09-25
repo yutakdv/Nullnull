@@ -60,8 +60,8 @@ class KtoEngServiceProbeMainTest {
     }
 
     @Test
-    @DisplayName("BA-086-T11 an English value and a Korean one are told apart without quoting either")
-    void languageIsMeasuredNotQuoted() {
+    @DisplayName("BA-086-T28 an English value and a Korean one are told apart by whether they carry Hangul")
+    void languageIsMeasured() {
         String english = String.join("\n",
                 KtoEngServiceProbeMain.report(body("Gyeongbokgung Palace", "1", ""), "126508"));
         assertThat(english).contains("name=title type=scalar length=20 empty=false asciiLetterPercent=100 hangul=false");
@@ -69,11 +69,18 @@ class KtoEngServiceProbeMainTest {
         // The failure this exists to catch: the English endpoint echoing the Korean title back.
         String echoed = String.join("\n", KtoEngServiceProbeMain.report(body("경복궁", "1", ""), "126508"));
         assertThat(echoed).contains("name=title").contains("asciiLetterPercent=0").contains("hangul=true");
-        assertThat(echoed).doesNotContain("경복궁");
     }
 
     @Test
-    @DisplayName("BA-086-T11 punctuation and digits do not drag a value towards the middle")
+    @DisplayName("BA-086-T11 a Korean title echoed back is measured, not quoted")
+    void anEchoedKoreanTitleIsNotQuoted() {
+        // T28 decides the echo is Korean; this is the other clause - deciding it does not print it.
+        String echoed = String.join("\n", KtoEngServiceProbeMain.report(body("경복궁", "1", ""), "126508"));
+        assertThat(echoed).contains("name=title").doesNotContain("경복궁");
+    }
+
+    @Test
+    @DisplayName("BA-086-T28 punctuation and digits do not drag a value towards the middle")
     void onlyLettersCountTowardsTheLanguageShare() {
         // "161 Sajik-ro, Jongno-gu, Seoul" is 30 characters, of which the digits, spaces, hyphens
         // and commas are language-neutral. Counting them would report something near 70% for a

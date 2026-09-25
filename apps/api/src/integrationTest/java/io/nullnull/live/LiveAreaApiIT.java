@@ -14,9 +14,12 @@ import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
@@ -41,6 +44,7 @@ import org.springframework.test.web.servlet.MvcResult;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("BA-091 queryLiveAreas over HTTP")
 class LiveAreaApiIT {
@@ -101,10 +105,12 @@ class LiveAreaApiIT {
      * which is where a later "log the rejected box for debugging" line, or a handler that logs the
      * cause it was handed, would show up. The viewport travels in the body, so the access log's
      * query switch is not the channel here; what is, is any line written while the request ran.
+     * Logback is one writer and not the only one: a System.out or System.err print never reaches an
+     * appender, so the process's own standard streams are searched too.
      */
     @Test
     @DisplayName("BA-091-T4 viewport 거절이 좌표를 로그에 남기지 않는다")
-    void aRefusedViewportLeavesItsCoordinatesInNoLogLine() throws Exception {
+    void aRefusedViewportLeavesItsCoordinatesInNoLogLine(CapturedOutput console) throws Exception {
         String cookie = sessions.bootstrap(null, "ko-KR", "Asia/Seoul").cookie;
         ListAppender<ILoggingEvent> logs = new ListAppender<>();
         logs.start();
@@ -133,6 +139,11 @@ class LiveAreaApiIT {
             assertThat(written).doesNotContain(PRECISE_WEST, PRECISE_SOUTH, PRECISE_EAST, PRECISE_NORTH);
             assertThat(written).doesNotContain("126.977", "37.579", "126.988", "37.589");
         });
+        // The streams: the console appender writes the same access line there, which is what shows this
+        // capture saw the request too.
+        assertThat(console.getAll()).contains("method=POST route=/live/areas status=422");
+        assertThat(console.getAll()).doesNotContain(PRECISE_WEST, PRECISE_SOUTH, PRECISE_EAST, PRECISE_NORTH);
+        assertThat(console.getAll()).doesNotContain("126.977", "37.579", "126.988", "37.589");
     }
 
     @Test
