@@ -3623,7 +3623,7 @@
       "phase": "B09",
       "priority": "P1",
       "title": "영문 POI coverage·번역 품질",
-      "status": "in-progress",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-022"
       ],
