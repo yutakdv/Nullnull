@@ -1637,40 +1637,64 @@
       "id": "FE-P1-104",
       "phase": "B09",
       "priority": "P1",
-      "title": "게시물 작성·media upload·moderation 상태",
-      "status": "blocked",
-      "reason": "디자이너가 /posts/new 신규 화면을 제작 중이고 BA-082의 upload·moderation·license 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 /posts/new 진입점을 노출하지 않고 upload 요청을 보내지 않는 것이다.",
+      "title": "게시물 작성 /posts/new: 표지 업로드·장소 연결·즉시 공개(A-058)",
+      "status": "in-progress",
       "dependsOn": [
         "FE-202",
         "BA-082"
       ],
-      "operations": [],
+      "operations": [
+        "createPostImageUpload",
+        "createPost",
+        "searchPlaces",
+        "listTrips"
+      ],
       "featureIds": [
         "FR-PUB-01"
       ],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "사용자가 /posts/new 디자인 완료를 알린 뒤 확정 node와 작성·업로드 상태를 handoff에 등록한다",
-        "승인된 upload session·moderation·license 계약과 generated client를 검토한다",
-        "draft·progress·cancel·expiry·failure·pending·rejected 상태와 이탈 복구를 구현한다"
+        "post-create.test.tsx의 '#312' case를 본문과 대조해 증명하는 절의 ID(T2·T4~T8)를 단다. 이름만 옮기지 않는다. T1(권리 문구)을 재는 case는 아직 없으므로 새로 쓴다",
+        "브라우저 증거가 게이트에서 제외되는 post-create.mock.spec.ts뿐이므로 composed spec을 만들지, mock spec을 게이트에서 돌릴지 정한다",
+        "FR-PUB-01을 P0로 올리려면 FUNCTIONAL_INVENTORY와 BA-082 priority를 같은 PR에서 바꾼다. validate_backend_plan이 카드와 inventory의 우선순위 불일치를 거절한다"
       ],
-      "safety": "디자인과 계약 승인 전에는 /posts/new route·CTA·upload 요청을 추가하지 않는다. 권리 확인 전 publish하지 않고 moderation 사유를 응답 근거 없이 만들어내지 않는다.",
+      "safety": "여행이 없거나 여행 조회가 실패하면 작성 입력을 그리지 않는다. 표지는 표준 파일 입력 하나이고(capture 없음, 계약 형식 JPEG·PNG) 카메라를 직접 열지 않는다(A-057). 권리 동의는 체크박스가 아니라 문구로 알린다(#312). createPost가 201로 답하기 전에는 게시됐다고 표시하지 않고, 결과를 모르는 실패는 같은 Idempotency-Key와 body로만 다시 보낸다. 서버가 주지 않은 거절 사유를 만들어내지 않는다.",
       "tests": [
         {
           "id": "FE-P1-104-T1",
-          "assertion": "upload progress·cancel·expiry·failure가 draft를 조용히 잃지 않고 권리 확인 전 publish하지 않는다"
+          "assertion": "권리 동의는 체크박스 없이 게시 버튼 곁의 문구로 보인다(#312)"
         },
         {
           "id": "FE-P1-104-T2",
-          "assertion": "moderation pending·rejected를 구분하고 서버가 주지 않은 거절 사유를 만들어내지 않는다"
+          "assertion": "createPost가 201로 답하기 전에는 게시됐다고 표시하거나 게시물로 이동하지 않는다(A-058 동기 완결, moderation 대기 상태 없음)"
         },
         {
           "id": "FE-P1-104-T3",
           "assertion": "작성 중 이탈·복구와 focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+        },
+        {
+          "id": "FE-P1-104-T4",
+          "assertion": "표지 업로드가 끝나지 않았으면(실패·취소 포함) 게시 요청을 보낼 수 없다"
+        },
+        {
+          "id": "FE-P1-104-T5",
+          "assertion": "결과를 모르는 게시 실패는 같은 Idempotency-Key와 같은 body로만 다시 보낸다"
+        },
+        {
+          "id": "FE-P1-104-T6",
+          "assertion": "여행이 없는 owner의 feed에는 게시물 작성 진입점이 없다"
+        },
+        {
+          "id": "FE-P1-104-T7",
+          "assertion": "여행이 없는 owner가 /posts/new에 바로 들어오면 업로드 입력 대신 여행 만들기 링크를 보인다"
+        },
+        {
+          "id": "FE-P1-104-T8",
+          "assertion": "여행 조회 실패를 여행 없음으로 읽지 않는다"
         }
       ],
-      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-082 계약·example·generated client, upload 취소·expiry와 moderation 상태가 모두 있어야 blocked를 해제한다.",
+      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
