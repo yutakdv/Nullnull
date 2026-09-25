@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { watchLocation } from './location-watch.js';
 import { overflow } from './overflow.js';
 
 // FE-403 (#99): the Live list in LIVE and in REPLAY, at 360px and at 180px -
@@ -480,6 +481,42 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     const places = JSON.parse(AREA_PLACES) as { place: { name: string } }[];
     await expect(main.locator('li a[data-live-place-link]')).toHaveCount(places.length);
     expect(await main.innerText()).not.toMatch(DELTA[locale]);
+    expect(unexpected, 'calls this file does not serve').toEqual([]);
+  });
+}
+
+// BA-092-T18: no screen asks for a location while the map SDK is off.
+// location-off.spec.ts walks every route, but in the gate its two Live entries
+// meet FEATURE_LIVE_DATA off and draw only the 403. The release runs Live on,
+// so the list and the detail are watched here, drawn from the approved
+// examples, with the same three watches. The map with the SDK loaded is not
+// here: the gate has no key and no egress, and that screen is BA-092-T20,
+// checked on staging.
+for (const [name, path] of [
+  ['the Live list, an area opened', '/live'],
+  ['the Live place detail', `/live/places/${DETAIL_PLACE.id}`],
+] as const) {
+  test(`BA-092-T18 ${name} asks for no location with the map off`, async ({ page }) => {
+    const watch = await watchLocation(page);
+    const unexpected = await serve(page, 'LIVE');
+    await page.goto(path);
+    // The screen with Live on, not the 403: the watches have something to watch.
+    if (path === '/live') {
+      await page.locator('button[aria-expanded]', { hasText: '광화문·덕수궁' }).click();
+      await expect(page.locator('li a[data-live-place-link]')).toHaveCount(
+        (JSON.parse(AREA_PLACES) as unknown[]).length,
+      );
+    } else {
+      await expect(
+        page.getByRole('heading', { level: 1, name: DETAIL_PLACE.name }),
+      ).toBeVisible();
+    }
+
+    const seen = await watch.report();
+    expect(seen.asked, 'the geolocation wrapper was not installed').not.toBeNull();
+    expect(seen.asked, `${name} called the geolocation API`).toEqual([]);
+    expect(seen.dialogs, `${name} opened a permission prompt`).toEqual([]);
+    expect(seen.leaked, `${name} sent something shaped like a coordinate`).toEqual([]);
     expect(unexpected, 'calls this file does not serve').toEqual([]);
   });
 }
