@@ -122,10 +122,11 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await useLocale(page, locale);
     await page.goto(LIVE_PLACE_PATH);
     const bar = page.getByRole('img', {
-      name: ko ? /서울 혼잡도 4단계/ : /Seoul crowd level .* of 4/,
+      name: ko ? /서울 혼잡도 4단계 중/ : /Seoul crowd level .* of 4/,
     });
     await expect(bar).toBeVisible();
-    await expect(bar.locator(':scope > span')).toHaveCount(4);
+    await expect(bar.locator(':scope > span')).toHaveCount(5);
+    await expect(bar.locator(':scope > span[data-unpublished]')).toHaveCount(1);
     await page
       .getByRole('button', { name: ko ? '라이브로 돌아가기' : 'Back to Live' })
       .click();

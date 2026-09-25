@@ -19,6 +19,7 @@ import {
   PlaceAttribution,
   type SourceState,
   StateLabel,
+  type StateWording,
 } from '../../shared/ui/index.js';
 import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
@@ -86,9 +87,10 @@ export function LivePlaceScreen() {
   const addKey = useRef<{ placeId: string; value: string } | null>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const restoreSaveFocus = useRef(false);
-  const stateLabels = Object.fromEntries(
-    STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-  ) as Partial<Record<SourceState, string>>;
+  const stateLabels = Object.fromEntries([
+    ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
+    ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
+  ]) as Partial<Record<StateWording, string>>;
 
   useEffect(() => {
     if (!addCandidate.isPending && restoreSaveFocus.current) {
@@ -184,6 +186,7 @@ export function LivePlaceScreen() {
             <StateLabel
               labels={stateLabels}
               observedAt={referenceLabel(detail.data.crowd?.provenance ?? null)}
+              qualityFlags={detail.data.crowd?.provenance.qualityFlags}
               state={detail.data.dataState}
             />
           </div>
@@ -196,24 +199,6 @@ export function LivePlaceScreen() {
             <h2 id="live-place-crowd">{t('live.detail.crowd')}</h2>
             <CrowdLevel
               crowd={detail.data.crowd ?? null}
-              levelLabel={
-                detail.data.crowd?.provenance.source === 'SEOUL_CITYDATA' &&
-                detail.data.crowd.ordinalLevel
-                  ? t('live.crowd.seoul.levelLabel', {
-                      level: detail.data.crowd.ordinalLevel,
-                    })
-                  : undefined
-              }
-              levelLabels={
-                detail.data.crowd?.provenance.source === 'SEOUL_CITYDATA'
-                  ? {
-                      1: t('live.crowd.seoul.level1'),
-                      2: t('live.crowd.seoul.level2'),
-                      3: t('live.crowd.seoul.level3'),
-                      4: t('live.crowd.seoul.level4'),
-                    }
-                  : undefined
-              }
               stateLabels={stateLabels}
               unavailableReason={t('live.noReading')}
             />

@@ -674,15 +674,7 @@ function TripItemRow({
         </p>
       ) : null}
 
-      {item.crowd ? (
-        <CrowdLevel
-          crowd={item.crowd}
-          levelLabel={t('crowd.level', {
-            level: item.crowd.ordinalLevel ?? '',
-            steps: 5,
-          })}
-        />
-      ) : null}
+      {item.crowd ? <CrowdLevel crowd={item.crowd} /> : null}
 
       {/* CMP-ATT-001: a KTO-sourced place carries its credit wherever it
           appears, shown verbatim (CMP-ATT-003). This row rendered the place

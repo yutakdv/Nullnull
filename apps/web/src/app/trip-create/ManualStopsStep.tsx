@@ -76,7 +76,7 @@ export function ManualStopsStep({
   // picker under the day whose button was pressed.
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(addingTo === null ? '' : query);
+  const search = usePlaceSearch(addingTo === null ? '' : query, locale);
 
   const days = tripDays(draft);
 

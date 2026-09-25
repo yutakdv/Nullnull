@@ -390,6 +390,10 @@
         {
           "id": "FE-103-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-103-T4",
+          "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1787,6 +1791,14 @@
         {
           "id": "FE-401-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live에 바로 들어와도 권역 조회는 세션이 생긴 뒤에 나가고 오류 상태를 남기지 않는다"
+        },
+        {
+          "id": "FE-401-T5",
+          "assertion": "Live 장소 행은 계약에 없는 경로 수치(돌아가도 +N분·도보·우회·거리)를 ko·en 어디에서도 그리지 않는다"
+        },
+        {
+          "id": "FE-401-T6",
+          "assertion": "보낸 session cookie가 거절되면 /live 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1843,6 +1855,10 @@
         {
           "id": "FE-402-T4",
           "assertion": "쿠키 없는 첫 방문으로 /live/places/:placeId에 바로 들어와도 장소 조회는 세션이 생긴 뒤에 나간다"
+        },
+        {
+          "id": "FE-402-T5",
+          "assertion": "보낸 session cookie가 거절되면 /live/places/:placeId 직접 진입은 새 세션을 만들지 않고 세션 종료 화면을 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1885,6 +1901,14 @@
         {
           "id": "FE-403-T3",
           "assertion": "list-first 화면의 keyboard focus·접근성 이름과 360px·200% zoom·ko/en·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-403-T4",
+          "assertion": "혼잡 막대는 서버 ordinalScale의 칸 수로 그리고 source가 발표하지 않는 칸은 비운 칸으로 둔다(서울은 5칸 중 1~4, A-060)"
+        },
+        {
+          "id": "FE-403-T5",
+          "assertion": "혼잡 막대의 접근성 이름은 source가 발행한 단계 수로 읽고 막대 칸 수로 읽지 않는다(서울은 4단계 중 N번째)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

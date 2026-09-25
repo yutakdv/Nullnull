@@ -325,7 +325,48 @@ describe('FE-301-T1 renders no value the contract does not carry', () => {
     expect(screen.getByText('관광지')).toBeInTheDocument();
     expect(screen.getByText('종로구')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Level 4 of 5' })).toBeInTheDocument();
-    expect(screen.getByText('4 · 혼잡')).toBeInTheDocument();
+    // The English screen's own word. This line pinned '4 · 혼잡' - the Korean
+    // default CrowdLevel fell back to when the trip screen passed no words.
+    expect(screen.getByText('4 · Crowded')).toBeInTheDocument();
+    expect(screen.queryByText('4 · 혼잡')).not.toBeInTheDocument();
+  });
+
+  it("FE-403-T5 names a stop's reading by the steps its source publishes, not a fixed five", async () => {
+    // The trip passed 'Level N of 5' whatever the scale. A source that
+    // publishes four of the five cells is 'N of 4' (the contract's rule).
+    const firstDay = trip.days[0];
+    const firstItem = firstDay?.items[0];
+    if (!firstDay || !firstItem) throw new Error('fixture shape changed');
+    const detailed = {
+      ...trip,
+      days: [
+        {
+          ...firstDay,
+          items: [
+            {
+              ...firstItem,
+              crowd: {
+                ...crowdFixtures.seriesForecast.points[0],
+                ordinalLevel: '3',
+                ordinalScale: { size: 5, publishedCells: ['1', '2', '3', '4'] },
+              },
+            },
+            ...firstDay.items.slice(1),
+          ],
+        },
+        ...trip.days.slice(1),
+      ],
+    };
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(detailed, { headers: { ETag: '"3"' } }),
+      ),
+    );
+
+    renderTrip();
+    await loaded();
+
+    expect(screen.getByRole('img', { name: 'Level 3 of 4' })).toBeInTheDocument();
   });
 
   it('shows real stops without route distance or travel-time claims (FCR-005 trace)', async () => {

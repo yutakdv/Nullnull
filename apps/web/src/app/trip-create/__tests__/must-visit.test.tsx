@@ -138,7 +138,7 @@ describe('searching for a place keeps the query out of every URL', () => {
     await searchFor('경복궁');
 
     await waitFor(() => {
-      expect(body).toEqual({ query: '경복궁' });
+      expect(body).toEqual({ query: '경복궁', locale: 'en-US' });
     });
     const search = requests.filter((r) => r.url.includes('/places/search'));
     expect(search.every((r) => r.method === 'POST')).toBe(true);
