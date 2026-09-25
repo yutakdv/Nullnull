@@ -14,6 +14,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
+import { placeFixtures } from '@nullnull/contracts';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
@@ -178,6 +179,54 @@ describe('FE-104-T1 the paste is read without being kept', () => {
     expect(screen.getByRole('button', { name: copy['import.parse'] })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: copy['import.parse'] }));
     expect(seen.some((r) => r.url.includes('/trip-imports/parse'))).toBe(false);
+  });
+});
+
+describe('FE-603-T5 every place the draft shows carries its credit', () => {
+  // The review list named each place the parser found, and each place it
+  // offered for an unresolved line, with no credit anywhere on the screen —
+  // the file never read `sourceAttribution`, so the file-level scan
+  // (FE-603-T4) had no reason to look at it. The MSW draft is built from the
+  // search fixture's credited places (handlers.ts buildImportDraft).
+  const [first, second, third] = placeFixtures.searchPage.items;
+
+  it('credits each place row', async () => {
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+
+    for (const place of [first, second]) {
+      const credit = place?.sourceAttribution;
+      if (!place || !credit) throw new Error('the search fixture lost a credited place');
+      const drop = screen.getByRole('button', {
+        name: copy['import.item.dismiss'].replace('{name}', place.name),
+      });
+      const row = drop.closest('li') as HTMLElement;
+      expect(
+        within(row).getByRole('link', { name: credit.attribution }),
+        place.name,
+      ).toHaveAttribute('href', credit.officialUrl ?? '');
+    }
+  });
+
+  it('credits each offered place beside its button, not inside it', async () => {
+    const credit = third?.sourceAttribution;
+    if (!third || !credit) throw new Error('the search fixture lost a credited place');
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+
+    const pick = screen.getByRole('button', {
+      name: copy['import.token.pick'].replace('{name}', third.name),
+    });
+    // A link inside a button is an interactive element nested in another,
+    // which neither a pointer nor a screen reader can reach on its own.
+    expect(within(pick).queryByRole('link')).toBeNull();
+    const offer = pick.parentElement as HTMLElement;
+    expect(within(offer).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
   });
 });
 

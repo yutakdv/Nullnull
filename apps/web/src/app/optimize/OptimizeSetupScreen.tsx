@@ -9,7 +9,7 @@ import { useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useCreateOptimization, useTrip } from '../../shared/api/index.js';
-import { Chip, DataAttribution, IconClose, SheetGrab } from '../../shared/ui/index.js';
+import { Chip, IconClose, PlaceAttribution, SheetGrab } from '../../shared/ui/index.js';
 import { formatTime } from '../trip/trip-view.js';
 import { TripScreen } from '../trip/TripScreen.js';
 import styles from './OptimizeSetupScreen.module.css';
@@ -446,9 +446,7 @@ export function OptimizeSetupScreen() {
                     the button rather than inside it — DataAttribution renders
                     the text as a link to the source, and a link nested in a
                     button is neither valid nor operable. */}
-                  {item.place.sourceAttribution ? (
-                    <DataAttribution compact provenance={item.place.sourceAttribution} />
-                  ) : null}
+                  <PlaceAttribution compact place={item.place} />
                 </li>
               );
             })}

@@ -7,7 +7,8 @@ import {
   Chip,
   ConfirmDialog,
   CrowdLevel,
-  DataAttribution,
+  PlaceAttribution,
+  unitCredits,
 } from '../../shared/ui/components/index.js';
 import {
   IconDateLock,
@@ -640,9 +641,9 @@ function TripItemRow({
           </p>
         ) : null}
 
-        {item.place.sourceAttribution ? (
+        {unitCredits([item.place]).length > 0 ? (
           <div className={styles.itemAttribution}>
-            <DataAttribution compact provenance={item.place.sourceAttribution} />
+            <PlaceAttribution compact place={item.place} />
           </div>
         ) : null}
       </article>
@@ -696,14 +697,15 @@ function TripItemRow({
           neither stands in for the other (SOURCE_CATALOG, provenance
           primitives). This was a ternary that dropped the place credit
           whenever the stop had a forecast. */}
-      {item.place.sourceAttribution || item.crowd ? (
+      {/* Both read `출처: ⓒ한국관광공사` when the forecast is KTO's, so the
+          forecast's names its source beside it (FE-603-T7, #383 review). */}
+      {unitCredits([item.place], item.crowd ? [item.crowd.provenance] : []).length > 0 ? (
         <div className={styles.itemAttribution}>
-          {item.place.sourceAttribution ? (
-            <DataAttribution compact provenance={item.place.sourceAttribution} />
-          ) : null}
-          {item.crowd ? (
-            <DataAttribution compact provenance={item.crowd.provenance} />
-          ) : null}
+          <PlaceAttribution
+            also={item.crowd ? [item.crowd.provenance] : undefined}
+            compact
+            place={item.place}
+          />
         </div>
       ) : null}
 

@@ -13,12 +13,12 @@
 // that never polls at all both LOOK right in a snapshot, so the request count
 // is what the assertions are made of.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tripFixtures } from '@nullnull/contracts';
+import { optimizationFixtures, tripFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -684,5 +684,130 @@ describe('FE-502 an unknown failure code folds to the generic message', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(copy['run.failure.unknown'])).toBeNull();
     view.unmount();
+  });
+});
+
+describe('the run screen credits the places a proposal names (CMP-ATT-001)', () => {
+  // The fixture proposal moves 인사동, a stop of the trip it was computed from.
+  // The screen already reads that trip, and the card's credit comes from it.
+  const READY = optimizationFixtures.runReady;
+  const insadong = trip.days
+    .flatMap((day) => day.items)
+    .find((item) => item.place.id === '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03')?.place;
+  const credit = insadong?.sourceAttribution;
+  if (!insadong || !credit) throw new Error('the trip fixture lost its credited 인사동');
+
+  function readyWithTrip(answer: () => Response) {
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () => HttpResponse.json(READY)),
+      http.get(`${API_BASE}/trips/:tripId`, answer),
+    );
+  }
+
+  it('FE-603-T5 draws the credit of the place the proposal moves', async () => {
+    readyWithTrip(() =>
+      HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } }),
+    );
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    await waitFor(() => {
+      const hrefs = within(card)
+        .getAllByRole('link', { name: credit.attribution })
+        .map((link) => link.getAttribute('href'));
+      expect(hrefs).toContain(credit.officialUrl);
+    });
+  });
+
+  it('FE-603-T9 says a place went uncredited when the trip cannot be read', async () => {
+    // NOT_FOUND — the trip was deleted after the run began — is final, so the
+    // query settles on it; INTERNAL_ERROR would be retried and stay pending.
+    readyWithTrip(() => problemResponse('NOT_FOUND'));
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    expect(
+      await within(card).findByText(copy['run.proposal.placeCreditMissingAll']),
+    ).toBeVisible();
+  });
+});
+
+describe('FE-603-T10 a stale run keeps every credit today’s trip has', () => {
+  // The trip moved on after the run (inputTripVersion behind), often for a
+  // reason unrelated to the named place. The summary may name that place in
+  // another dataset's words — here its English name — so dropping today's
+  // text credit would show those words with only the record's credit. A
+  // missing credit is worse than one the summary did not need, so a stale run
+  // is credited exactly like a current one. The English credit is the V050
+  // registry row, put on 인사동 here because no fixture carries one.
+  const READY = optimizationFixtures.runReady;
+  const ENG_URL = 'https://www.data.go.kr/data/15101753/openapi.do';
+  const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
+  const days = trip.days.map((day) => ({
+    ...day,
+    items: day.items.map((item) =>
+      item.place.id === INSADONG
+        ? {
+            ...item,
+            place: {
+              ...item.place,
+              name: 'Insadong',
+              textProvenance: {
+                name: {
+                  locale: 'en',
+                  sourceAttribution: {
+                    source: 'KTO_ENG_SERVICE',
+                    sourceDisplayName: '한국관광공사 영문 관광정보',
+                    sourceRegistryVersion: 1,
+                    attribution: '출처: ⓒ한국관광공사',
+                    officialUrl: ENG_URL,
+                    licenseUrl: 'https://www.data.go.kr/ugs/selectPortalPolicyView.do',
+                    license: '이용허락범위 제한 없음 (관광정보 텍스트; 이미지 별도 심사)',
+                  },
+                },
+                address: null,
+                description: null,
+              },
+            },
+          }
+        : item,
+    ),
+  }));
+
+  it('credits the English name an English summary uses, though the run is stale', async () => {
+    const proposal = READY.proposals[0];
+    if (!proposal) throw new Error('run-ready.json has no proposal');
+    server.use(
+      http.get(`${API_BASE}/optimizations/:runId`, () =>
+        HttpResponse.json({
+          ...READY,
+          inputTripVersion: trip.version,
+          proposals: [
+            {
+              ...proposal,
+              summary:
+                'Moving Insadong from 4 Oct 13:00 to 7 Oct 13:00 lowers its relative concentration.',
+            },
+          ],
+        }),
+      ),
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          { ...trip, version: trip.version + 1, days },
+          { headers: { ETag: `"${String(trip.version + 1)}"` } },
+        ),
+      ),
+    );
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    await waitFor(() => {
+      expect(within(card).getAllByRole('link').length).toBeGreaterThan(0);
+    });
+    const hrefs = within(card)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+    expect(hrefs).toContain('https://www.data.go.kr/data/15101578/openapi.do');
+    expect(hrefs).toContain(ENG_URL);
   });
 });

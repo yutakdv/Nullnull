@@ -1,6 +1,6 @@
 import type { components } from '@nullnull/api-client';
 import { CrowdLevel } from './CrowdLevel.js';
-import { DataAttribution } from './DataAttribution.js';
+import { PlaceAttribution } from './PlaceAttribution.js';
 import type { SourceState } from './StateLabel.js';
 import { TripAddButton, type TripAddState } from './TripAddButton.js';
 import styles from './FeedPostCard.module.css';
@@ -83,16 +83,12 @@ export function FeedPostCard({
             `crowd`. It was: the only DataAttribution here was gated on crowd,
             so a card with a KTO place and no crowd figure carried no credit at
             all. Half the default feed is that shape. */}
-        {primaryPlace.sourceAttribution ? (
-          <DataAttribution compact provenance={primaryPlace.sourceAttribution} />
-        ) : null}
-        {crowd ? (
-          <DataAttribution
-            compact
-            provenance={crowd.provenance}
-            termsLabel={labels?.licenseTerms}
-          />
-        ) : null}
+        <PlaceAttribution
+          also={crowd ? [crowd.provenance] : undefined}
+          compact
+          place={primaryPlace}
+          termsLabel={labels?.licenseTerms}
+        />
       </div>
 
       <div className={styles.action}>

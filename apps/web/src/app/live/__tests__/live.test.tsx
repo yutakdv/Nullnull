@@ -276,7 +276,7 @@ describe('FE-401 Live area list', () => {
     expect(areaPlaceRequests).toBe(1);
   });
 
-  it('shows a selected place at its detail coordinates without inventing area centroids', async () => {
+  it('FE-603-T5 shows a selected place at its detail coordinates without inventing area centroids', async () => {
     vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', 'test-key');
     const centers: unknown[] = [];
     window.kakao = {
@@ -340,7 +340,14 @@ describe('FE-401 Live area list', () => {
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toBeVisible();
-    expect(screen.getByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    // The marker is an overlay and holds no link, so the map's credits sit
+    // under it. Scoped there: every search result carries the same words.
+    const credit = detail.place.sourceAttribution;
+    if (!credit) throw new Error('the live place fixture lost its credit');
+    const mapCredits = document.querySelector('[data-map-credits]') as HTMLElement;
+    expect(
+      within(mapCredits).getByRole('link', { name: credit.attribution }),
+    ).toHaveAttribute('href', credit.officialUrl ?? '');
     await user.click(marker);
     expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
   });
@@ -388,6 +395,38 @@ describe('FE-401 Live area list', () => {
       `/live/places/${placeFixtures.searchPage.items[0]?.id}`,
     );
     expect(result).not.toHaveTextContent('›');
+  });
+
+  it('FE-603-T5 credits each place a search returns', async () => {
+    // The result row named a catalogue place with no credit; the same place
+    // chosen onto the map was credited under it. Each row is checked through
+    // its own detail link, so a credit elsewhere on the screen cannot pass.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    // Without this the loop could run over nothing and assert nothing.
+    expect(placeFixtures.searchPage.items.length).toBeGreaterThan(0);
+    for (const place of placeFixtures.searchPage.items) {
+      const credit = place.sourceAttribution;
+      if (!credit) throw new Error(`${place.name} lost its credit in the fixture`);
+      const link = await screen.findByRole('link', {
+        name: new RegExp(`View Live information for ${place.name}`, 'i'),
+      });
+      const row = link.closest('li') as HTMLElement;
+      expect(
+        within(row).getByRole('link', { name: credit.attribution }),
+        place.name,
+      ).toHaveAttribute('href', credit.officialUrl ?? '');
+    }
   });
 
   it('FE-401-T2 shows searching, then no results, as two different states', async () => {
@@ -859,6 +898,59 @@ describe('FE-402 Live place detail', () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByRole('img')).toBeNull();
     expect(within(row as HTMLElement).getByText(/different basis/i)).toBeVisible();
+  });
+
+  it('FE-603-T5 credits an alternative place apart from the relation', async () => {
+    // The row credited the relation (item.provenance) and not the place it
+    // named. The two are different records: the place is a catalogue entry,
+    // the relation is the reason it is offered.
+    //
+    // The relation's provenance is overridden with what the server actually
+    // sends: CatalogRelationDeriver writes NULLNULL_CATALOG_RULE (V007), an
+    // internal rule with no page, licence or KTO credit. The fixture's relation
+    // carries a KTO dataset link the server cannot produce; the fixture owner
+    // corrects it separately (#387), so this test does not lean on it.
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const fixture = relatedFixtures.page.items[0];
+    const credit = fixture?.place.sourceAttribution;
+    if (!fixture || !credit)
+      throw new Error('Fixtures must include a credited alternative');
+    const alternative = {
+      ...fixture,
+      provenance: {
+        ...fixture.provenance,
+        source: 'NULLNULL_CATALOG_RULE',
+        sourceDisplayName: '널널 카탈로그 규칙',
+        sourceState: 'QUALITATIVE' as const,
+        attribution: '널널 내부 규칙',
+        attributionShort: null,
+        officialUrl: null,
+        licenseUrl: null,
+        license: null,
+        comparisonEligible: false,
+        comparisonReasonCode: 'QUALITATIVE_ONLY',
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () =>
+        HttpResponse.json({
+          ...detail,
+          related: { ...detail.related, state: 'SIMILAR', items: [alternative] },
+        }),
+      ),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const link = await screen.findByRole('link', { name: alternative.place.name });
+    const row = link.closest('li') as HTMLElement;
+    expect(within(row).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+    // The relation keeps its own credit, as words: it has no page to link.
+    expect(within(row).getByText('널널 내부 규칙')).toBeVisible();
+    expect(within(row).queryByRole('link', { name: '널널 내부 규칙' })).toBeNull();
   });
 
   it('FE-402-T1 does not compare TEMPORAL metrics across different places', async () => {
