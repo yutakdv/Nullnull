@@ -1,5 +1,5 @@
 import type { components } from '@nullnull/api-client';
-import { feedFixtures } from '@nullnull/contracts';
+import { feedFixtures, placeFixtures } from '@nullnull/contracts';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CandidateCard, FeedPostCard, TabBar, TripItemCard } from '../index.js';
@@ -161,6 +161,60 @@ describe('CandidateCard', () => {
   it('stops offering scheduling once it is scheduled', () => {
     render(<CandidateCard candidate={{ ...candidate, status: 'SCHEDULED' }} />);
     expect(screen.queryByRole('button', { name: '일정에 넣기' })).not.toBeInTheDocument();
+  });
+});
+
+describe('FE-603-T5 the shared place cards credit their place', () => {
+  // Neither card is mounted by a screen today (TripScreen and CandidatesScreen
+  // draw their own rows). They are credited anyway so the first screen that
+  // adopts one does not ship an uncredited place. The place is the search
+  // fixture's credited one.
+  const sourced = placeFixtures.searchPage.items[0];
+  const credit = sourced?.sourceAttribution;
+  if (!sourced || !credit) throw new Error('the search fixture lost its credited place');
+
+  it('credits the place on a trip item card', () => {
+    render(
+      <TripItemCard
+        item={
+          {
+            id: '018f3f8e-1111-7a21-8d31-31d315b93911',
+            place: sourced,
+            date: '2026-10-04',
+            position: 0,
+            startTime: '09:30:00',
+            constraints: [],
+          } as TripItem
+        }
+      />,
+    );
+    expect(
+      within(screen.getByRole('article')).getByRole('link', {
+        name: credit.attribution,
+      }),
+    ).toHaveAttribute('href', credit.officialUrl ?? '');
+  });
+
+  it('credits the place on a candidate card', () => {
+    render(
+      <CandidateCard
+        candidate={
+          {
+            id: '018f3f8e-2222-7a21-8d31-31d315b93911',
+            tripId: '018f3f8e-3333-7a21-8d31-31d315b93911',
+            place: sourced,
+            status: 'ACTIVE',
+            sources: [],
+            createdAt: '2026-10-02T00:00:00Z',
+          } as TripCandidate
+        }
+      />,
+    );
+    expect(
+      within(screen.getByRole('article')).getByRole('link', {
+        name: credit.attribution,
+      }),
+    ).toHaveAttribute('href', credit.officialUrl ?? '');
   });
 });
 

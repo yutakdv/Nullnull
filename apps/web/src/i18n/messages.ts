@@ -209,7 +209,7 @@ export const messages = {
     'live.crowd.seoul.level2': '보통',
     'live.crowd.seoul.level3': '약간 붐빔',
     'live.crowd.seoul.level4': '붐빔',
-    'live.crowd.seoul.levelLabel': '서울 혼잡도 4단계 중 {level}번째',
+    'live.crowd.seoul.levelLabel': '서울 혼잡도 {steps}단계 중 {level}번째',
     'live.detail.back': '라이브로 돌아가기',
     'live.detail.title': '장소 혼잡 정보',
     'live.detail.loading': '장소 정보를 불러오고 있어요',
@@ -353,6 +353,7 @@ export const messages = {
     // distinction in English. Long-form explanations live in dataGuide.state.*.
     'mustVisit.badge': '꼭 가요',
     'state.LIVE': '실시간 관측',
+    'crowd.providerIncident': '제공처 장애',
     'state.FORECAST': '공식 혼잡 예측',
     'state.QUALITATIVE': '공식 혼잡 예측 범위 밖',
     'state.STALE': '업데이트 지연',
@@ -736,6 +737,15 @@ export const messages = {
     'run.proposal.remove': '제외',
     'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
     'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
+    // Under a proposal's credits (CMP-ATT-001). The summary names places; the
+    // trip that carries their credits may still be loading, or may not hold
+    // them (a place added since, a trip that could not be read). "All" and
+    // "some" are separate so the sentence never says "some" when it is all.
+    'run.proposal.placeCreditPending': '출처를 확인하고 있어요',
+    'run.proposal.placeCreditMissingAll':
+      '이 제안이 말하는 장소의 출처를 표시하지 못했어요',
+    'run.proposal.placeCreditMissingSome':
+      '이 제안이 말하는 장소 중 일부는 출처를 표시하지 못했어요',
 
     // S07 applied panel (417:2412 and its three sibling states). The panel
     // lives on the trip screen, not the run screen: Figma draws it over the
@@ -1290,7 +1300,7 @@ export const messages = {
     'live.crowd.seoul.level2': 'Moderate',
     'live.crowd.seoul.level3': 'Slightly crowded',
     'live.crowd.seoul.level4': 'Crowded',
-    'live.crowd.seoul.levelLabel': 'Seoul crowd level {level} of 4',
+    'live.crowd.seoul.levelLabel': 'Seoul crowd level {level} of {steps}',
     'live.detail.back': 'Back to Live',
     'live.detail.title': 'Place crowd information',
     'live.detail.loading': 'Loading place information',
@@ -1419,6 +1429,7 @@ export const messages = {
     'dataGuide.title2': 'handle its data?',
     'mustVisit.badge': 'Must visit',
     'state.LIVE': 'Observed live',
+    'crowd.providerIncident': 'Provider incident',
     'state.FORECAST': 'Official crowd forecast',
     'state.QUALITATIVE': 'Outside the forecast range',
     'state.STALE': 'Update delayed',
@@ -1741,6 +1752,11 @@ export const messages = {
     'run.proposal.remove': 'Removed',
     'run.proposal.constraintsOk': 'Your locks and constraints are kept',
     'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
+    'run.proposal.placeCreditPending': 'Checking the sources',
+    'run.proposal.placeCreditMissingAll':
+      "We couldn't show the source for the places in this proposal",
+    'run.proposal.placeCreditMissingSome':
+      "We couldn't show the source for some places in this proposal",
 
     // See the ko-KR block for why `revision.reverted` counts forward.
     'trip.applied.badge.available': 'Can be undone',

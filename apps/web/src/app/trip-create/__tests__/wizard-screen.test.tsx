@@ -770,6 +770,29 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     await user.click(pick[0] as HTMLElement);
   }
 
+  it('FE-603-T5 a stop it collected keeps its place credit', async () => {
+    // The search result row credited the place and the row it became did not:
+    // once picked, the name stood alone (CMP-ATT-001). The stop row is found
+    // through its own remove button, so the credit asserted is the row's and
+    // not the search result's that was on screen a moment earlier.
+    const place = placeFixtures.searchPage.items[0];
+    const credit = place?.sourceAttribution;
+    if (!place || !credit) throw new Error('the search fixture lost its credited place');
+    const user = userEvent.setup();
+    await reachManual(user);
+    await addPlaceTo(user, 0);
+
+    const remove = await screen.findByRole('button', {
+      name: copy['manual.removeNamed'].replace('{place}', place.name),
+    });
+    const row = remove.closest('li');
+    if (!row) throw new Error('the stop is not a list item');
+    expect(within(row).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+  });
+
   it('renders a step rather than the blank screen 직접 입력 used to reach', async () => {
     // The defect this closes: InputMethodStep's 직접 입력 called setStep(5)
     // and nothing rendered at step 5, so choosing it showed the wizard shell
@@ -971,6 +994,35 @@ describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () 
       name: credit.attribution,
     });
     expect(links.map((link) => link.getAttribute('href'))).toEqual([credit.officialUrl]);
+  });
+
+  it('FE-603-T7 names the forecast source beside the place credit on a stop', async () => {
+    // Both credits read `출처: ⓒ한국관광공사` and link two datasets. The forecast
+    // is drawn after the place, so it is the one that names its source.
+    // No IntersectionObserver: the stop takes its immediate-load fallback.
+    vi.stubGlobal('IntersectionObserver', undefined);
+    const point = crowdFixtures.seriesForecast.points[0];
+    const place = placeFixtures.searchPage.items[0];
+    if (!point || !place) throw new Error('fixtures changed');
+    expect(point.provenance.attribution).toBe(place.sourceAttribution?.attribution);
+    server.use(
+      http.get(`${API_BASE}/places/:placeId/crowd-forecast`, ({ request }) => {
+        const targetAt = new URL(request.url).searchParams.get('from');
+        return HttpResponse.json({
+          ...crowdFixtures.seriesForecast,
+          points: [{ ...point, provenance: { ...point.provenance, targetAt } }],
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    await reachConfirm(user);
+
+    const card = screen.getByText(place.name).closest('[data-crowd-stop]') as HTMLElement;
+    await within(card).findByText(/Relative concentration/);
+    const forecastLink = within(card)
+      .getAllByRole('link', { name: point.provenance.attribution ?? '' })
+      .find((link) => link.getAttribute('href') === point.provenance.officialUrl);
+    expect(forecastLink).toHaveAccessibleDescription(point.provenance.sourceDisplayName);
   });
 
   it('loads an exact dated crowd point only when the stop approaches view', async () => {

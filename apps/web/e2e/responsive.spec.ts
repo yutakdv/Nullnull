@@ -413,9 +413,9 @@ test.describe('FE-104-T4 FE-203-T5 reduced motion, per screen', () => {
       // none, and requiring some would reject correct code — but "did the
       // thing this test measures actually get measured". If the probe never
       // landed, every assertion below is a statement about nothing.
-      // attribution-coverage.test.ts:80 is the precedent: 100% of nothing is
-      // the shape of a compliance claim that passes while the rule goes
-      // unchecked.
+      // attribution-coverage.test.ts ('has targets to measure at all') is the
+      // precedent: 100% of nothing is the shape of a compliance claim that
+      // passes while the rule goes unchecked.
       expect(
         measured.probeResult.transitionDuration,
         `${screen.name}: the motion probe did not render, so nothing was measured`,

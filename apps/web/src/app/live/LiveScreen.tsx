@@ -14,9 +14,11 @@ import {
   Chip,
   CrowdLevel,
   DataAttribution,
+  PlaceAttribution,
   SearchField,
-  StateLabel,
   type SourceState,
+  StateLabel,
+  type StateWording,
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
@@ -35,8 +37,6 @@ const STATES: SourceState[] = [
   'UNAVAILABLE',
   'REPLAY',
 ];
-
-type CrowdMetric = components['schemas']['CrowdMetric'];
 
 export function LiveScreen() {
   const { locale, t } = useI18n();
@@ -58,25 +58,11 @@ export function LiveScreen() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
-  const search = usePlaceSearch(query);
-  const stateLabels = Object.fromEntries(
-    STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-  ) as Partial<Record<SourceState, string>>;
-  const seoulLevelLabels = {
-    1: t('live.crowd.seoul.level1'),
-    2: t('live.crowd.seoul.level2'),
-    3: t('live.crowd.seoul.level3'),
-    4: t('live.crowd.seoul.level4'),
-  };
-  const crowdPresentation = (crowd: CrowdMetric | null) =>
-    crowd?.provenance.source === 'SEOUL_CITYDATA'
-      ? {
-          levelLabel: crowd.ordinalLevel
-            ? t('live.crowd.seoul.levelLabel', { level: crowd.ordinalLevel })
-            : undefined,
-          levelLabels: seoulLevelLabels,
-        }
-      : {};
+  const search = usePlaceSearch(query, locale);
+  const stateLabels = Object.fromEntries([
+    ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
+    ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
+  ]) as Partial<Record<StateWording, string>>;
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
@@ -112,6 +98,13 @@ export function LiveScreen() {
   const selectedArea = areas.data?.areas.find((area) => area.id === selectedAreaId);
   const observedAt = areas.data?.areas.find((area) => area.crowd)?.crowd?.provenance
     .observedAt;
+  // The header speaks for the list: while any area's provider reports an
+  // incident, the list is not called live (A-068). The rows say which.
+  const listFlags = areas.data?.areas.some((area) =>
+    area.crowd?.provenance.qualityFlags.includes('PROVIDER_INCIDENT'),
+  )
+    ? (['PROVIDER_INCIDENT'] as const)
+    : undefined;
 
   return (
     <section aria-labelledby="live-heading" className={styles.screen}>
@@ -129,6 +122,7 @@ export function LiveScreen() {
                       })
                     : null
                 }
+                qualityFlags={listFlags}
                 state={areas.data.mode}
               />
             </div>
@@ -184,6 +178,11 @@ export function LiveScreen() {
                     >
                       {t('live.searchShowOnMap', { name: place.name })}
                     </button>
+                    {/* CMP-ATT-001: a result names a catalogue place, so it
+                        carries that place's credit like any other row. */}
+                    <span className={styles.resultCredit}>
+                      <PlaceAttribution compact place={place} />
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -208,9 +207,12 @@ export function LiveScreen() {
           <p role="status">{t('live.detail.loading')}</p>
         ) : null}
         {selectedPlace.isError ? <p role="alert">{t('live.map.placeError')}</p> : null}
-        {selectedPlace.data?.sourceAttribution ? (
-          <DataAttribution compact provenance={selectedPlace.data.sourceAttribution} />
-        ) : null}
+        {/* The credits of the places the map shows, once each. Today that is
+            the one selected place KakaoLiveMap draws as a marker; the marker
+            itself cannot hold a link, so the credit sits under the map. */}
+        <div data-map-credits="">
+          <PlaceAttribution compact place={selectedPlace.data} />
+        </div>
       </div>
 
       <section aria-label={t('live.sheet.title')} className={styles.listPanel}>
@@ -304,7 +306,6 @@ export function LiveScreen() {
                     <span>{area.name}</span>
                     <CrowdLevel
                       crowd={area.crowd}
-                      {...crowdPresentation(area.crowd)}
                       stateLabels={stateLabels}
                       unavailableReason={t('live.noReading')}
                     />
@@ -344,7 +345,6 @@ export function LiveScreen() {
                                 </span>
                                 <CrowdLevel
                                   crowd={item.crowd ?? null}
-                                  {...crowdPresentation(item.crowd ?? null)}
                                   stateLabels={stateLabels}
                                   unavailableReason={t('live.noReading')}
                                 />
@@ -358,18 +358,11 @@ export function LiveScreen() {
                               >
                                 {t('live.searchShowOnMap', { name: item.place.name })}
                               </button>
-                              {item.place.sourceAttribution ? (
-                                <DataAttribution
-                                  compact
-                                  provenance={item.place.sourceAttribution}
-                                />
-                              ) : null}
-                              {item.crowd ? (
-                                <DataAttribution
-                                  compact
-                                  provenance={item.crowd.provenance}
-                                />
-                              ) : null}
+                              <PlaceAttribution
+                                also={item.crowd ? [item.crowd.provenance] : undefined}
+                                compact
+                                place={item.place}
+                              />
                             </li>
                           ))}
                         </ul>

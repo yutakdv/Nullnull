@@ -198,7 +198,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     // rather than restated here in a form that cannot fail.
   });
 
-  test('BA-040-T4 a completed move leaves focus somewhere, not on the document', async ({
+  test('BA-040-T4 BA-092-T16 a completed move leaves focus somewhere, not on the document', async ({
     page,
   }) => {
     await openFirstItemActions(page);
@@ -276,7 +276,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     );
   });
 
-  test('BA-040-T4 a lock confirm can be answered and cancelled by keyboard', async ({
+  test('BA-040-T4 BA-092-T16 a lock confirm can be answered and cancelled by keyboard', async ({
     page,
   }) => {
     await openFirstItemActions(page);
@@ -583,7 +583,7 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     expect((await heading.textContent())?.trim()).not.toBe(forwardTitle);
   });
 
-  test('BA-070-T5 a trip can be created from start to itinerary by keyboard alone', async ({
+  test('BA-070-T5 BA-092-T16 a trip can be created from start to itinerary by keyboard alone', async ({
     page,
   }) => {
     // The clause BE settled #233 on: not "each step announces itself" but the

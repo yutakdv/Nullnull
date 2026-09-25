@@ -11,10 +11,11 @@ import {
 } from '../../shared/api/index.js';
 import {
   Chip,
-  DataAttribution,
   NavBar,
+  PlaceAttribution,
   PlaceThumbnail,
   SearchField,
+  unitCredits,
 } from '../../shared/ui/index.js';
 import {
   CrowdForecastCardReading,
@@ -46,14 +47,14 @@ import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.j
 
 export function AddPlaceScreen() {
   const { tripId } = useParams();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState<AddTarget>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const trip = useTrip(tripId ?? null);
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const addItem = useAddTripItem(tripId ?? null);
   const addCandidate = useAddTripCandidate(tripId ?? null);
 
@@ -223,10 +224,11 @@ export function AddPlaceScreen() {
                   <span className={styles.resultText}>
                     <span className={styles.name}>{place.name}</span>
                     {meta === '' ? null : <span className={styles.meta}>{meta}</span>}
-                    {place.sourceAttribution ? (
-                      <DataAttribution compact provenance={place.sourceAttribution} />
-                    ) : null}
-                    <CrowdForecastCardReading series={forecasts.data?.items[index]} />
+                    <PlaceAttribution compact place={place} />
+                    <CrowdForecastCardReading
+                      alongside={unitCredits([place])}
+                      series={forecasts.data?.items[index]}
+                    />
                   </span>
                   <button
                     // Named for the place: a column of identical "추가" buttons

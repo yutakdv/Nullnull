@@ -126,6 +126,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
+/**
+ * The provider's value, or null outside one. For the shared data components
+ * that must also render bare (a story, a unit test): inside the app they take
+ * the chosen locale's words rather than their own Korean defaults, so a caller
+ * that passes an incomplete label map cannot put Korean on an English screen.
+ */
+export function useOptionalI18n(): I18nValue | null {
+  return useContext(I18nContext);
+}
+
 export function useI18n(): I18nValue {
   const value = useContext(I18nContext);
   if (!value) throw new Error('useI18n must be used inside I18nProvider');

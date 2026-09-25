@@ -6,7 +6,7 @@ import {
   useSavePost,
   useUnsavePost,
 } from '../../shared/api/index.js';
-import { DataAttribution, NavBar } from '../../shared/ui/index.js';
+import { NavBar, PlaceAttribution } from '../../shared/ui/index.js';
 import styles from './PostScreen.module.css';
 
 // Figma: S03-D post detail `804:4595` (FR-PST-01, FR-PST-02).
@@ -157,9 +157,7 @@ export function PostScreen() {
                 ) : null}
                 {/* CMP-ATT-001: a KTO-sourced place carries its credit
                     wherever it appears, shown verbatim (CMP-ATT-003). */}
-                {place.sourceAttribution ? (
-                  <DataAttribution compact provenance={place.sourceAttribution} />
-                ) : null}
+                <PlaceAttribution compact place={place} />
               </li>
             ))}
           </ul>

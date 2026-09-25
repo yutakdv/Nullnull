@@ -4,10 +4,11 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceCrowdForecasts, usePlaceSearch } from '../../shared/api/index.js';
 import {
   BottomCta,
-  DataAttribution,
   MustVisitBadge,
+  PlaceAttribution,
   PlaceThumbnail,
   SearchField,
+  unitCredits,
 } from '../../shared/ui/index.js';
 import {
   CrowdForecastCardReading,
@@ -93,9 +94,9 @@ export function MustVisitStep({
   startDate,
   endDate,
 }: MustVisitStepProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const searchResults = search.data?.items ?? [];
   const forecasts = usePlaceCrowdForecasts(
     searchResults.map((place) => place.id),
@@ -186,10 +187,11 @@ export function MustVisitStep({
                         contract says to display the string as given, and
                         CMP-ATT-003 forbids implying a source that was not
                         granted. Null only for places with no external source. */}
-                      {place.sourceAttribution ? (
-                        <DataAttribution compact provenance={place.sourceAttribution} />
-                      ) : null}
-                      <CrowdForecastCardReading series={forecasts.data?.items[index]} />
+                      <PlaceAttribution compact place={place} />
+                      <CrowdForecastCardReading
+                        alongside={unitCredits([place])}
+                        series={forecasts.data?.items[index]}
+                      />
                     </span>
                     <button
                       type="button"
@@ -245,9 +247,7 @@ export function MustVisitStep({
                       <MustVisitBadge label={t('mustVisit.badge')} />
                     </span>
                     <span className={styles.meta}>{meta(place)}</span>
-                    {place.sourceAttribution ? (
-                      <DataAttribution compact provenance={place.sourceAttribution} />
-                    ) : null}
+                    <PlaceAttribution compact place={place} />
                   </span>
                   <button
                     type="button"
