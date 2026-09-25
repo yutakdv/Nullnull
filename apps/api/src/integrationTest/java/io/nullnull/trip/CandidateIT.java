@@ -597,4 +597,39 @@ class CandidateIT {
                         .cookie(cookie(owner)))
                 .andExpect(jsonPath("$.items.length()").value(0));
     }
+
+    /**
+     * The page's ORDER, which no other test here reads: a candidate is created at each of the fixture's
+     * createdAt instants, and the server's answer has to list them in the fixture's sequence. Until the
+     * candidate-order change the file ran in ascending createdAt while JdbcCandidateStore answers
+     * created_at DESC, id ASC. The instants must differ - on a tie the server orders by id, and the
+     * fixture's ids are authored, not the server's.
+     */
+    @Test
+    @DisplayName("BA-034 candidates/candidate-page.json lists its candidates in the order listTripCandidates sends")
+    void theCandidatePageFixtureIsInTheServersOrder() throws Exception {
+        tools.jackson.databind.JsonNode fixture = JsonShape.fixture("candidates/candidate-page.json");
+        List<String> authored = new ArrayList<>();
+        fixture.get("items").forEach(item -> authored.add(item.get("createdAt").asString()));
+        assertThat(authored).as("the fixture's createdAt instants").doesNotHaveDuplicates().hasSizeGreaterThan(1);
+
+        var owner = owner();
+        String tripId = trip(owner);
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        for (String createdAt : authored) {
+            String saved = add(owner, tripId, place("순서 후보 " + createdAt), null, "o-" + UUID.randomUUID())
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            UUID candidate = UUID.fromString(json.readTree(saved).get("candidate").get("id").asString());
+            jdbc.update("UPDATE trip_candidates SET created_at = ? WHERE id = ?",
+                    java.sql.Timestamp.from(java.time.Instant.parse(createdAt)), candidate);
+        }
+
+        String page = mvc.perform(get("/api/v1/trips/" + tripId + "/candidates").cookie(cookie(owner)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> served = new ArrayList<>();
+        json.readTree(page).get("items").forEach(item -> served.add(
+                java.time.Instant.parse(item.get("createdAt").asString()).toString()));
+        List<String> expected = authored.stream().map(at -> java.time.Instant.parse(at).toString()).toList();
+        assertThat(served).as("createdAt in the order the server lists them").isEqualTo(expected);
+    }
 }
