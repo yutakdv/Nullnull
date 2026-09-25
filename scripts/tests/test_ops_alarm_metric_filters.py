@@ -129,6 +129,43 @@ class ScheduleConstants(unittest.TestCase):
         expected = operator_expiry().date().isoformat()
         self.assertEqual(default.group(1), expected)
         self.assertEqual(insisted.group(1), expected)
+        at = re.search(r'NULLNULL_EXPIRY_AT="\$\{NULLNULL_EXPIRY_DATE\}T([0-9:]+)Z"', common)
+        assert at, "common.sh no longer derives the end instant from the expiry date"
+        self.assertEqual(at.group(1), operator_expiry().strftime("%H:%M:%S"))
+
+    def test_a_writing_shell_script_stops_at_the_operator_end_instant(self):
+        # The shell guard compared the UTC date only, so a writing script (restore-drill creates an RDS
+        # instance) still ran for nine hours after the operator refused. Measured at the edge, with date and
+        # aws faked on PATH; the guard never reaches a real account.
+        import os, subprocess, tempfile
+        end = operator_expiry()
+        cases = [
+            ((end - dt.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"), True),
+            (end.strftime("%Y-%m-%dT%H:%M:%SZ"), False),
+            ((end + dt.timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ"), False),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp)
+            (fake / "date").write_text('#!/bin/sh\necho "$FAKE_NOW"\n')
+            (fake / "aws").write_text(
+                '#!/bin/sh\necho "arn:aws:sts::111111111111:assumed-role/nullnull-stg-operator/test"\n')
+            for tool in ("date", "aws"):
+                (fake / tool).chmod(0o755)
+            for now, allowed in cases:
+                with self.subTest(now=now):
+                    env = {k: v for k, v in os.environ.items() if not k.startswith("NULLNULL_")}
+                    env.update({"PATH": f"{fake}:{env.get('PATH', '')}", "FAKE_NOW": now,
+                                "NULLNULL_AWS_ACCOUNT_ID": "111111111111", "NULLNULL_AWS_AUTH": "profile",
+                                "AWS_PROFILE": "test", "AWS_REGION": "ap-northeast-2"})
+                    result = subprocess.run(
+                        ["bash", "-c", f'source "{ROOT}/scripts/aws/common.sh"; assert_operator_contract; echo contract=ok'],
+                        capture_output=True, text=True, env=env, check=False)
+                    if allowed:
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertIn("contract=ok", result.stdout)
+                    else:
+                        self.assertNotEqual(0, result.returncode)
+                        self.assertIn("reason=staging-expired", result.stderr)
 
     def test_the_scheduled_mains_are_the_ones_the_operator_runs_with_the_same_approvals(self):
         operator = OPERATOR.read_text()

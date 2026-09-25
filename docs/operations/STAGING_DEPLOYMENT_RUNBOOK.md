@@ -441,16 +441,14 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
   - 최종심사 대상 발표: 2026-10-21
   - 최종 발표심사: 2026-10-28
 
-  선정되면 발표심사가 EXPIRY 뒤다. 그때까지 서비스를 둘지 정한다.
+  원래 종료(10-25)로는 발표심사가 EXPIRY 뒤였다. A-069로 종료를 10-31로 옮겨 발표심사가 운영 기간 안에 든다.
 - **EXPIRY 연장 여부**: **결정됨(A-069, 2026-09-25)**. 2026-10-31T14:59:59Z로 연장했다.
   - 옮긴 값: `staging_operator.py`의 `EXPIRY`, `FORECAST_SCHEDULE_END`, `JUDGING_END`, `scripts/aws/common.sh`의 기본값과 비교값. `test_ops_alarm_metric_filters.py`가 넷을 `EXPIRY`에 묶는다.
   - **`Expiry` 태그는 옮기지 않는다.** 이전 판의 "태그까지 한 PR에서 바꾼다"는 틀렸다: 태그를 바꾸면 stateful resource 86개가 다시 태그되어 `--preserve-open-edge`는 `preserve-open-template-change`로, 일반 infra 배포는 `stateful-change-requires-separate-review`로 거부한다.
   - 실제 시계로 plan·edge를 돌리던 operator test는 `EXPIRY`를 고정해, 종료 뒤에도 필수 게이트가 빨개지지 않는다.
   - 비용은 A-029 상한 USD 200을 유지한다(오너 결정). 43일 추정은 [infra/cost-basis.md](../../infra/cost-basis.md)에 있다.
-- **edge 폐쇄 방법**: 다음 셋 중 하나다.
-  - EXPIRY 전에 닫는다. 이 경우 심사 마지막 시간과 겹친다.
-  - 닫지 않고 stack 삭제로 대신한다.
-  - `closed`만 EXPIRY 뒤에도 허용하도록 operator를 고친다.
+- **edge 폐쇄 방법**: **기본값(A-069 뒤)** — teardown을 시작할 때 R4 이후 checkout의 operator로 닫는다. 늦어도 2026-10-31 23:00 KST(EXPIRY 한 시간 전)까지다. `edge`는 만료를 먼저 검사해서(`staging_operator.py` `verify_deployed_plan`) EXPIRY 뒤에는 operator로 닫을 수 없다. 그 시각을 놓치면 stack 삭제로 대신한다. operator를 고치는 안은 쓰지 않는다.
+- **rollback과 옛 종료**: R4 → R3 rollback은 R3 assembly의 Migration(스케줄 `EndDate` 10-25)과 R3 API image(서울 `JUDGING_END` 10-25)를 되살린다. 10-26~10-31에 rollback하면 서비스는 열려 있어도 두 자동 갱신 경로가 멈춘다. rollback은 edge도 닫는다. 그래서 A-069 뒤의 문제는 rollback 대신 **forward-fix**(되돌리는 변경을 main에 넣고 같은 preserve-open 절차로 재배포)로 푼다.
 - **데이터 보존**: 다음 셋을 각각 정한다.
   - RDS 최종 snapshot과 자동 백업
   - `WebBucket`의 사용자 업로드
