@@ -3683,7 +3683,7 @@
         },
         {
           "id": "BA-086-T11",
-          "assertion": "영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다"
+          "assertion": "영문 dataset probe 는 provider 값을 report 에 베끼지 않는다"
         },
         {
           "id": "BA-086-T12",
@@ -3748,6 +3748,10 @@
         {
           "id": "BA-086-T27",
           "assertion": "호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다"
+        },
+        {
+          "id": "BA-086-T28",
+          "assertion": "영문 dataset probe 는 한글 포함 여부로 언어를 판정한다"
         }
       ],
       "handoff": "영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures.",
@@ -4020,10 +4024,10 @@
         },
         {
           "id": "BA-091-T2",
-          "assertion": "map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다",
+          "assertion": "Live map OFF 목록을 E2E로 확인한다",
           "externalOwner": {
             "role": "FE",
-            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 BA-091-T2 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
             "issue": "#97"
           }
         },
@@ -4130,6 +4134,24 @@
         {
           "id": "BA-091-T28",
           "assertion": "거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다"
+        },
+        {
+          "id": "BA-091-T29",
+          "assertion": "Live relation 의 모든 상태를 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
+        },
+        {
+          "id": "BA-091-T30",
+          "assertion": "Live 화면이 근거 없는 혼잡 차이를 표시하지 않음을 E2E로 확인한다",
+          "externalOwner": {
+            "role": "FE",
+            "reason": "FE 소유 Playwright acceptance다(FE-401 Live 목록·상태 화면). 원래 T2 한 절(map OFF 목록·relation 모든 상태·no fake delta)을 규칙 3에 따라 T2·T29·T30으로 나눴다. 게이트가 --e2e-junit-dir로 E2E JUnit을 집계하므로, 이 절을 재는 testcase가 이 ID 이름으로 게이트 JUnit에 잡히면 이 표시를 지운다.",
+            "issue": "#97"
+          }
         }
       ],
       "handoff": "S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다.",

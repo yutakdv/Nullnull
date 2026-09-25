@@ -2366,7 +2366,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **데이터 쪽 진행**: 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)는 오너가 직접 검토해 승인했다. #367 이 운영 task 둘(`kto-eng-link-import`·`kto-eng-text-refresh`)과 task definition 의 `KTO_ENG_BASE_URL` 을 넣었고, rc.22 에서 연결 import 가 돌았다(`eng_links_processed=3`, [#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). **남은 것**: R4 배포 뒤 오너 셸의 `kto-eng-text-refresh`(EngService2 `detailCommon2` 3회), 그 뒤 en-US 응답 확인과 영문 coverage 보고서다. refresh 는 덕수궁·북촌의 국문 snapshot 에 `sigungu_code` 가 있어야 영문을 쓴다(`EngLinkRule`). 그 값은 확인되지 않았고 refresh 출력의 연결별 outcome 에 드러난다. 그 전에는 이 카드를 닫지 않는다.
 
-`integration-ready`(절마다 test 대조): `T1`~`T27` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T1`~`T5`·`T15`~`T27` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
+`integration-ready`(절마다 test 대조): `T1`~`T28` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T11` 은 원래 "값을 베끼지 않는다"와 "한글로 언어를 판정한다" 두 절을 묶고 있어 `T11`·`T28` 로 나눴고, 두 절을 함께 재던 test 도 둘로 나눴다(Codex 검토). `T1`~`T5`·`T15`~`T28` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
@@ -2382,7 +2382,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 은 나가지 않는다
 - `BA-086-T9`: localization provenance 는 네 열 전부이거나 전무다
 - `BA-086-T10`: 영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다
-- `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
+- `BA-086-T11`: 영문 dataset probe 는 provider 값을 report 에 베끼지 않는다
 - `BA-086-T12`: 캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다
 - `BA-086-T13`: ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다
 - `BA-086-T14`: 이미 매핑된 장소를 지나간 revision 의 snapshot 으로 다시 ingest 하면 거절이 아니라 no-op 이다
@@ -2399,6 +2399,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T25`: 오너 연결 규칙을 더 이상 만족하지 않는 영문 record 의 텍스트는 나가지 않는다
 - `BA-086-T26`: 현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다
 - `BA-086-T27`: 호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다
+- `BA-086-T28`: 영문 dataset probe 는 한글 포함 여부로 언어를 판정한다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2534,22 +2535,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
 
-`T2`는 **소유자가 FE다**(#97, FE-401). map OFF 목록·relation 모든 상태·no fake delta는 Playwright가 재고, 게이트가 `--e2e-junit-dir`로 E2E JUnit을 집계한다. 그 절을 재는 testcase가 `BA-091-T2` 이름으로 잡히면 `externalOwner`를 뗀다.
+`T2`·`T29`·`T30`은 **소유자가 FE다**(#97, FE-401). 원래 `T2` 한 ID가 map OFF 목록·relation 모든 상태·no fake delta 세 절을 묶고 있어서 규칙 3에 따라 나눴다. 셋 다 Playwright가 재고, 게이트가 `--e2e-junit-dir`로 E2E JUnit을 집계한다. 각 절을 재는 testcase가 그 ID 이름으로 잡히면 그 ID의 `externalOwner`를 뗀다.
 
-진행 상태(`integration-ready`, 절마다 test 본문과 대조): `T2`를 뺀 27개 절이 각자 그 ID를 단 testcase로 게이트 JUnit에 잡힌다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 세 행(수집·매핑, 생산자·수정·신선도, 조회·후보·replay)과 서울 거부 원인 로그 행에 있다. report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`이다. 대조하며 판정한 것은 셋이다.
+진행 상태(`integration-ready`, 절마다 test 본문과 대조): FE 소유 `T2`·`T29`·`T30`을 뺀 27개 절이 각자 그 ID를 단 testcase로 게이트 JUnit에 잡힌다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 세 행(수집·매핑, 생산자·수정·신선도, 조회·후보·replay)과 서울 거부 원인 로그 행에 있다. report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`이다. 대조하며 판정한 것은 셋이다.
 
-- `T4`: 원래 증인은 `CoarseViewportTest`의 예외 문구 검사뿐이었다. 로그를 실제로 보는 case가 없었으므로 `LiveAreaApiIT.aRefusedViewportLeavesItsCoordinatesInNoLogLine`을 더했다. 거절된 요청이 root appender에 쓴 줄 전부(메시지·throwable·MDC)를 훑고, 그 요청의 access log 줄을 찾았는지를 먼저 단언해 공허하지 않게 했다. 거절 경로에 좌표를 찍는 warn 한 줄을 넣은 변이에서 이 case만 빨갰다(반경 1).
-- `T20`: 끝 상태(행 하나, 새 구역)를 잰다. "원자적으로"는 `LiveMappingImporter.importPlan`이 계획 하나를 한 transaction으로 쓴다는 것에 기대고, 그것은 `T21`의 rollback이 잰다. 교체 도중의 상태를 따로 재는 test는 없다.
+- `T4`: 원래 증인은 `CoarseViewportTest`의 예외 문구 검사뿐이었다. 로그를 실제로 보는 case가 없었으므로 `LiveAreaApiIT.aRefusedViewportLeavesItsCoordinatesInNoLogLine`을 더했다. 거절된 요청이 root appender에 쓴 줄 전부(메시지·throwable·MDC)와 process의 stdout·stderr를 훑고, 두 곳 모두에서 그 요청의 access log 줄을 찾았는지를 먼저 단언해 공허하지 않게 했다. Logback만 보던 첫 판은 `System.err`로 찍는 경로를 통과시켰다(Codex 검토).
+- `T20`: test가 둘이다. `newerReviewCanReplaceArea`는 끝 상태(행 하나, 새 구역)를, `aReaderDuringTheReplacementSeesOnlyTheOldLink`는 교체 도중을 잰다. 새 구역 행을 다른 연결이 `FOR UPDATE`로 잡으면 import가 DELETE 뒤 INSERT의 FK 검사에서 멈추고, 그동안 제3 연결이 옛 연결 하나만 보는지 단언한다. 끝 상태만 재던 첫 판은 "원자적"을 증명하지 못했다(Codex 검토).
 - `T26`: 심사 종료 시각에 claim·gateway 호출이 0임을 잰다. 종료 전에는 호출한다는 반대편은 `T28`의 test가 같은 scheduler로 gateway를 부르는 것으로 선다.
+- `T28`: 거절 줄을 prefix가 아니라 outcome·rule token으로 만든 줄 전체와 비교하고, 응답 body의 provider 문자열(두 글자 이상) 전부가 로그에 없는지 본다. marker 하나와 prefix만 보던 첫 판은 `보통`·`POI009` 같은 다른 provider 문자열을 붙인 줄을 통과시켰다(Codex 검토).
 
-**순서 의존**: `T2`의 `externalOwner`는 FE가 `BA-091-T2` 이름의 게이트 E2E를 만든 **뒤에** 뗀다(#97). 먼저 떼면 required 게이트의 집계가 그 ID를 찾지 못해 빨갛다. 구현 순서 4의 PM 경계(FCR-025·FCR-026·FCR-028 Open)는 오너 결정이고 이 승격이 닫지 않는다.
+**순서 의존**: `T2`·`T29`·`T30`의 `externalOwner`는 FE가 그 ID 이름의 게이트 E2E를 만든 **뒤에** 뗀다(#97). 먼저 떼면 required 게이트의 집계가 그 ID를 찾지 못해 빨갛다. 구현 순서 4의 PM 경계(FCR-025·FCR-026·FCR-028 Open)는 오너 결정이고 이 승격이 닫지 않는다.
 
 실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
 
 필수 검증:
 
 - `BA-091-T1`: viewport 는 소수점 3자리를 넘으면 거절된다
-- `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
+- `BA-091-T2`: Live map OFF 목록을 E2E로 확인한다
 - `BA-091-T3`: Live 에서 고른 장소를 후보로 저장해도 일정은 바뀌지 않는다
 - `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
 - `BA-091-T5`: Live 목록 응답은 cursor 를 발급하지 않는다
@@ -2576,6 +2578,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T26`: 심사 종료 시각부터 서울 수집을 시도하지 않는다
 - `BA-091-T27`: 거절된 서울 수집은 결과와 규칙을 한 줄로 남긴다
 - `BA-091-T28`: 거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다
+- `BA-091-T29`: Live relation 의 모든 상태를 E2E로 확인한다
+- `BA-091-T30`: Live 화면이 근거 없는 혼잡 차이를 표시하지 않음을 E2E로 확인한다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
