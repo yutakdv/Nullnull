@@ -21,7 +21,7 @@ tags:
 
 | Source code | 제공자/데이터 | 제품 사용 | P0 상태 | 가장 큰 주의점 |
 | --- | --- | --- | --- | --- |
-| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | C2 registry v2 `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
+| `KTO_KOR_SERVICE_2` | 한국관광공사 국문 관광정보 | canonical POI/검색/상세/이미지 후보 | registry v4(`V012`) `DEV_APPROVED`, `P7D`; `detailCommon2`만 | 운영 승인·이미지별 이용 조건 |
 | `KTO_CONCENTRATION_FORECAST` | 관광지 집중률 방문자 추이 예측 | 같은 POI의 다른 날짜 혼잡 비교 | C4 registry v2 `DEV_APPROVED`, operation `tatsCnctrRatedList`, schema `kto-tats-cnctr-rate-v4.1`, `PT24H` | 방문자 수가 아닌 상대 집중률 예측. 가장 붐비는 시기를 100으로 둔 날짜 단위 상대값이며 인원·수용률·시간대 예측이 아니다 |
 | `KTO_ENG_SERVICE` | 한국관광공사 영문 관광정보(포털 15101753) | 오너가 검토해 연결한 장소의 영문 이름·주소(BA-086) | registry v1 `DEV_APPROVED`, `P7D`; `detailCommon2`만; `V050` | 번역이 아니라 provider 영문이다. 연결은 오너 검토로만 생기고, 개요·이미지·좌표·코드는 보존하지 않는다 |
 | `KTO_RELATED_PLACES` | 관광지별 연관 관광지 | 대체/연관 장소 근거 | `DISABLED` (미신청) | 차량 내비 데이터·과거 기간/의미 한계 |
@@ -35,7 +35,7 @@ registry v1은 공모전 제출 빌드에서 KTO `DEV_APPROVED` 개발 키(1,000
 
 ## 2. KTO 국문 관광정보 서비스
 
-공식 [공공데이터포털 상세](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15101578)는 base path를 `apis.data.go.kr/B551011/KorService2`로 안내하고, 지역/위치/키워드 검색, 공통·소개·반복·이미지 등 15종 기능을 제공한다. 2026-02-26 수정 기준 개발 계정 신청 가능 트래픽은 1,000이고 운영 단계는 심의 승인이라고 명시한다.
+공식 [공공데이터포털 상세](https://www.data.go.kr/data/15101578/openapi.do)는 base path를 `apis.data.go.kr/B551011/KorService2`로 안내하고, 지역/위치/키워드 검색, 공통·소개·반복·이미지 등 15종 기능을 제공한다. 2026-02-26 수정 기준 개발 계정 신청 가능 트래픽은 1,000이고 운영 단계는 심의 승인이라고 명시한다.
 
 ### 사용 범위
 
@@ -69,6 +69,8 @@ registryVersion: 2
 providerSchemaVersion: kto-kor-service2-detailcommon2-v1
 attributionTemplate: "출처: ⓒ한국관광공사"
 ```
+
+위는 C2 당시의 초기값이다. 지금 등록값은 revision 4(`V012`, `providerSchemaVersion: kto-kor-service2-detailcommon2-v3`)다. 화면에 나가는 링크는 `officialUrl: https://www.data.go.kr/data/15101578/openapi.do`, `licenseUrl: https://www.data.go.kr/ugs/selectPortalPolicyView.do`이고, `V007`에서 넣은 뒤 바뀌지 않았다.
 
 ### C2 고정 provider operation
 
@@ -218,7 +220,7 @@ comparisonAxis = TEMPORAL
 
 2026-09-06 확인 기준으로 제공기관·저작권자는 서울특별시, 공개일은 2022-08-31,
 이용허락은 공공누리 제1유형이다. 공공누리 제1유형은 기관·저작물·출처를 표시하고,
-온라인에서 가능하면 원 출처 링크를 제공하도록 요구한다. source registry revision 1의
+온라인에서 가능하면 원 출처 링크를 제공하도록 요구한다. source registry의
 Frontend-facing 값은 다음으로 고정한다.
 
 ```yaml
@@ -229,6 +231,8 @@ licenseName: 공공누리 제1유형
 licenseUrl: https://www.kogl.or.kr/info/licenseType1.do
 attributionTemplate: "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
 ```
+
+등록은 revision 1이 아니라 revision 2(`V046`)에서 됐다. revision 1(`V007`)은 링크·이용허락·attribution이 비어 있던 자리표시였다. `V046`은 위 값 가운데 `displayName`을 옮기지 않았다. 그래서 registry와 화면의 표시명은 `서울 실시간 도시데이터`이고, 위 블록의 `서울시 실시간 도시데이터`와 다르다. 어느 쪽으로 맞출지는 결정 대기다. registry를 바꾸면 새 revision이 필요하다. `openapi.yaml`의 `DataProvenance` schema example은 09-06 packet을 그대로 옮긴 것이라 이 설명과도 어긋난다. 서울 example은 채워진 값을 revision 1로 적고, 표시명은 `서울시 실시간 도시데이터`이며, 서버가 채우지 않는 `attributionShort`를 싣는다. 그래서 어느 저장 revision의 값도 아니다. 이 example을 서버가 내는 모양으로 다시 쓸지는 FE 승인과 함께 따로 정한다.
 
 API는 위 문구와 URL을 `DataProvenance`에 넣는다. Frontend는 `source`로 제공자 문구를
 다시 만들지 않고 `attribution`을 그대로 표시하며, 온라인 화면에서는
@@ -472,9 +476,11 @@ Frontend 담당은 `eligible=false`에서 delta/ranking 문구를 숨기고 reas
 
 | Source | officialUrl | licenseUrl | 좁은 카드 문구 |
 | --- | --- | --- | --- |
-| KTO_KOR_SERVICE_2 | [공식 관광정보](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15101578) | [포털 정책](https://data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
-| KTO_CONCENTRATION_FORECAST | [공식 집중률 예측](https://www.data.go.kr/data/15128555/openapi.do) | [포털 정책](https://data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
+| KTO_KOR_SERVICE_2 | [공식 관광정보](https://www.data.go.kr/data/15101578/openapi.do) | [포털 정책](https://www.data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
+| KTO_CONCENTRATION_FORECAST | [공식 집중률 예측](https://www.data.go.kr/data/15128555/openapi.do) | [포털 정책](https://www.data.go.kr/ugs/selectPortalPolicyView.do) | 출처: ⓒ한국관광공사 |
 | SEOUL_CITYDATA | [공식 도시데이터](https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do) | [공공누리 1유형](https://www.kogl.or.kr/info/licenseType1.do) | 출처: 서울특별시 |
+
+이 표는 09-06의 제안이었다. 화면이 받는 officialUrl·licenseUrl은 source registry revision에서만 나오므로, 두 표기가 어긋나면 registry가 정본이다. 위 KTO 두 행의 링크는 등록값(`V007`·`V011`)으로 맞췄다. KorService2의 옛 표기 `selectApiDataDetailView.do?publicDataPk=15101578`도 같은 dataset을 가리킨다. registry를 문서에 맞추려면 revision을 올려야 하는데, `BA-086`의 읽기 게이트가 옛 revision에 묶인 국문 텍스트를 내리므로 그 방향은 쓰지 않는다. 서버는 `attributionShort`를 채우지 않는다. 혼잡 provenance는 null을 싣고(`CrowdProvenanceProjection`), 관계 provenance에는 그 필드가 없다.
 
 DataProvenance.attributionShort는 선택 nullable, 유효한 문구는 1~160자다. 없거나 null이면 full attribution을 표시한다. 줄인 문구를 쓰더라도 같은 카드의 접근 가능한 출처 상세에 full attribution·officialUrl·licenseUrl을 제공한다. 긴 문구를 FE가 임의로 잘라 필수 credit을 없애지 않는다. 링크를 확인하지 못한 future source는 URL을 추측하지 않고 null·미확인 안내와 source 검토 항목을 남긴다.
 
