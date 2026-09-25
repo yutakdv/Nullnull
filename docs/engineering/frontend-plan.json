@@ -299,7 +299,7 @@
       "id": "FE-105",
       "phase": "B02",
       "priority": "P0",
-      "title": "S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status",
+      "title": "S14 프로필 shell: `TEST` 계정 표기(A-075), KO/EN, trips, 데이터 안내, 삭제 receipt/status",
       "status": "integration-ready",
       "dependsOn": [
         "FE-101",
@@ -334,7 +334,7 @@
       "tests": [
         {
           "id": "FE-105-T1",
-          "assertion": "로그인 CTA가 요청·route를 만들지 않고 삭제 receipt는 status만 조회한다"
+          "assertion": "프로필의 `TEST` 계정 표기와 로그인 흉내 화면은 요청·계정 route를 만들지 않고 삭제 receipt는 status만 조회한다(A-075)"
         },
         {
           "id": "FE-105-T2",
@@ -1269,8 +1269,9 @@
       "id": "FE-505",
       "phase": "B06",
       "priority": "P0",
-      "title": "applied/undo/recompute flow",
-      "status": "integration-ready",
+      "title": "applied/undo/recompute flow (undo 진입점 퇴역, A-074)",
+      "status": "deferred",
+      "reason": "A-074(오너 2026-09-25): 여행 화면의 24시간 되돌리기 진입점은 93de5679(2026-09-21)에서 빠졌고 퇴역으로 기록했다. revertOptimizationDecision(BA-053)과 TripAppliedPanel 코드는 남아 있지만 앱이 mount하지 않는다. 안전 기본값은 적용 결과에서 되돌리기를 약속하지 않는 것이다. applied-panel.spec.ts가 게이트에서 패널·되돌리기 버튼·이력 요청의 부재를 지키고, 데이터 안내도 되돌리기를 약속하지 않는다(FE-404-T5). 다시 여는 것은 오너 결정이다.",
       "dependsOn": [
         "FE-503",
         "BA-052",

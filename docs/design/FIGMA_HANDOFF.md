@@ -215,10 +215,10 @@ Wizard 규칙:
 | `415:2413` | S09-1 계산 중 | loading | polling; `내 여행으로 돌아가기`는 navigation만, run은 계속되고 URL로 재조회 (`FCR-014` 2026-09-08); route-free copy (`FCR-005`) | `GET /optimizations/:runId` |
 | `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
-| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | persistent 패널: 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
-| `724:4602` | S09-3 되돌리는 중 | applied submitting | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
-| `724:4730` | S09-3 되돌림 | applied `REVERTED` | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
-| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
+| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | **퇴역(A-074): 앱이 이 패널을 그리지 않는다.** 원래 설계: persistent 패널에 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
+| `724:4602` | S09-3 되돌리는 중 | applied submitting · 퇴역(A-074) | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
+| `724:4730` | S09-3 되돌림 | applied `REVERTED` · 퇴역(A-074) | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
+| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` · 퇴역(A-074) | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
 | `485:3517` | REF stale | stale | `TRIP_CHANGED` 재계산 | recompute |
 
@@ -326,7 +326,7 @@ Candidate relation:
 
 | Figma node | 화면 | Priority | 구현 메모 |
 | --- | --- | --- | --- |
-| `422:2925` | S14 프로필 | P0 | guest 표시(익명 세션 저장 설명), disabled `로그인 · 준비 중`(`FCR-006` 2026-09-07), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
+| `422:2925` | S14 프로필 | P0 | `TEST` 계정 표기(`이 계정은 test계정입니다`, A-075 2026-09-25; 요청 없음), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제. 로그인 흉내는 onboarding의 /sign-in(A-4 sign-in, 804:4537)이 맡는다 |
 | `423:2967` | S15 데이터 안내 | P0 | 출처/상태/신뢰도/재현 의미 |
 | `442:3344` | S12 알림 | P1 | item deep link, 개별 읽음, `모두 읽음`, unread count |
 | `442:3370` | S10 주변 | P1 | 위치 동의·로컬 거리 계산 우선 |

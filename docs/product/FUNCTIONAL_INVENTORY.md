@@ -32,7 +32,7 @@ tags:
 | FR-SES-03 | P0 | CSRF/Origin 보호 | 공통 | `issueCsrfToken`, 모든 mutation | token 없거나 origin 불일치 거절 |
 | FR-SES-04 | P0 | session과 소유 data 삭제 요청/상태 확인 | S14 | `deleteCurrentSession`, `getDeletionRequest` | 즉시 revoke, receipt token으로 status만 조회 |
 | FR-PRO-01 | P0 | guest 프로필 shell/locale/active trip/데이터 안내 진입 | `422:2925` | `getCurrentOwner`, `updatePreferences` | 새로고침 후 유지, 내부 route allowlist |
-| FR-PRO-02 | P0 | 계정 login CTA를 disabled `준비 중`으로 표시 | `422:2925` | client capability(`accountAuth=false`) | API/route 호출 없음, 가짜 활성 CTA 없음 |
+| FR-PRO-02 | P0 | 로그인 표현은 A-075(오너 2026-09-25)대로 둔다. onboarding의 /sign-in(`804:4537`)이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 정확히 대조하고, 프로필은 `TEST` 계정으로 표기한다 | `422:2925` | client capability(`accountAuth=false`) | API/route 호출 없음, 계정 생성·연결 없음, 로그인 없이 쓰는 경로 유지 |
 | FR-PRO-03 | P0 | 내 여행 목록·active trip·empty state | `422:2925` | `listTrips` | row deep link, loading/empty/error 구분 |
 | FR-PRO-04 | P0 | AI 최적화 run 상태 이력 | `422:2925` | `listOptimizationHistory`, `getOptimization` | 상태/scope/시각/decision; 이력용 일정 본문 추가 보존 없음 |
 | FR-PRO-05 | P0 | 여행별 관심사 조회·전체 교체 | `422:2925` | `listTrips`, `getTrip`, `replaceTripInterests` | ETag/If-Match, 0개 허용, 중복 없음 |
@@ -114,7 +114,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-OPT-06 | P0 | lock 보존 validation 표시 | preview | `ValidationSummary` | 모든 constraint pass |
 | FR-OPT-07 | P0 | 사용자가 proposal apply | decision bar | `decideOptimization` APPLY | version/fingerprint 재검증, 원자 적용 |
 | FR-OPT-08 | P0 | 현재 일정 keep | decision bar | `decideOptimization` KEEP | trip/version 미변경 |
-| FR-OPT-09 | P0 | 적용 완료와 undo | `417:2412` | `revertOptimizationDecision` | 새 revision, 감사 record 유지 |
+| FR-OPT-09 | P0 | 적용 완료와 undo — 퇴역(A-074). 여행 화면의 되돌리기 진입점은 2026-09-21에 빠졌고 A-074(오너 2026-09-25)로 퇴역했다. API는 남아 있다 | `417:2412` | `revertOptimizationDecision` | 새 revision, 감사 record 유지. 앱은 이 operation을 부르지 않고 되돌리기를 약속하지 않는다 |
 | FR-OPT-10 | P0 | trip stale 재계산 | `485:3517` | `TRIP_CHANGED` | 최신 trip으로 명시적 재요청 |
 | FR-OPT-11 | P0 | data stale 재계산 | error ref | `DATA_CHANGED` | 기존 preview 적용 금지 |
 | FR-OPT-12 | P0 | lock 충돌 처리 | `417:2567` | `LOCK_CONFLICT` | 조건 확인 CTA, 자동 unlock 금지 |
