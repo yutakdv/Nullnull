@@ -13,7 +13,7 @@ AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 NULLNULL_STACK_PREFIX="${NULLNULL_STACK_PREFIX:-nullnull-stg}"
 NULLNULL_BUDGET_LIMIT_USD="${NULLNULL_BUDGET_LIMIT_USD:-200}"
 NULLNULL_EXPIRY_DATE="${NULLNULL_EXPIRY_DATE:-2026-10-31}"
-# The staging end is this instant, KST midnight of the expiry date, exactly staging_operator.EXPIRY. Comparing
+# The staging end is this instant, 23:59:59 KST on the expiry date, exactly staging_operator.EXPIRY. Comparing
 # the date alone let a writing script run for nine more hours after the operator had stopped (A-069 review).
 NULLNULL_EXPIRY_AT="${NULLNULL_EXPIRY_DATE}T14:59:59Z"
 # profile: a named local profile (operator role); ambient: the GitHub OIDC session in the environment.
