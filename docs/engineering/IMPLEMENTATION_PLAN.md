@@ -288,10 +288,10 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — staging이 서기 전까지 blocked | 전 P0 화면 |
 | `FE-P1-101` | B09 | S12 알림 목록/empty/unread/read-all/allowlisted deep link | `442:3344` |
 | `FE-308` | B09 | FCR-017 확정 뒤 시간/duration 편집 | 미지정 · FCR-017 |
-| `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy | 미지정 · P1 seed |
+| `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy — A-064로 deferred(BA-080) | 미지정 · P1 seed |
 | `FE-P1-104` | B09 | 게시물 작성/media/moderation 상태 | 미지정 · P1 seed |
 | `FE-P1-105` | B09 | S02-6 AI draft와 S09-D1 DAY preview capability | `440:3244`, `439:3104` |
-| `FE-P1-106` | B09 | 프로필 정식 로그인/익명 데이터 승계·복구 UI | `422:2925` |
+| `FE-P1-106` | B09 | 프로필 정식 로그인/익명 데이터 승계·복구 UI — A-064로 deferred(BA-081) | `422:2925` |
 | `FE-401` | B10 | S11-1 list-first와 DataStateLabel, 승인 시 map capability | `716:4377`, `718:4521`, `718:4584`, `718:4647`, `718:4710`, `684:4156`, `684:4330`, `684:4366`, `684:4402` |
 | `FE-402` | B10 | S11-2 상세/S11-3 대안/S11-N 없음 | `419:2617`, `420:2821`, `420:2950` |
 | `FE-403` | B10 | S11-R replay mode와 degraded UI | `421:2850` |
