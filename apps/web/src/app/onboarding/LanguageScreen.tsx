@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { SupportedLocale } from '../../i18n/locales.js';
@@ -57,13 +58,33 @@ export function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
   const updatePreferences = useUpdatePreferences();
+  // The locale the owner record is known to hold, so Next does not send a
+  // choice a tap already SAVED. Written only once the server has answered: a
+  // tap whose save failed must leave Next to send it again (#399 review).
+  //
+  // A save still in flight does NOT count: Next sends again. PATCH /me takes
+  // no If-Match and the same {locale} is idempotent, so a duplicate is
+  // harmless, while skipping it would make a tap that fails after the screen
+  // has moved on permanent (#399 review).
+  const saved = useRef<SupportedLocale | null>(null);
+
+  function save(next: SupportedLocale) {
+    updatePreferences.mutate(
+      { locale: next },
+      {
+        onSuccess: () => {
+          saved.current = next;
+        },
+      },
+    );
+  }
 
   function choose(next: SupportedLocale) {
     setLocale(next);
     // Best effort: the local draft is already applied, and BA-011 is not open
     // yet. A rejection must not block onboarding, but it is not swallowed
     // either — the mutation's error state stays readable to this screen.
-    updatePreferences.mutate({ locale: next });
+    save(next);
   }
 
   return (
@@ -126,6 +147,11 @@ export function LanguageScreen() {
       <BottomCta
         label={t('language.next')}
         onClick={() => {
+          // The screen may be showing the browser's language with nothing
+          // tapped. The owner record starts at ko-KR and place names are
+          // projected in it, while search follows the UI (WEB-RT-1), so the
+          // language the traveller is reading is saved here too.
+          if (saved.current !== locale) save(locale);
           void navigate('/intro');
         }}
       />

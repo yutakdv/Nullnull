@@ -37,6 +37,13 @@ export interface DataAttributionProps {
    * Never part of the link text, which stays the server's words.
    */
   context?: string | null;
+  /**
+   * Puts `context` into both links' accessible names instead of describing the
+   * credit link with it. For a list of credits that read alike (the data guide):
+   * a screen reader's link list shows names only, so without it the list holds
+   * several identical "출처: ⓒ한국관광공사" and "이용조건" links.
+   */
+  nameWithContext?: boolean;
 }
 
 export function DataAttribution({
@@ -45,6 +52,7 @@ export function DataAttribution({
   compact = false,
   showLicense = false,
   context = null,
+  nameWithContext = false,
 }: DataAttributionProps) {
   const contextId = useId();
   const { officialUrl, licenseUrl } = provenance;
@@ -55,7 +63,8 @@ export function DataAttribution({
     <span className={styles.attribution}>
       {officialUrl ? (
         <a
-          aria-describedby={context ? contextId : undefined}
+          aria-describedby={context && !nameWithContext ? contextId : undefined}
+          aria-label={context && nameWithContext ? `${text} · ${context}` : undefined}
           href={officialUrl}
           target="_blank"
           rel="noreferrer noopener"
@@ -68,13 +77,22 @@ export function DataAttribution({
       {context ? (
         <>
           <span aria-hidden="true">{' · '}</span>
-          <span id={contextId}>{context}</span>
+          <span aria-hidden={nameWithContext || undefined} id={contextId}>
+            {context}
+          </span>
         </>
       ) : null}
       {showLicense && licenseUrl ? (
         <>
           {' · '}
-          <a href={licenseUrl} target="_blank" rel="noreferrer noopener">
+          <a
+            aria-label={
+              context && nameWithContext ? `${termsLabel} · ${context}` : undefined
+            }
+            href={licenseUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
             {termsLabel}
           </a>
         </>
