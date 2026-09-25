@@ -134,7 +134,7 @@ tags:
 | --- | --- | --- |
 | 호출·적재 | 장소마다 task 2개(`kto-smoke`가 호출, `kto-ingest`가 적재) | task 하나가 목록 전체를 호출하고 적재한다 |
 | task 수(15곳) | 30 | 3(배치 P·B·C) |
-| 다시 돌릴 때 | 매번 새로 호출한다(`KtoSmokeMain.FORCE_HORIZON` 365일) | 신선한 snapshot이 있는 장소는 호출하지 않는다 |
+| 다시 돌릴 때 | 매번 새로 호출한다(`KtoSmokeMain.FORCE_HORIZON` 365일) | 받은 지 1일이 안 된 장소는 호출하지 않는다. 1일이 지난 장소는 다시 부른다(`DETAIL_RENEW_BEFORE` 6일, snapshot 수명 P7D) |
 | release 확인 | 있다. ops 정의와 image가 배포된 release와 같아야 뜬다 | 없다. 전제 4의 `kto-call-inventory`로 대신한다 |
 | 제출 증거 | `kto-smoke`는 성공할 때마다 release의 CMP-KTO-003 증거 `actual-call-<release>.json`을 다시 쓴다. runbook은 이 명령을 release당 한 번 돌리라고 적는다 | 건드리지 않는다 |
 | 문서상 용도 | 호출 증거와 단건 확인 | 목록 첫 적재. `KtoDemoDetailRefreshMain`의 javadoc과 `CURATED_POSTS_TEMPLATE` 절차 1에 적혀 있다 |
@@ -245,7 +245,7 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
           --source-code KTO_KOR_SERVICE_2 --owner-approval '<누가·어디서 승인했는지>'
         ```
 
-     3. 거절된 장소를 뺀 목록으로 같은 배치를 다시 돌린다. 이미 snapshot을 받은 장소는 다시 호출하지 않는다. 호출 대상은 지금부터 `KtoDemoRefresh.DETAIL_RENEW_BEFORE` 뒤에도 신선한 snapshot이 없는 장소뿐이다. 그 창은 지금 2일이고, [#363](https://github.com/yutakdv/Nullnull/pull/363)이 들어가면 6일이다.
+     3. 거절된 장소를 뺀 목록으로 같은 배치를 다시 돌린다. 호출 대상은 지금부터 `KtoDemoRefresh.DETAIL_RENEW_BEFORE`(6일, [#363](https://github.com/yutakdv/Nullnull/pull/363)) 뒤에도 신선한 snapshot이 없는 장소다. snapshot 수명이 P7D이므로, 받은 지 1일이 안 된 장소는 부르지 않고 1일이 지난 장소는 다시 부른다. 같은 날 다시 돌리면 이미 받은 장소에 quota를 쓰지 않지만, 하루 넘게 지나 다시 돌리면 그 장소들도 다시 호출한다.
 3. **`UNEXPECTED_FAILURE (IllegalArgumentException)`(적재만 거절)**:
    - 새 코드 가운데 하나 이상은 있지만 분류(`lclsSystm1`)나 지역(`lDongRegnCd`)이 비었거나, snapshot의 revision이 현재와 다를 때다.
    - source는 격리되지 않는다. 그 장소는 snapshot만 남고 catalog 행이 생기지 않는다.
@@ -254,11 +254,7 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 ### 문서 불일치 — 이 계획은 고치지 않는다
 
-*"해제 도구가 없다"*는 문장이 세 파일 다섯 곳에 남아 있다. `release-source-quarantine`이 생기기 전의 서술이다.
-
-- `STAGING_DEPLOYMENT_RUNBOOK.md` 286·343·499행
-- `ENVIRONMENT.md` 277행
-- `SUBMISSION_RUNBOOK.md` 213행
+*"해제 도구가 없다"*는 문장이 세 파일 다섯 곳에 남아 있었다. `release-source-quarantine`이 생기기 전의 서술이다. `SUBMISSION_RUNBOOK.md` 한 곳이 먼저 고쳐졌고, `STAGING_DEPLOYMENT_RUNBOOK.md` 세 곳과 `ENVIRONMENT.md` 한 곳은 이 계획 밖의 문서 정정(R4b)에서 고쳤다. 해제 task의 설명은 staging runbook §11에 있다.
 
 같은 runbook의 서울 수집 절과 `staging_operator.py`는 이미 그 도구를 쓴다.
 
@@ -281,7 +277,7 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
   - 하루 한도는 1,000건(registry `quotaPolicy.perDay`)이고, 15건은 1.5%다. 한도 회계 단위는 활용신청(API) 단위로 확정돼 있다(SOURCE_CATALOG, 2026-09-21).
   - `[읽음]` 호출 1건은 IO 오류·429·5xx에서 최대 3회의 HTTP 요청이 된다(`RetryPolicy`, `NULLNULL_PROVIDER_RETRY_ATTEMPTS` 기본 3). 로컬 quota는 15건을 세고, provider 쪽 요청은 최악 45건(4.5%)이다.
   - operator 출력의 `KTO_DEMO_REFRESH_QUOTA … planned_calls=… per_day=1000 planned_ratio=…` 줄은 task가 끝난 뒤에 보인다. operator가 task가 멈춘 뒤 로그를 읽기 때문이다. 그래서 사전 확인이 아니라 실행 기록이다.
-- **다시 돌릴 때**: 이미 snapshot을 받은 장소는 호출하지 않는다. 격리 뒤 거절된 장소도 호출하지 않았으므로 quota를 쓰지 않는다.
+- **다시 돌릴 때**: 받은 지 1일 안에 다시 돌리면 이미 snapshot을 받은 장소는 호출하지 않는다. 1일이 지나면 그 장소들도 다시 부른다(`DETAIL_RENEW_BEFORE` 6일, 수명 P7D, #363). 격리 뒤 거절된 장소는 호출하지 않았으므로 quota를 쓰지 않는다.
 - **기존 정기 갱신**: 바뀌지 않는다. 대상은 `126508:12`·`128611:12` 두 곳이고, detail 5일·예보 12시간 주기다. runbook 기준 하루 약 4건이다.
 - **적재 뒤, 정기 갱신을 넓히지 않을 때**:
   - 새 장소의 detail snapshot은 P7D 뒤 stale이 된다.
@@ -321,15 +317,13 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 - **목록 하나가 두 스케줄을 움직인다**: `infra/src/staging.ts`의 `FORECAST_DEMO_PLACES`가 detail(5일)과 예보(12시간) 스케줄의 입력이다.
   - 두 스케줄은 같은 설정으로 만들어진다. 종료는 2026-10-25T14:59:59Z(`FORECAST_SCHEDULE_END`)이고, scheduler 재시도는 `retryAttempts: 3`이다.
   - 스케줄은 `Migration` stack에 있다. 목록을 바꾸면 `infra/` 코드를 고치지만 app release로 나간다.
-- **현재 detail 갱신의 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361)):
+- **#363 전의 detail 갱신 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361), 고쳐졌다):
   - 등급: `[읽음]` 코드 분석이다. #361의 staging 로그 측정에서는 예보가 한 번 갱신하고 한 번 건너뛰기를 되풀이했다.
-  - 수정안은 [#363](https://github.com/yutakdv/Nullnull/pull/363)이다(갱신 창 detail 6일·예보 18시간).
-  - `rate 5일 + DETAIL_RENEW_BEFORE 2일 = 수명 7일`이라 갱신 여부가 기동 지연 차이로 갈린다.
-  - 건너뛴 주기에는 detail snapshot이 약 3일 비고, 그동안 예보 갱신이 `NO_VERIFIED_KTO_MAPPING`으로 실패한다.
-  - 목록을 넓히면 같은 공백이 새 장소에도 생긴다. 목록 확대 전에 이것을 먼저 정한다.
+  - 그때는 `rate 5일 + DETAIL_RENEW_BEFORE 2일 = 수명 7일`이라 갱신 여부가 기동 지연 차이로 갈렸다. 건너뛴 주기에는 detail snapshot이 약 3일 비고, 그동안 예보 갱신이 `NO_VERIFIED_KTO_MAPPING`으로 실패했다.
+  - [#363](https://github.com/yutakdv/Nullnull/pull/363)이 갱신 창을 detail 6일·예보 18시간으로 넓혔다. 2026-09-24에 병합됐고 rc.23(main `63d981f8`)에 들어 있다. 지금은 주기보다 하루(예보는 6시간) 긴 창이 기동 지연의 여유다.
 - **호출량(목록에 N곳일 때, `[읽음]` 코드를 읽어 낸 추정)**:
-  - detail은 5일마다 최대 N건이다(위 결함으로 건너뛰는 주기에는 더 적다).
-  - 예보는 하루 N~2N건이다. set 수명이 PT24H이고 만료 12시간 전부터 갱신하므로, 12시간 주기의 실행이 장소마다 하루 1~2번 부른다. #363이 들어가면 매 실행이 갱신하므로 장소당 하루 2건이다. coverage가 없는 장소는 set을 저장하지 않으므로(`KtoCrowdForecastGateway`) 매 실행, 곧 하루 2번 부른다. 예보 호출은 예보 source의 하루 한도 1,000건에 따로 잡힌다.
+  - detail은 5일마다 최대 N건이다.
+  - 예보는 하루 2N건이다. set 수명이 PT24H이고 만료 18시간 전부터 갱신하므로(#363), 12시간 주기의 매 실행이 장소마다 부른다. coverage가 없는 장소는 set을 저장하지 않으므로(`KtoCrowdForecastGateway`) 매 실행, 곧 하루 2번 부른다. 예보 호출은 예보 source의 하루 한도 1,000건에 따로 잡힌다.
   - N=20이면 detail은 하루 최대 약 4건, 예보는 하루 최대 약 40건이다.
 - **관측 가능성**: KTO는 모든 관광지를 예보하지 않는다.
   - coverage가 없는 장소의 예보 갱신은 실패가 아니라 `coverage=0`인 `REFRESHED`로 끝난다.
