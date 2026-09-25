@@ -496,6 +496,36 @@ describe('FE-503 choosing between proposals', () => {
     );
   });
 
+  it('FE-503-T3 enters the group once, at the chosen proposal', async () => {
+    // Tabbing in from before the group. The chosen card is the second, so the
+    // first card's credit links come first — DOM order is reading order, as in
+    // a native fieldset with links between its radios — and then exactly one
+    // radio stop: the chosen one. The unchosen radio is never a stop.
+    const user = userEvent.setup();
+    renderTwo();
+    const options = await screen.findAllByRole('radio');
+    const chosen = options.find((o) => o.getAttribute('aria-checked') === 'true');
+    const other = options.find((o) => o.getAttribute('aria-checked') === 'false');
+    if (!chosen || !other)
+      throw new Error('one chosen and one unchosen proposal expected');
+    const group = screen.getByRole('radiogroup');
+    await waitFor(() => {
+      expect(within(group).getAllByRole('link').length).toBeGreaterThan(0);
+    });
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    const stops: Element[] = [];
+    for (let step = 0; step < 40; step += 1) {
+      await user.tab();
+      const at = document.activeElement;
+      if (at && group.contains(at)) stops.push(at);
+      else if (stops.length > 0) break;
+    }
+
+    expect(stops.filter((element) => element === chosen)).toHaveLength(1);
+    expect(stops).not.toContain(other);
+  });
+
   it('moves the choice with the keyboard, not the pointer alone', async () => {
     const user = userEvent.setup();
     renderTwo();

@@ -288,6 +288,20 @@ function scan(): Scan {
           grew = true;
         }
       };
+      /**
+       * A control element with a spread whose type can carry children. Chip,
+       * LockControl and TripAddButton spread their props onto a button but
+       * take them as Omit<…, 'children'>, so no credit can reach them.
+       */
+      const spreadsChildren = (element: ts.JsxOpeningLikeElement): boolean =>
+        isControl(element) &&
+        element.attributes.properties.some(
+          (attribute) =>
+            ts.isJsxSpreadAttribute(attribute) &&
+            checker
+              .getNonNullableType(checker.getTypeAtLocation(attribute.expression))
+              .getProperty('children') !== undefined,
+        );
       const walk = (node: ts.Node, inside: boolean): void => {
         if (
           inside &&
@@ -297,20 +311,18 @@ function scan(): Scan {
         ) {
           mark(node);
         }
+        // A control that takes its children from a spread — `<button
+        // {...props}>` and the self-closing `<button {...props} />` alike —
+        // makes its component a wrapper when that spread can carry children.
+        if (
+          (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+          spreadsChildren(ts.isJsxElement(node) ? node.openingElement : node)
+        ) {
+          mark(node);
+        }
         if (ts.isJsxElement(node)) {
           const opening = node.openingElement;
           const control = isControl(opening);
-          // A spread carries children only when its type has them: Chip,
-          // LockControl and TripAddButton spread their props onto a button
-          // but take them as Omit<…, 'children'>, so no credit can reach it.
-          const spreadsChildren = opening.attributes.properties.some(
-            (attribute) =>
-              ts.isJsxSpreadAttribute(attribute) &&
-              checker
-                .getNonNullableType(checker.getTypeAtLocation(attribute.expression))
-                .getProperty('children') !== undefined,
-          );
-          if (control && spreadsChildren) mark(node);
           walk(opening, inside);
           for (const child of node.children) walk(child, inside || control);
           return;

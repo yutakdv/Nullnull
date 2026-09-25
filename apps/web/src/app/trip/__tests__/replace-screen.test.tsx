@@ -106,10 +106,18 @@ describe('FE-305-T2 the sheet shows both sides with their own sources', () => {
   it("shows the server's own reason for each alternative", async () => {
     const { sheet } = await openReplace('경복궁');
     // relationReason is a required contract field, unlike the reason text on a
-    // TripCandidate — so it is shown as written rather than invented.
-    expect(
-      await within(sheet).findByText(firstAlternative?.relationReason ?? ''),
-    ).toBeInTheDocument();
+    // TripCandidate — so it is shown as written rather than invented. Counted
+    // per reason, not found once: two alternatives can share a reason (the
+    // server's rule-based SIMILAR gives every match '같은 분류·지역'), and
+    // each must show its own.
+    const items = relatedFixtures.page.items;
+    expect(items.length).toBeGreaterThan(0);
+    for (const option of items) {
+      const shown = await within(sheet).findAllByText(option.relationReason);
+      expect(shown).toHaveLength(
+        items.filter((other) => other.relationReason === option.relationReason).length,
+      );
+    }
   });
 
   it('keeps the order the server returned', async () => {
