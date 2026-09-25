@@ -265,7 +265,7 @@ describe('FE-401 Live area list', () => {
     expect(state).not.toHaveTextContent(formatReferenceTime(replay.generatedAt, 'en-US'));
   });
 
-  it('FE-403-T4 uses the reviewed Seoul wording on the five-cell scale instead of the generic copy', async () => {
+  it('FE-403-T4 FE-403-T5 uses the reviewed Seoul wording on the five-cell scale instead of the generic copy', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     const firstArea = result.areas[0];
     if (!firstArea?.crowd) throw new Error('Live fixture must include a crowd metric');
@@ -285,7 +285,7 @@ describe('FE-401 Live area list', () => {
     expect(await screen.findByText('3 · Slightly crowded')).toBeVisible();
     expect(
       screen.getByRole('img', {
-        name: 'Seoul crowd level 3 of 5 · Seoul data has no level 5',
+        name: 'Seoul crowd level 3 of 4',
       }),
     ).toBeVisible();
     expect(screen.queryByText('3 · Moderate')).not.toBeInTheDocument();
@@ -716,7 +716,7 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
-  it('FE-403-T4 renders the Seoul reading on five cells in English on place detail', async () => {
+  it('FE-403-T4 FE-403-T5 renders the Seoul reading on five cells in English on place detail', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     if (!detail.crowd) throw new Error('Missing crowd fixture');
     detail.crowd.ordinalLevel = '3';
@@ -725,7 +725,7 @@ describe('FE-402 Live place detail', () => {
     );
     renderLive(`/live/places/${detail.place.id}`);
     const bar = await screen.findByRole('img', {
-      name: 'Seoul crowd level 3 of 5 · Seoul data has no level 5',
+      name: 'Seoul crowd level 3 of 4',
     });
     expect(bar.children).toHaveLength(5);
     expect(bar.lastElementChild).toHaveAttribute('data-unpublished');

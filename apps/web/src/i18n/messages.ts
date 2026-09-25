@@ -209,8 +209,7 @@ export const messages = {
     'live.crowd.seoul.level2': '보통',
     'live.crowd.seoul.level3': '약간 붐빔',
     'live.crowd.seoul.level4': '붐빔',
-    'live.crowd.seoul.levelLabel':
-      '서울 혼잡도 5단계 중 {level}번째 · 5단계는 서울 자료에 없어요',
+    'live.crowd.seoul.levelLabel': '서울 혼잡도 {steps}단계 중 {level}번째',
     'live.detail.back': '라이브로 돌아가기',
     'live.detail.title': '장소 혼잡 정보',
     'live.detail.loading': '장소 정보를 불러오고 있어요',
@@ -1301,8 +1300,7 @@ export const messages = {
     'live.crowd.seoul.level2': 'Moderate',
     'live.crowd.seoul.level3': 'Slightly crowded',
     'live.crowd.seoul.level4': 'Crowded',
-    'live.crowd.seoul.levelLabel':
-      'Seoul crowd level {level} of 5 · Seoul data has no level 5',
+    'live.crowd.seoul.levelLabel': 'Seoul crowd level {level} of {steps}',
     'live.detail.back': 'Back to Live',
     'live.detail.title': 'Place crowd information',
     'live.detail.loading': 'Loading place information',

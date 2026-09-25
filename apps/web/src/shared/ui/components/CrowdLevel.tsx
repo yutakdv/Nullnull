@@ -1,4 +1,6 @@
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
+import type { MessageKey } from '../../../i18n/messages.js';
 import { StateLabel, type StateWording } from './StateLabel.js';
 import styles from './CrowdLevel.module.css';
 
@@ -31,8 +33,10 @@ export interface CrowdLevelProps {
   /** Localized wording for the six data states, passed to StateLabel. */
   stateLabels?: Partial<Record<StateWording, string>>;
   /**
-   * Accessible name for the bar, already interpolated by the caller — e.g.
-   * "5단계 중 2번째". The glyph row is meaningless without it.
+   * Accessible name for the bar, when the caller must override it. By default
+   * it is built here from the steps the reading's source publishes - "4단계 중
+   * 3번째" for Seoul - never from the cells the bar has: the contract forbids
+   * "Nth of five" for a source that does not publish five.
    */
   levelLabel?: string;
   /** Localized visible wording for each product stage. */
@@ -50,6 +54,7 @@ export function CrowdLevel({
   levelLabel,
   levelLabels,
 }: CrowdLevelProps) {
+  const i18n = useOptionalI18n();
   if (!crowd) {
     return (
       <span className={styles.row}>
@@ -84,15 +89,34 @@ export function CrowdLevel({
       ? (Number(crowd.ordinalLevel) as CrowdOrdinal)
       : null;
 
+  // Words and name come from the locale inside the app, and from the Korean
+  // defaults only with no provider (a bare story or test).
+  const stageWords = (n: CrowdOrdinal) =>
+    levelLabels?.[n] ??
+    (i18n
+      ? i18n.t(
+          (seoul
+            ? `live.crowd.seoul.level${String(n)}`
+            : `crowd.stage.${String(n)}`) as MessageKey,
+        )
+      : seoul
+        ? SEOUL_LEVEL_LABELS[n]
+        : LEVEL_LABELS[n]);
+  const publishedSteps = published.length;
+  const name = (n: CrowdOrdinal) =>
+    levelLabel ??
+    (i18n
+      ? i18n.t(seoul ? 'live.crowd.seoul.levelLabel' : 'crowd.level', {
+          level: n,
+          steps: publishedSteps,
+        })
+      : `${String(publishedSteps)}단계 중 ${String(n)}번째`);
+
   return (
     <span className={styles.row}>
       {level === null ? null : (
         <>
-          <span
-            aria-label={levelLabel ?? `${steps}단계 중 ${level}번째`}
-            className={styles.bar}
-            role="img"
-          >
+          <span aria-label={name(level)} className={styles.bar} role="img">
             {Array.from({ length: steps }, (_, i) => (
               <span
                 key={i}
@@ -103,9 +127,7 @@ export function CrowdLevel({
             ))}
           </span>
           <span className={styles.levelText}>
-            {level} ·{' '}
-            {levelLabels?.[level] ??
-              (seoul ? SEOUL_LEVEL_LABELS[level] : LEVEL_LABELS[level])}
+            {level} · {stageWords(level)}
           </span>
         </>
       )}

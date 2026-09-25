@@ -199,24 +199,6 @@ export function LivePlaceScreen() {
             <h2 id="live-place-crowd">{t('live.detail.crowd')}</h2>
             <CrowdLevel
               crowd={detail.data.crowd ?? null}
-              levelLabel={
-                detail.data.crowd?.provenance.source === 'SEOUL_CITYDATA' &&
-                detail.data.crowd.ordinalLevel
-                  ? t('live.crowd.seoul.levelLabel', {
-                      level: detail.data.crowd.ordinalLevel,
-                    })
-                  : undefined
-              }
-              levelLabels={
-                detail.data.crowd?.provenance.source === 'SEOUL_CITYDATA'
-                  ? {
-                      1: t('live.crowd.seoul.level1'),
-                      2: t('live.crowd.seoul.level2'),
-                      3: t('live.crowd.seoul.level3'),
-                      4: t('live.crowd.seoul.level4'),
-                    }
-                  : undefined
-              }
               stateLabels={stateLabels}
               unavailableReason={t('live.noReading')}
             />

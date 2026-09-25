@@ -1,4 +1,6 @@
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
+import type { MessageKey } from '../../../i18n/messages.js';
 import styles from './StateLabel.module.css';
 
 // Figma: `Data / StateLabel` (C07). One label per SourceState.
@@ -59,17 +61,21 @@ export interface StateLabelProps {
 }
 
 export function StateLabel({ state, labels, observedAt, qualityFlags }: StateLabelProps) {
+  const i18n = useOptionalI18n();
   const incident =
     state === 'LIVE' && (qualityFlags?.includes('PROVIDER_INCIDENT') ?? false);
+  // The caller's words, else the locale's, else - only with no provider at all
+  // - the Korean defaults above.
+  const text = incident
+    ? (labels?.PROVIDER_INCIDENT ?? i18n?.t('crowd.providerIncident') ?? INCIDENT_LABEL)
+    : (labels?.[state] ?? i18n?.t(`state.${state}` as MessageKey) ?? LABELS[state]);
   return (
     <span
       className={styles.label}
       data-quality={incident ? 'PROVIDER_INCIDENT' : undefined}
       data-state={state}
     >
-      {incident
-        ? (labels?.PROVIDER_INCIDENT ?? INCIDENT_LABEL)
-        : (labels?.[state] ?? LABELS[state])}
+      {text}
       {observedAt ? <span className={styles.time}>{observedAt}</span> : null}
     </span>
   );

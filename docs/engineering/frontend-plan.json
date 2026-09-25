@@ -1905,6 +1905,10 @@
         {
           "id": "FE-403-T4",
           "assertion": "혼잡 막대는 서버 ordinalScale의 칸 수로 그리고 source가 발표하지 않는 칸은 비운 칸으로 둔다(서울은 5칸 중 1~4, A-060)"
+        },
+        {
+          "id": "FE-403-T5",
+          "assertion": "혼잡 막대의 접근성 이름은 source가 발행한 단계 수로 읽고 막대 칸 수로 읽지 않는다(서울은 4단계 중 N번째)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

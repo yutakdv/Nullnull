@@ -38,8 +38,6 @@ const STATES: SourceState[] = [
   'REPLAY',
 ];
 
-type CrowdMetric = components['schemas']['CrowdMetric'];
-
 export function LiveScreen() {
   const { locale, t } = useI18n();
   const navigate = useNavigate();
@@ -65,21 +63,6 @@ export function LiveScreen() {
     ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
     ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
   ]) as Partial<Record<StateWording, string>>;
-  const seoulLevelLabels = {
-    1: t('live.crowd.seoul.level1'),
-    2: t('live.crowd.seoul.level2'),
-    3: t('live.crowd.seoul.level3'),
-    4: t('live.crowd.seoul.level4'),
-  };
-  const crowdPresentation = (crowd: CrowdMetric | null) =>
-    crowd?.provenance.source === 'SEOUL_CITYDATA'
-      ? {
-          levelLabel: crowd.ordinalLevel
-            ? t('live.crowd.seoul.levelLabel', { level: crowd.ordinalLevel })
-            : undefined,
-          levelLabels: seoulLevelLabels,
-        }
-      : {};
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
@@ -323,7 +306,6 @@ export function LiveScreen() {
                     <span>{area.name}</span>
                     <CrowdLevel
                       crowd={area.crowd}
-                      {...crowdPresentation(area.crowd)}
                       stateLabels={stateLabels}
                       unavailableReason={t('live.noReading')}
                     />
@@ -363,7 +345,6 @@ export function LiveScreen() {
                                 </span>
                                 <CrowdLevel
                                   crowd={item.crowd ?? null}
-                                  {...crowdPresentation(item.crowd ?? null)}
                                   stateLabels={stateLabels}
                                   unavailableReason={t('live.noReading')}
                                 />

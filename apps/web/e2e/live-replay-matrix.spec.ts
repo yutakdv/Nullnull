@@ -568,7 +568,7 @@ for (const width of [360, 180] as const) {
 // the fifth stays empty. The approved examples carry that scale; each Seoul
 // bar the list draws follows it.
 for (const locale of ['ko-KR', 'en-US'] as const) {
-  test(`FE-403-T4 a Seoul reading draws five cells with the fifth unpublished in ${locale}`, async ({
+  test(`FE-403-T4 FE-403-T5 a Seoul reading draws five cells with the fifth unpublished in ${locale}`, async ({
     page,
   }) => {
     const unexpected = await serve(page, 'LIVE');
@@ -582,8 +582,8 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     for (const bar of await bars.all()) {
       await expect(bar).toHaveAccessibleName(
         locale === 'ko-KR'
-          ? /^서울 혼잡도 5단계 중 [1-4]번째/
-          : /^Seoul crowd level [1-4] of 5/,
+          ? /^서울 혼잡도 4단계 중 [1-4]번째$/
+          : /^Seoul crowd level [1-4] of 4$/,
       );
       await expect(bar.locator(':scope > span')).toHaveCount(5);
       await expect(bar.locator(':scope > span[data-unpublished]')).toHaveCount(1);
