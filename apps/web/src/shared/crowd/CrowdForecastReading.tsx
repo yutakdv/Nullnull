@@ -2,6 +2,7 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { DataAttribution } from '../ui/components/DataAttribution.js';
+import { sourceContext, type AttributionSource } from '../ui/components/credits.js';
 import { StateLabel, type SourceState } from '../ui/components/StateLabel.js';
 import { busiestCrowdPoint, crowdTargetDate } from './forecast.js';
 import { formatReferenceTime } from './reference-time.js';
@@ -19,8 +20,21 @@ const STATES: SourceState[] = [
   'REPLAY',
 ];
 
+/**
+ * Credits already drawn in the same unit — the place's, when the reading sits
+ * under a place. A forecast whose credit reads the same as one of them names
+ * its source beside it (FE-603-T7, `sourceContext`).
+ */
+type Alongside = readonly AttributionSource[];
+
 /** The exact dated reading returned by the server, with its own provenance. */
-export function CrowdForecastReading({ point }: { point: CrowdMetric | null }) {
+export function CrowdForecastReading({
+  point,
+  alongside = [],
+}: {
+  point: CrowdMetric | null;
+  alongside?: Alongside;
+}) {
   const { locale, t } = useI18n();
   if (point === null || typeof point.value !== 'number') return null;
 
@@ -53,7 +67,11 @@ export function CrowdForecastReading({ point }: { point: CrowdMetric | null }) {
             : t('crowd.fetchedAt', { date: referenceLabel })}
         </span>
       </span>
-      <DataAttribution compact provenance={point.provenance} />
+      <DataAttribution
+        compact
+        context={sourceContext(point.provenance, alongside, true)}
+        provenance={point.provenance}
+      />
     </span>
   );
 }
@@ -61,12 +79,14 @@ export function CrowdForecastReading({ point }: { point: CrowdMetric | null }) {
 /** One card's representative point, or an honest unavailable explanation. */
 export function CrowdForecastCardReading({
   series,
+  alongside,
 }: {
   series: CrowdSeries | null | undefined;
+  alongside?: Alongside;
 }) {
   const { t } = useI18n();
   const point = busiestCrowdPoint(series);
-  if (point !== null) return <CrowdForecastReading point={point} />;
+  if (point !== null) return <CrowdForecastReading alongside={alongside} point={point} />;
   if (series?.state !== 'UNAVAILABLE') return null;
 
   const reason =

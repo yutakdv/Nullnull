@@ -9,8 +9,8 @@ import {
 } from '../../shared/api/post-authoring.js';
 import {
   ConfirmDialog,
-  DataAttribution,
   NavBar,
+  PlaceAttribution,
   SearchField,
 } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
@@ -366,9 +366,7 @@ export function PostCreateScreen() {
                     />
                     {place.name}
                   </label>
-                  {place.sourceAttribution ? (
-                    <DataAttribution provenance={place.sourceAttribution} />
-                  ) : null}
+                  <PlaceAttribution place={place} />
                 </li>
               ))}
             </ul>
@@ -384,6 +382,10 @@ export function PostCreateScreen() {
                     >
                       {place.name} ×
                     </button>
+                    {/* The chip stands for the place while the post is written,
+                        so it carries the place's credit too — beside the
+                        button, since a link cannot sit inside one. */}
+                    <PlaceAttribution compact place={place} />
                   </li>
                 ))}
               </ul>

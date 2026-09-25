@@ -736,6 +736,15 @@ export const messages = {
     'run.proposal.remove': '제외',
     'run.proposal.constraintsOk': '잠금과 제약은 그대로예요',
     'run.proposal.constraintsBroken': '지킬 수 없는 제약이 있어요',
+    // Under a proposal's credits (CMP-ATT-001). The summary names places; the
+    // trip that carries their credits may still be loading, or may not hold
+    // them (a place added since, a trip that could not be read). "All" and
+    // "some" are separate so the sentence never says "some" when it is all.
+    'run.proposal.placeCreditPending': '출처를 확인하고 있어요',
+    'run.proposal.placeCreditMissingAll':
+      '이 제안이 말하는 장소의 출처를 표시하지 못했어요',
+    'run.proposal.placeCreditMissingSome':
+      '이 제안이 말하는 장소 중 일부는 출처를 표시하지 못했어요',
 
     // S07 applied panel (417:2412 and its three sibling states). The panel
     // lives on the trip screen, not the run screen: Figma draws it over the
@@ -1741,6 +1750,11 @@ export const messages = {
     'run.proposal.remove': 'Removed',
     'run.proposal.constraintsOk': 'Your locks and constraints are kept',
     'run.proposal.constraintsBroken': 'Some constraints cannot be kept',
+    'run.proposal.placeCreditPending': 'Checking the sources',
+    'run.proposal.placeCreditMissingAll':
+      "We couldn't show the source for the places in this proposal",
+    'run.proposal.placeCreditMissingSome':
+      "We couldn't show the source for some places in this proposal",
 
     // See the ko-KR block for why `revision.reverted` counts forward.
     'trip.applied.badge.available': 'Can be undone',

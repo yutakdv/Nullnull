@@ -319,7 +319,15 @@ test.describe('FE-103 the confirm step is operable by keyboard', () => {
     const body = (await page.locator('body').textContent()) ?? '';
     expect(body).not.toMatch(/Relative concentration/);
     expect(body).not.toMatch(/Level \d/);
-    expect(body).not.toMatch(/한국관광공사/);
+    // The borrowed SOURCE, told apart by its dataset page. This used to be "no
+    // 한국관광공사 anywhere", which the stop's own place credit now satisfies
+    // (CMP-ATT-001, since 35c9a136) — KorService2 and the forecast carry the
+    // same words and differ only in the page they link. The page is the same
+    // in both suites: the MSW forecast fixture (crowd/series-forecast.json) and
+    // the registry row the API serves (V011) both name 15128555.
+    await expect(
+      page.locator('a[href="https://www.data.go.kr/data/15128555/openapi.do"]'),
+    ).toHaveCount(0);
   });
 });
 

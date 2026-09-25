@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
-import { DataAttribution } from '../../shared/ui/index.js';
+import { PlaceAttribution } from '../../shared/ui/index.js';
 import styles from './ReplaceSheet.module.css';
 import {
   alternatives,
@@ -160,9 +160,7 @@ export function ReplaceSheet({
         <div className={styles.current}>
           <p className={styles.sideLabel}>{t('replace.current')}</p>
           <p className={styles.placeName}>{item.place.name}</p>
-          {item.place.sourceAttribution ? (
-            <DataAttribution compact provenance={item.place.sourceAttribution} />
-          ) : null}
+          <PlaceAttribution compact place={item.place} />
         </div>
 
         {loading ? (
@@ -222,13 +220,13 @@ export function ReplaceSheet({
                             ? t('replace.compare.noData')
                             : t('replace.compare.unavailable')}
                       </span>
-                      {option.place.sourceAttribution ? (
-                        <DataAttribution
-                          compact
-                          provenance={option.place.sourceAttribution}
-                        />
-                      ) : null}
                     </button>
+                    {/* Beside the button, not in it: a link inside a button is
+                        no link to a screen reader, and a click on it would
+                        pick the option (FE-603-T11). */}
+                    <span className={styles.optionCredit}>
+                      <PlaceAttribution compact place={option.place} />
+                    </span>
                   </li>
                 );
               })}

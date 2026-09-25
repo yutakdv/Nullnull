@@ -649,6 +649,76 @@ describe('FE-301 the trip screen credits the places it shows', () => {
     expect(forecastLinks[0]).toHaveAccessibleName(forecast.provenance.attribution);
   });
 
+  it('FE-603-T7 names the forecast source when its credit reads like the place one', async () => {
+    // The fixtures' own words this time, not the distinctive CREDIT above:
+    // KorService2 and the concentration forecast both approve
+    // `출처: ⓒ한국관광공사`, so a stop with a forecast drew the same link twice
+    // pointing at two datasets (#383 review, MINOR).
+    const [firstDay, ...restDays] = trip.days;
+    const firstItem = firstDay?.items[0];
+    const forecast = crowdFixtures.seriesForecast.points[0];
+    if (!firstDay || !firstItem || !forecast) throw new Error('fixtures lost a stop');
+    expect(forecast.provenance.attribution).toBe(
+      firstItem.place.sourceAttribution?.attribution,
+    );
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...trip,
+            days: [
+              {
+                ...firstDay,
+                items: [{ ...firstItem, crowd: forecast }, ...firstDay.items.slice(1)],
+              },
+              ...restDays,
+            ],
+          },
+          { headers: { ETag: '"3"' } },
+        ),
+      ),
+    );
+    renderTrip();
+    await loaded();
+
+    const row = (
+      await screen.findByRole('heading', { level: 3, name: firstItem.place.name })
+    ).closest('article') as HTMLElement;
+    const forecastLink = within(row)
+      .getAllByRole('link', { name: forecast.provenance.attribution ?? '' })
+      .find((link) => link.getAttribute('href') === forecast.provenance.officialUrl);
+    expect(forecastLink).toHaveAccessibleDescription(
+      forecast.provenance.sourceDisplayName,
+    );
+  });
+
+  it('FE-603-T5 credits a stop on the edit screen too', async () => {
+    // The view and edit cards both read `item.place`, so the static scan
+    // (FE-603-T4) sees one group; every other credit test here renders the
+    // view. The edit card is found by its drag handle, which only it has.
+    const item = trip.days[0]?.items[0];
+    const credit = item?.place.sourceAttribution;
+    if (!item || !credit) throw new Error('the trip fixture lost its credited stop');
+    const router = createMemoryRouter(routes, {
+      initialEntries: [`/trip/${trip.id}/edit`],
+    });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+    const handle = await screen.findByRole('button', {
+      name: copy['trip.reorder.drag'].replace('{name}', item.place.name),
+    });
+    const card = handle.closest('article') as HTMLElement;
+    expect(within(card).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+  });
+
   it('does not reserve empty rows when optional place details are absent', async () => {
     const credited = tripWithCredit();
     const [firstDay, ...restDays] = credited.days;
