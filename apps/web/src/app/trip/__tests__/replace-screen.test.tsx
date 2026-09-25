@@ -106,10 +106,18 @@ describe('FE-305-T2 the sheet shows both sides with their own sources', () => {
   it("shows the server's own reason for each alternative", async () => {
     const { sheet } = await openReplace('경복궁');
     // relationReason is a required contract field, unlike the reason text on a
-    // TripCandidate — so it is shown as written rather than invented.
-    expect(
-      await within(sheet).findByText(firstAlternative?.relationReason ?? ''),
-    ).toBeInTheDocument();
+    // TripCandidate — so it is shown as written rather than invented. Counted
+    // per reason, not found once: two alternatives can share a reason (the
+    // server's rule-based SIMILAR gives every match '같은 분류·지역'), and
+    // each must show its own.
+    const items = relatedFixtures.page.items;
+    expect(items.length).toBeGreaterThan(0);
+    for (const option of items) {
+      const shown = await within(sheet).findAllByText(option.relationReason);
+      expect(shown).toHaveLength(
+        items.filter((other) => other.relationReason === option.relationReason).length,
+      );
+    }
   });
 
   it('keeps the order the server returned', async () => {
@@ -120,6 +128,30 @@ describe('FE-305-T2 the sheet shows both sides with their own sources', () => {
       .map((b) => b.textContent ?? '');
     // Ranking by crowd would be the same numeric comparison by another name.
     expect(names[0]).toContain(relatedFixtures.page.items[0]?.place.name ?? '');
+  });
+});
+
+describe('FE-603-T11 each alternative credits its place beside its button', () => {
+  it('keeps the credit link out of the option button', async () => {
+    // A link inside a button is interactive content inside interactive
+    // content: the button's children are presentational, so the credit is no
+    // link to a screen reader, and a click on it picks the option instead.
+    const { sheet } = await openReplace('경복궁');
+    const options = relatedFixtures.page.items;
+    expect(options.length).toBeGreaterThan(0);
+    for (const option of options) {
+      const credit = option.place.sourceAttribution;
+      if (!credit) throw new Error(`${option.place.name} lost its credit in the fixture`);
+      const button = (await within(sheet).findByText(option.place.name)).closest(
+        'button',
+      ) as HTMLElement;
+      expect(within(button).queryByRole('link'), option.place.name).toBeNull();
+      const row = button.closest('li') as HTMLElement;
+      expect(
+        within(row).getByRole('link', { name: credit.attribution }),
+        option.place.name,
+      ).toHaveAttribute('href', credit.officialUrl ?? '');
+    }
   });
 });
 

@@ -95,6 +95,13 @@
   }
 }
 
+/* The option's credit, under its button and lined up with its text. Empty,
+   it takes no height. */
+.optionCredit {
+  display: block;
+  padding: 2px var(--space-3) 0;
+}
+
 .optionName {
   color: var(--color-text-primary);
   font-size: var(--font-body-md);

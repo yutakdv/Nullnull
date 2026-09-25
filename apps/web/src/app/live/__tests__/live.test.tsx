@@ -15,6 +15,7 @@ import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
+import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
@@ -36,6 +37,7 @@ const LIVE_FIXTURES = {
   'area-result-replay': liveFixtures.areaResultReplay,
   'area-result-unavailable': liveFixtures.areaResultUnavailable,
   'area-result-stale': liveFixtures.areaResultStale,
+  'area-result-incident': liveFixtures.areaResultIncident,
   'area-places': liveFixtures.areaPlaces,
   'place-detail-live': liveFixtures.placeDetailLive,
   'place-detail-related-none': liveFixtures.placeDetailRelatedNone,
@@ -58,7 +60,7 @@ function renderLive(initialEntry = '/live', client = createQueryClient()) {
 }
 
 describe('FE-401 Live area list', () => {
-  it('keeps cached areas visible and distinguishes offline from missing data', async () => {
+  it('FE-401-T2 FE-403-T2 keeps cached areas visible and distinguishes offline from missing data', async () => {
     renderLive();
     await screen.findByTestId('live-persistent-state');
     act(() => onlineManager.setOnline(false));
@@ -78,7 +80,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('reports background refresh and retains readings when it fails', async () => {
+  it('FE-401-T2 FE-403-T2 reports background refresh and retains readings when it fails', async () => {
     const client = createQueryClient();
     renderLive('/live', client);
     await screen.findByTestId('live-persistent-state');
@@ -128,7 +130,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('FE-403-T2 renders loading independently from empty and failure', async () => {
+  it('FE-401-T2 FE-403-T2 renders loading independently from empty and failure', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     let release: (() => void) | undefined;
     server.use(
@@ -169,7 +171,7 @@ describe('FE-401 Live area list', () => {
     );
   });
 
-  it('FE-403-T2 keeps empty, unavailable and request failure as different states', async () => {
+  it('FE-401-T2 FE-403-T2 keeps empty, unavailable and request failure as different states', async () => {
     const unavailable = liveFixture<LiveAreaResult>('area-result-unavailable');
     server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(unavailable)));
 
@@ -205,6 +207,44 @@ describe('FE-401 Live area list', () => {
     expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
   });
 
+  // A-068 (owner, 2026-09-25): the approved liveAreasIncident example is a LIVE
+  // reading its provider flagged PROVIDER_INCIDENT. The screen keeps the
+  // reading and stops calling it live, in the header and on the row.
+  it('FE-403-T1 says a provider incident instead of live and keeps the reading', async () => {
+    const incident = liveFixture<LiveAreaResult>('area-result-incident');
+    const area = incident.areas[0];
+    expect(area?.crowd?.state).toBe('LIVE');
+    expect(area?.crowd?.provenance.qualityFlags).toContain('PROVIDER_INCIDENT');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(incident)));
+
+    renderLive();
+
+    const state = await screen.findByTestId('live-persistent-state');
+    expect(state).toHaveTextContent('Provider incident');
+    expect(state).not.toHaveTextContent('Observed live');
+    const row = screen.getByRole('button', { name: new RegExp(area?.name ?? '') });
+    expect(row).toHaveTextContent('Provider incident');
+    expect(row).not.toHaveTextContent('Observed live');
+    // The reading itself stays: the flag says how far to trust it, not that
+    // it is gone.
+    expect(row).toHaveTextContent('2 · Moderate');
+  });
+
+  it('FE-403-T1 says a provider incident on the place detail too', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Missing crowd fixture');
+    detail.crowd.provenance.qualityFlags = ['PROVIDER_INCIDENT'];
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    await screen.findByRole('heading', { level: 1, name: detail.place.name });
+    expect(screen.getAllByText('Provider incident')).toHaveLength(2);
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
   it('FE-403-T1 shows replay observation time without using response generation time', async () => {
     const replay = liveFixture<LiveAreaResult>('area-result-replay');
     const observedAt = replay.areas[0]?.crowd?.provenance.observedAt;
@@ -225,7 +265,7 @@ describe('FE-401 Live area list', () => {
     expect(state).not.toHaveTextContent(formatReferenceTime(replay.generatedAt, 'en-US'));
   });
 
-  it('uses the reviewed Seoul four-stage wording instead of the generic five-stage copy', async () => {
+  it('FE-403-T4 FE-403-T5 uses the reviewed Seoul wording on the five-cell scale instead of the generic copy', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     const firstArea = result.areas[0];
     if (!firstArea?.crowd) throw new Error('Live fixture must include a crowd metric');
@@ -243,7 +283,11 @@ describe('FE-401 Live area list', () => {
     renderLive();
 
     expect(await screen.findByText('3 · Slightly crowded')).toBeVisible();
-    expect(screen.getByRole('img', { name: 'Seoul crowd level 3 of 4' })).toBeVisible();
+    expect(
+      screen.getByRole('img', {
+        name: 'Seoul crowd level 3 of 4',
+      }),
+    ).toBeVisible();
     expect(screen.queryByText('3 · Moderate')).not.toBeInTheDocument();
   });
 
@@ -276,7 +320,7 @@ describe('FE-401 Live area list', () => {
     expect(areaPlaceRequests).toBe(1);
   });
 
-  it('shows a selected place at its detail coordinates without inventing area centroids', async () => {
+  it('FE-603-T5 shows a selected place at its detail coordinates without inventing area centroids', async () => {
     vi.stubEnv('VITE_KAKAO_MAP_APP_KEY', 'test-key');
     const centers: unknown[] = [];
     window.kakao = {
@@ -340,7 +384,14 @@ describe('FE-401 Live area list', () => {
     expect(
       screen.getByRole('link', { name: /View Live information for 경복궁/i }),
     ).toBeVisible();
-    expect(screen.getByRole('link', { name: /한국관광공사/ })).toBeVisible();
+    // The marker is an overlay and holds no link, so the map's credits sit
+    // under it. Scoped there: every search result carries the same words.
+    const credit = detail.place.sourceAttribution;
+    if (!credit) throw new Error('the live place fixture lost its credit');
+    const mapCredits = document.querySelector('[data-map-credits]') as HTMLElement;
+    expect(
+      within(mapCredits).getByRole('link', { name: credit.attribution }),
+    ).toHaveAttribute('href', credit.officialUrl ?? '');
     await user.click(marker);
     expect(await screen.findByRole('heading', { name: '경복궁' })).toBeVisible();
   });
@@ -372,7 +423,7 @@ describe('FE-401 Live area list', () => {
     server.use(
       http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(areas)),
       http.post(`${API_BASE}/places/search`, async ({ request }) => {
-        expect(await request.json()).toEqual({ query: '경복궁' });
+        expect(await request.json()).toEqual({ query: '경복궁', locale: 'en-US' });
         return HttpResponse.json(placeFixtures.searchPage);
       }),
     );
@@ -389,6 +440,88 @@ describe('FE-401 Live area list', () => {
     );
     expect(result).not.toHaveTextContent('›');
   });
+
+  it('FE-603-T5 credits each place a search returns', async () => {
+    // The result row named a catalogue place with no credit; the same place
+    // chosen onto the map was credited under it. Each row is checked through
+    // its own detail link, so a credit elsewhere on the screen cannot pass.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+      http.post(`${API_BASE}/places/search`, () =>
+        HttpResponse.json(placeFixtures.searchPage),
+      ),
+    );
+
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '경복궁');
+    // Without this the loop could run over nothing and assert nothing.
+    expect(placeFixtures.searchPage.items.length).toBeGreaterThan(0);
+    for (const place of placeFixtures.searchPage.items) {
+      const credit = place.sourceAttribution;
+      if (!credit) throw new Error(`${place.name} lost its credit in the fixture`);
+      const link = await screen.findByRole('link', {
+        name: new RegExp(`View Live information for ${place.name}`, 'i'),
+      });
+      const row = link.closest('li') as HTMLElement;
+      expect(
+        within(row).getByRole('link', { name: credit.attribution }),
+        place.name,
+      ).toHaveAttribute('href', credit.officialUrl ?? '');
+    }
+  });
+
+  // FCR-005's Live clause. Figma drew '돌아가도 +8분' on the Live candidate
+  // rows; the contract carries no route, so no row may show a route figure —
+  // in either language, on the rows listLiveAreaPlaces fills, not only on the
+  // area list the FE-401-T1 case above reads in English.
+  for (const locale of ['ko-KR', 'en-US'] as const) {
+    it(`FE-401-T5 draws no route figure on a Live place row in ${locale}`, async () => {
+      localStorage.setItem('nullnull.locale', locale);
+      try {
+        const user = userEvent.setup();
+        const places = liveFixture<LivePlace[]>('area-places');
+        server.use(
+          http.post(`${API_BASE}/live/areas`, () =>
+            HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+          ),
+          http.get(`${API_BASE}/live/areas/:areaId/places`, () =>
+            HttpResponse.json(places),
+          ),
+        );
+        renderLive();
+        await user.click(await screen.findByRole('button', { name: /광화문·덕수궁/ }));
+
+        const open = messages[locale]['live.searchOpen'];
+        const rows = await Promise.all(
+          places.map(async (item) =>
+            (
+              await screen.findByRole('link', {
+                name: open.replace('{name}', item.place.name),
+              })
+            ).closest('li'),
+          ),
+        );
+        // The rows are there before their absence is asserted.
+        expect(rows.every((row) => row !== null)).toBe(true);
+        expect(rows).toHaveLength(places.length);
+        expect(places.length).toBeGreaterThan(0);
+        for (const row of rows) {
+          const text = row?.textContent ?? '';
+          expect(text).not.toMatch(
+            /돌아가도|\+\s*\d+\s*분|도보|우회|\d+(?:\.\d+)?\s*(?:km|㎞)/,
+          );
+          expect(text).not.toMatch(
+            /\b(?:walk|walking|detour)\b|\+\s*\d+\s*min|\d+(?:\.\d+)?\s*(?:km|mi|miles?)\b/i,
+          );
+        }
+      } finally {
+        localStorage.removeItem('nullnull.locale');
+      }
+    });
+  }
 
   it('FE-401-T2 shows searching, then no results, as two different states', async () => {
     const user = userEvent.setup();
@@ -583,7 +716,7 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
-  it('renders the Seoul four-stage reading in English on place detail', async () => {
+  it('FE-403-T4 FE-403-T5 renders the Seoul reading on five cells in English on place detail', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     if (!detail.crowd) throw new Error('Missing crowd fixture');
     detail.crowd.ordinalLevel = '3';
@@ -591,8 +724,11 @@ describe('FE-402 Live place detail', () => {
       http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
     );
     renderLive(`/live/places/${detail.place.id}`);
-    const bar = await screen.findByRole('img', { name: 'Seoul crowd level 3 of 4' });
-    expect(bar.children).toHaveLength(4);
+    const bar = await screen.findByRole('img', {
+      name: 'Seoul crowd level 3 of 4',
+    });
+    expect(bar.children).toHaveLength(5);
+    expect(bar.lastElementChild).toHaveAttribute('data-unpublished');
     expect(screen.getByText('3 · Slightly crowded')).toBeVisible();
   });
 
@@ -859,6 +995,59 @@ describe('FE-402 Live place detail', () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).queryByRole('img')).toBeNull();
     expect(within(row as HTMLElement).getByText(/different basis/i)).toBeVisible();
+  });
+
+  it('FE-603-T5 credits an alternative place apart from the relation', async () => {
+    // The row credited the relation (item.provenance) and not the place it
+    // named. The two are different records: the place is a catalogue entry,
+    // the relation is the reason it is offered.
+    //
+    // The relation's provenance is overridden with what the server actually
+    // sends: CatalogRelationDeriver writes NULLNULL_CATALOG_RULE (V007), an
+    // internal rule with no page, licence or KTO credit. The fixture's relation
+    // carries a KTO dataset link the server cannot produce; the fixture owner
+    // corrects it separately (#387), so this test does not lean on it.
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    const fixture = relatedFixtures.page.items[0];
+    const credit = fixture?.place.sourceAttribution;
+    if (!fixture || !credit)
+      throw new Error('Fixtures must include a credited alternative');
+    const alternative = {
+      ...fixture,
+      provenance: {
+        ...fixture.provenance,
+        source: 'NULLNULL_CATALOG_RULE',
+        sourceDisplayName: '널널 카탈로그 규칙',
+        sourceState: 'QUALITATIVE' as const,
+        attribution: '널널 내부 규칙',
+        attributionShort: null,
+        officialUrl: null,
+        licenseUrl: null,
+        license: null,
+        comparisonEligible: false,
+        comparisonReasonCode: 'QUALITATIVE_ONLY',
+      },
+    };
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () =>
+        HttpResponse.json({
+          ...detail,
+          related: { ...detail.related, state: 'SIMILAR', items: [alternative] },
+        }),
+      ),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    const link = await screen.findByRole('link', { name: alternative.place.name });
+    const row = link.closest('li') as HTMLElement;
+    expect(within(row).getByRole('link', { name: credit.attribution })).toHaveAttribute(
+      'href',
+      credit.officialUrl ?? '',
+    );
+    // The relation keeps its own credit, as words: it has no page to link.
+    expect(within(row).getByText('널널 내부 규칙')).toBeVisible();
+    expect(within(row).queryByRole('link', { name: '널널 내부 규칙' })).toBeNull();
   });
 
   it('FE-402-T1 does not compare TEMPORAL metrics across different places', async () => {

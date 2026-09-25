@@ -1,6 +1,6 @@
 import type { components } from '@nullnull/api-client';
 import { CrowdLevel } from './CrowdLevel.js';
-import { DataAttribution } from './DataAttribution.js';
+import { PlaceAttribution } from './PlaceAttribution.js';
 import { LockControl, type LockKind } from './LockControl.js';
 import { MustVisitBadge } from './MustVisitBadge.js';
 import styles from './TripItemCard.module.css';
@@ -75,7 +75,12 @@ export function TripItemCard({
       </header>
 
       {crowd !== undefined ? <CrowdLevel crowd={crowd} /> : null}
-      {crowd ? <DataAttribution provenance={crowd.provenance} compact /> : null}
+      {/* CMP-ATT-001: the place's credit, and the forecast's after it. */}
+      <PlaceAttribution
+        also={crowd ? [crowd.provenance] : undefined}
+        compact
+        place={item.place}
+      />
 
       <div className={styles.locks}>
         {(['DATE', 'TIME', 'RESERVATION'] as const).map((type) => {

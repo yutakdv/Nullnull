@@ -94,6 +94,15 @@
   background: var(--color-bg-subtle);
 }
 
+/* Name over credit, the way a search result stacks them. */
+.stopText {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .stopName {
   flex: 1;
   min-width: 0;
