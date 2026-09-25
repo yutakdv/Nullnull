@@ -93,20 +93,15 @@ export function DataGuideScreen() {
 
         {/* Required attribution (invariant 12), one line per dataset and never
             merged (SOURCE_CATALOG): the server's credit linked to the dataset's
-            official page, its licence linked beside it, and - where two KTO
-            datasets read the same - the server's dataset name as context. */}
+            official page and its licence linked beside it. The server's dataset
+            name is shown on every line and is part of both links' names, so the
+            three KTO credits that read alike - and the four licence links - are
+            distinct links to a screen reader too. */}
         {GUIDE_SOURCES.map((credit) => (
           <p className={styles.attribution} key={credit.source}>
             <DataAttribution
-              context={
-                GUIDE_SOURCES.some(
-                  (other) =>
-                    other.source !== credit.source &&
-                    other.attribution === credit.attribution,
-                )
-                  ? credit.sourceDisplayName
-                  : null
-              }
+              context={credit.sourceDisplayName}
+              nameWithContext
               provenance={credit}
               showLicense
               termsLabel={t('license.terms')}

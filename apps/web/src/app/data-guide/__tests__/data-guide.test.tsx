@@ -176,19 +176,43 @@ describe('required attribution and structure', () => {
   it('FE-404-T4 credits each source on its own line, linked to its official page and licence', () => {
     renderGuide();
     for (const credit of GUIDE_SOURCES) {
-      const links = screen
-        .getAllByRole('link', { name: credit.attribution })
-        .filter((link) => link.getAttribute('href') === credit.officialUrl);
-      // One line per source: its own words, linked to its own page.
-      expect(links, `${credit.source} credit`).toHaveLength(1);
-      const line = links[0]?.closest('p');
+      // The credit link's name carries the dataset as well as the server's
+      // words, so three KTO credits that read alike stay three links.
+      const link = screen.getByRole('link', {
+        name: `${credit.attribution} · ${credit.sourceDisplayName}`,
+      });
+      expect(link).toHaveAttribute('href', credit.officialUrl);
+      const line = link.closest('p');
       expect(line).not.toBeNull();
       expect(
-        within(line as HTMLElement).getByRole('link', { name: copy['license.terms'] }),
+        within(line as HTMLElement).getByRole('link', {
+          name: `${copy['license.terms']} · ${credit.sourceDisplayName}`,
+        }),
       ).toHaveAttribute('href', credit.licenseUrl);
     }
     // Never two providers merged into one credit.
     expect(screen.queryByText(/ⓒ한국관광공사\s*·\s*서울/)).toBeNull();
+  });
+
+  it('FE-404-T4 gives every link on the credit lines a name of its own', () => {
+    // A screen reader's link list shows names only; describedby is not in it.
+    renderGuide();
+    const names = screen
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('aria-label') ?? link.textContent ?? '');
+    expect(names).toHaveLength(GUIDE_SOURCES.length * 2);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('FE-404-T4 credits exactly the four datasets the app shows', () => {
+    expect(GUIDE_SOURCES.map((credit) => credit.source).sort()).toEqual(
+      [
+        'KTO_CONCENTRATION_FORECAST',
+        'KTO_ENG_SERVICE',
+        'KTO_KOR_SERVICE_2',
+        'SEOUL_CITYDATA',
+      ].sort(),
+    );
   });
 
   it('FE-404-T4 names the dataset beside each of the KTO credits that read alike', () => {
@@ -250,7 +274,9 @@ describe('required attribution and structure', () => {
     const seen: string[] = [];
     server.events.on('request:start', ({ request }) => seen.push(request.url));
     renderGuide();
-    await screen.findAllByRole('link', { name: copy['license.terms'] });
+    await screen.findAllByRole('link', {
+      name: new RegExp(`^${copy['license.terms']} · `),
+    });
     expect(seen).toEqual([]);
     server.events.removeAllListeners();
   });

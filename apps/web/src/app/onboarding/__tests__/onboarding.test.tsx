@@ -368,6 +368,38 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
   // Codex on #399: "saved" was written before the PATCH answered, so a tap
   // whose save FAILED still counted as saved and Next sent nothing - WEB-RT-1
   // stayed open in exactly that case.
+  // Codex on #399 (second pass): with the tap's PATCH still in flight, Next
+  // saw nothing saved and sent the same locale a second time.
+  it('FE-101-T4 does not send a locale that is still being saved when Next is pressed', async () => {
+    const bodies: unknown[] = [];
+    let release: (() => void) | undefined;
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    const client = createQueryClient();
+    renderAt('/language', client);
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await waitFor(() => {
+      expect(bodies).toHaveLength(1);
+    });
+    // The tap's save is still waiting for the server.
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    release?.();
+    await waitFor(() => {
+      expect(client.isMutating()).toBe(0);
+    });
+    expect(bodies).toEqual([{ locale: 'ko-KR' }]);
+  });
+
   it('FE-101-T4 sends the locale again on Next when the tap failed to save it', async () => {
     const bodies: unknown[] = [];
     server.use(
