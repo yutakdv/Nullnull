@@ -2605,7 +2605,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: replay는 실제 현재값/분산 성과/실제 KTO 호출 증거가 아니다. 이 단계 이후는 출시 검증·회귀 수정이며 새 비Live 기능은 다음 범위로 별도 선정한다.
 
-진행 상태(`in-progress`, 절마다 test 본문과 대조): 14개 절 가운데 replay·Live 판정 13개는 main 게이트에서 초록이고 rc.23에 배포돼 있다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 조회·후보·replay 행에 있고, report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`과 `TEST-io.nullnull.operations.application.DemoCapabilityQueryTest.xml`(`T11`)이다.
+진행 상태(`in-progress`, 절마다 test 본문과 대조): 절 스무 개(`T1`~`T20`) 가운데 replay·Live 판정 13개(`T1`·`T2`·`T4`~`T14`)는 main 게이트에서 초록이고 rc.23에 배포돼 있다. 이 13개의 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 조회·후보·replay 행에 있고(`T15`~`T18`의 test는 `apps/web` suite·E2E 행에 있다), report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`과 `TEST-io.nullnull.operations.application.DemoCapabilityQueryTest.xml`(`T11`)이다.
 
 | 절 | test | 무엇을 재나 |
 | --- | --- | --- |
@@ -2616,17 +2616,17 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 | `T11` | `DemoCapabilityQueryTest.replayReadinessRequiresAnApprovedManifest` | flag가 켜져도 승인 manifest 전에는 READY가 아니다 |
 | `T14` | `LiveAreaReadingSelectorTest` | 구역 목록과 장소 상세가 같은 source 단위 LIVE 판정을 쓴다 |
 
-**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴고, 위치 OFF는 지도 SDK 상태에 따라 다시 `T18`·`T20`으로 나눴다. 일곱 모두 이 ID를 단 testcase가 없어 `integration-ready`로 올리지 않는다. 게이트가 재는 부분과 남은 것:
+**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴고, 위치 OFF는 지도 SDK 상태에 따라 다시 `T18`·`T20`으로 나눴다. **FE가 #394에서 `T15`~`T18`을 게이트 test 제목에 달았다.** `T15`·`T16`·`T18`은 E2E JUnit으로 #396 게이트에서 이미 집계됐고, `T17`(vitest)은 #393의 vitest 집계가 main에 들어가야 처음 집계된다. 넷 다 절을 **일부만** 잰다(아래). `T3`·`T19`·`T20`은 그 ID를 단 testcase가 없어 카드는 `integration-ready`로 올리지 않는다. 넷이 공통으로 재지 않는 것은 절이 말하는 **최종 release**다. `T15`·`T16`·`T18`은 지도 키 없이 만든 게이트 bundle을 로컬 API나 fixture에 붙여 재고, `T17`은 소스를 정적으로 scan할 뿐 bundle을 재지 않는다. release bundle(`staging-release.yml`이 키를 넣어 따로 build한다)이나 그 release의 실제 API에 닿는 것은 없다. 게이트가 재는 부분과 남은 것:
 
 - `T3`(익명 외부망): 재는 것은 사람의 완주뿐이다. staging flows는 verifier 경로라 해당하지 않는다. 최종 release에서 새 시크릿 창·휴대전화 데이터망으로 한다.
-- `T15`(KO/EN): 게이트 E2E `FE-101-T1`(`shell.spec.ts`, 언어 화면이 한국어·영어만 고르게 한다)과 `live-replay-matrix.spec.ts`(Live badge의 KO/EN)가 일부를 잰다. 결정 화면의 영어 문구는 사람 완주에서 본다.
-- `T16`(keyboard): 게이트 E2E `BA-040-T4`(`keyboard-flow.spec.ts`, 일정 편집)와 `BA-070-T5`(focus 표시)가 잰다. 최적화 결정 버튼을 키보드로 누르는 것은 어느 test도 재지 않는다.
-- `T17`(출처): 게이트 E2E `BA-073-T4`(`attribution.integration.spec.ts`)가 여행 응답이 부른 장소를 잰다. 장소 이름을 그리는 다른 자리는 FE 작업(#389)이다.
-- `T18`(위치 OFF, 지도 SDK 꺼짐): 게이트 E2E `FE-603-T1 BA-073-T5`(`location-off.spec.ts`)가 22개 화면을 잰다. 다만 게이트는 `FEATURE_LIVE_DATA=false`로 돌아 Live 두 화면(`/live`, `/live/places/:id`)은 capability 거절 상태로만 측정되고, 최종 release는 Live가 켜져 있다(`infra/src/staging.ts`). Live가 켜진 목록·상세는 FE가 `live-replay-matrix.spec.ts`에 감시를 더하는 중이다(FE R4b). 모자란 것은 그것과 이 절의 ID다.
+- `T15`(KO/EN): `core-locale.spec.ts`의 세 test가 두 locale로 돈다(게이트 JUnit 6건). 여행 생성 마법사(초안 preview까지), 여행 보기, 최적화 READY 화면의 결정 버튼, Live 목록·상세의 heading과 주요 control을 그 locale의 `messages` 값과 대조한다. API는 `page.route`로 승인 fixture를 준다. 재지 않는 것: 방문하지 않는 화면(Feed·후보·일정 편집·최적화 설정·결정 뒤 상태 등), 본문과 상태 문구, 서버가 쓴 문장의 언어. 영어 결정 화면에 한국어 `proposal.summary`가 뜬 채로 통과한다. run은 `page.route`가 주는 고정 fixture(`run-ready.json`)라 서버가 owner locale로 문장을 쓰는 경로가 실행되지 않고, spec은 summary를 단언하지 않는다.
+- `T16`(keyboard): `optimization-keyboard.spec.ts`가 APPLY·KEEP을 Tab과 Enter만으로 누르고, 나간 명령의 모양(결정·proposal·If-Match·Idempotency-Key)을 단언한다. API는 `page.route`다 — 게이트는 `FEATURE_OPTIMIZATION_ITEM`이 꺼져 실제 READY run이 없다. `keyboard-flow.spec.ts`의 세 test도 이 ID를 단다: 여행 생성 완주, 잠금 확인·취소, 일정 이동 뒤 focus. 처음부터 끝까지 Tab·Enter만 쓰는 것은 여행 생성(실제 API) 하나다. 잠금 test는 확인·취소를 키보드로 하지만 편집 진입은 click, 해제 control은 `focus()`로 닿는다. 이동 test는 날짜 선택과 동의를 click으로 해서 키보드 결정의 증거가 아니다. 재지 않는 것: 서버가 결정을 받아 trip이 바뀌는지, 최적화 시작, 여러 proposal 중 고르기, 후보 저장·일정화의 키보드 경로. REVERT는 control이 없어 잴 것이 없다.
+- `T17`(출처): `attribution-coverage.test.ts`(vitest)의 세 case가 단다. shipped 코드에서 출처 타입을 가진 값의 `.name`을 읽는 자리를 (파일, 표현식) 묶음으로 모아, 같은 파일의 `PlaceAttribution`, 부모 파일이 그리는 credit(`CREDITED_ELSEWHERE` 1건), 명시된 면제 중 하나와 짝인지 정적으로 보고 묶음별 개수를 고정한다. 구조 분해로 꺼낸 이름과 장소를 부르는 서버 문장은 scan 밖이다. #393이 게이트에 vitest JUnit 집계를 넣었지만 #393은 backend에만 있고 main에는 아직 없다. #396의 게이트 run은 #393이 없는 tree에서 돌았으므로, 이 세 case는 backend→main PR의 게이트에서 처음 집계된다. 렌더도 가시성도 보지 않는다. 실제 화면의 credit은 `BA-073-T4`(`attribution.integration.spec.ts`)가 여행 상세 한 화면에서 재는데, 이 ID를 달지 않는다. 면제 일곱 항목(`.name` 자리로는 19개: 확인 대화상자·상태 문구·시트 문맥 줄·드래그 잔상)을 UI 피드백으로 보고 출처 없이 두는 정책은 test 주석과 FE plan의 FE-603 step에 있고, 이 카드의 `T17` 문장에는 없다.
+- `T18`(위치 OFF, 지도 SDK 꺼짐): `location-off.spec.ts`의 화면별 22건과, Live가 켜진 목록·상세를 fixture로 여는 `live-replay-matrix.spec.ts`의 2건이 단다(#396 게이트 JUnit 24건 통과). 게이트에서 여행에 속한 화면 여덟은 그 세션의 여행이 아닌 fixture trip id로 열려 여행 내용이 그려지지 않는다(대부분 not-found나 오류 화면이고, 장소 추가 화면은 검색 화면을 그려 입력까지 한다). `location-off`의 Live 두 항목은 `FEATURE_LIVE_DATA=false`라 거절 화면이다. 최종 release는 Live가 켜져 있다(`infra/src/staging.ts`). 실제로 막는 것은 `navigator.geolocation` wrapper다. `page.on('dialog')`는 alert·confirm류만 받아 권한 prompt를 볼 수 없고, `location-off`에는 wrapper가 설치됐는지 보는 guard가 없다(matrix에는 있다). 이 셋은 코드를 읽어 찾았고 변이로 재지 않았다.
 - `T20`(위치 OFF, Kakao 지도 SDK 켜짐): 게이트에서 잴 수 없다. 게이트 build에는 `VITE_KAKAO_MAP_APP_KEY`가 없고 egress가 막혀 SDK가 로드되지 않는다. 지도 키가 들어간 staging에서 사람이나 operator가 확인한다.
 - `T19`(rollback): Wave 4 안에서는 잴 수 없다. rollback이 edge를 닫고 `current.json`을 바꿔 같은 release의 증거를 모두 무효로 만든다. `BA-071-T4`와 같은 자리이고, 미증명으로 기록할지는 오너 결정이다.
 
-게이트 test가 재는 절(`T15`~`T18`)은 그 test 제목에 이 카드의 ID가 붙어야 집계된다. 제목은 FE 소유라 이 카드에서 달지 않았다. 원래 `T3`을 인용한 기록(`DECISIONS_AND_RISKS` A-054·A-033)은 나누기 전의 여섯 절 전체를 가리킨다.
+`T15`~`T18`의 ID는 FE가 #394에서 test 제목에 달았다. 이 카드는 제목을 고치지 않았다. 위 판정은 그 test 본문을 읽어 대조한 것이고 test를 다시 돌리지 않았다. 게이트 통과는 #396의 docker-integration artifact에서 셌다(`T15` 6건, `T16` 5건, `T18` 24건, 실패·skip 0). 원래 `T3`을 인용한 기록(`DECISIONS_AND_RISKS` A-054·A-033)은 나누기 전의 여섯 절 전체를 가리킨다.
 
 필수 검증:
 
