@@ -3976,7 +3976,7 @@
       "phase": "B10",
       "priority": "P0",
       "title": "Live 탭 API·장소 검색·대안·후보 저장",
-      "status": "planned",
+      "status": "integration-ready",
       "dependsOn": [
         "BA-090",
         "BA-034",

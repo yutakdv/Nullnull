@@ -2514,7 +2514,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-091
 
-**Live 탭 API·장소 검색·대안·후보 저장** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Live 탭 API·장소 검색·대안·후보 저장** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-090](#ba-090), [BA-034](#ba-034), [BA-042](#ba-042)
 - 기능 ID: `FR-LIV-01`, `FR-LIV-02`, `FR-LIV-03`, `FR-LIV-04`, `FR-LIV-05`, `FR-LIV-06`, `FR-LIV-09`, `FR-LIV-11`
@@ -2533,6 +2533,14 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
 
 `T2`는 **소유자가 FE다**(#97, FE-401). map OFF 목록·relation 모든 상태·no fake delta는 Playwright가 재고, 게이트가 `--e2e-junit-dir`로 E2E JUnit을 집계한다. 그 절을 재는 testcase가 `BA-091-T2` 이름으로 잡히면 `externalOwner`를 뗀다.
+
+진행 상태(`integration-ready`, 절마다 test 본문과 대조): `T2`를 뺀 27개 절이 각자 그 ID를 단 testcase로 게이트 JUnit에 잡힌다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 세 행(수집·매핑, 생산자·수정·신선도, 조회·후보·replay)과 서울 거부 원인 로그 행에 있다. report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`이다. 대조하며 판정한 것은 셋이다.
+
+- `T4`: 원래 증인은 `CoarseViewportTest`의 예외 문구 검사뿐이었다. 로그를 실제로 보는 case가 없었으므로 `LiveAreaApiIT.aRefusedViewportLeavesItsCoordinatesInNoLogLine`을 더했다. 거절된 요청이 root appender에 쓴 줄 전부(메시지·throwable·MDC)를 훑고, 그 요청의 access log 줄을 찾았는지를 먼저 단언해 공허하지 않게 했다. 거절 경로에 좌표를 찍는 warn 한 줄을 넣은 변이에서 이 case만 빨갰다(반경 1).
+- `T20`: 끝 상태(행 하나, 새 구역)를 잰다. "원자적으로"는 `LiveMappingImporter.importPlan`이 계획 하나를 한 transaction으로 쓴다는 것에 기대고, 그것은 `T21`의 rollback이 잰다. 교체 도중의 상태를 따로 재는 test는 없다.
+- `T26`: 심사 종료 시각에 claim·gateway 호출이 0임을 잰다. 종료 전에는 호출한다는 반대편은 `T28`의 test가 같은 scheduler로 gateway를 부르는 것으로 선다.
+
+**순서 의존**: `T2`의 `externalOwner`는 FE가 `BA-091-T2` 이름의 게이트 E2E를 만든 **뒤에** 뗀다(#97). 먼저 떼면 required 게이트의 집계가 그 ID를 찾지 못해 빨갛다. 구현 순서 4의 PM 경계(FCR-025·FCR-026·FCR-028 Open)는 오너 결정이고 이 승격이 닫지 않는다.
 
 실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
 
