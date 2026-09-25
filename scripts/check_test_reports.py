@@ -31,6 +31,12 @@ GATE_SUITES = ("gateChecks",)
 # the card's own test IDs and never opens a report (#208). So the ID stays where it is and
 # this reads the report instead.
 E2E_SUITES = ("e2e",)
+# Vitest's JUnit reporter, written by the web suite in the gate. The same gap as the browser suite
+# one level down: an acceptance clause proven by a unit test in apps/web - a static scan over the
+# screens that render a place, a component test of the credit itself - was invisible here, because
+# the gate ran vitest with its default reporter only. The directory is unit/ for the same reason e2e/
+# is e2e/: this reader looks for <dir>/<suite>/*.xml.
+VITEST_SUITES = ("unit",)
 TEST_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:BA-\d{3}-T\d+|REC-[A-Z]+-\d+)(?![A-Za-z0-9_-])")
 
 
@@ -259,6 +265,9 @@ def main() -> int:
     parser.add_argument("--e2e-junit-dir", type=Path,
                         help="Root containing e2e/, written by Playwright's JUnit reporter. Only the "
                              "full Compose gate runs the browser suite.")
+    parser.add_argument("--vitest-junit-dir", type=Path,
+                        help="Root containing unit/, written by Vitest's JUnit reporter in the web "
+                             "suite. Only the full Compose gate writes it.")
     parser.add_argument("--gate-junit-dir", type=Path,
                         help="Root containing gateChecks/, written by record_gate_evidence.py. Only "
                              "the full Compose gate produces it.")
@@ -291,6 +300,9 @@ def main() -> int:
         if args.e2e_junit_dir is not None:
             ids.update(read_junit(args.e2e_junit_dir, args.run_start, errors, names,
                                   suites=E2E_SUITES))
+        if args.vitest_junit_dir is not None:
+            ids.update(read_junit(args.vitest_junit_dir, args.run_start, errors, names,
+                                  suites=VITEST_SUITES))
         if args.backend_plan is not None:
             plan = read_object(args.backend_plan)
             required = required_plan_ids(plan)

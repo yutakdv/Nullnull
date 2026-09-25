@@ -374,6 +374,24 @@ elif 'run' in args and 'egress-denied' in args:
 elif 'exec' in args and 'postgres' in args:
     # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
     print('e2e_catalog_seed=places:3,published_posts:1,attributed_places:1')
+elif 'run' in args and 'web-quality' in args:
+    # The web unit suite's JUnit, in the shape Vitest 3.2 writes it - measured on this repository's
+    # suite: testsuites carries tests, failures and errors; each testsuite carries all four counts;
+    # a skipped test is a <skipped/> child. A run with no test files writes a bare testsuites.
+    if mode != 'vitest-missing':
+        path = root / 'vitest/unit/results.xml'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if mode == 'vitest-empty':
+            path.write_text('<testsuites name="vitest tests" tests="0" failures="0" errors="0"></testsuites>')
+        else:
+            skipped = 1 if mode == 'vitest-skip' else 0
+            case = '<testcase classname="src/app/shell.test.tsx" name="FE-101-T1 shell &gt; renders"/>'
+            if skipped:
+                case += '<testcase classname="src/app/shell.test.tsx" name="a skipped unit test"><skipped/></testcase>'
+            path.write_text(f'<testsuites name="vitest tests" tests="{{1 + skipped}}" failures="0" errors="0">'
+                            f'<testsuite name="src/app/shell.test.tsx" tests="{{1 + skipped}}" failures="0" '
+                            f'errors="0" skipped="{{skipped}}">{{case}}</testsuite></testsuites>')
+        if mode == 'vitest-stale': os.utime(path, (1, 1))
 elif 'run' in args and 'e2e' in args:
     # The browser suite's JUnit, in the shape Playwright 1.56 writes it: all four counts on both
     # testsuites and testsuite, and a skipped test as a <skipped/> child. The aggregator reads it
@@ -432,6 +450,19 @@ else:
         # report - which is exactly what counting it after the browser suite has to mean (#233).
         for mode, message in (('e2e-missing', 'e2e: missing JUnit XML'), ('e2e-skip', 'skipped=1, expected 0'),
                               ('e2e-stale', 'stale report')):
+            with self.subTest(mode=mode):
+                result, status = self.run_wrapper(mode)
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertEqual('failed', status)
+                self.assertNotIn('integration_mode=full-docker', result.stdout)
+
+    def test_BA_004_T2_actual_wrapper_rejects_a_unit_report_it_cannot_count(self):
+        """BA-004-T2 web unit suite의 report 부재·skip·빈 report·이전 실행의 report를 실제 wrapper가 거부한다"""
+        # Every other suite passes in these runs, so the only thing that can fail them is the Vitest
+        # report - the same four ways the browser suite's can be absent while the run looks green.
+        for mode, message in (('vitest-missing', 'unit: missing JUnit XML'), ('vitest-skip', 'skipped=1, expected 0'),
+                              ('vitest-empty', 'no testsuite elements'), ('vitest-stale', 'stale report')):
             with self.subTest(mode=mode):
                 result, status = self.run_wrapper(mode)
                 self.assertNotEqual(0, result.returncode, result.stdout)
@@ -513,7 +544,8 @@ class WorkflowWiringTests(unittest.TestCase):
         the wrapper: Gradle JUnit, the Python suite, and the gate verdicts recorded from the probes.
         """
         wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
-        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir', '--e2e-junit-dir'):
+        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir', '--e2e-junit-dir',
+                     '--vitest-junit-dir'):
             self.assertIn(flag, wrapper, f'the required gate must pass {flag}')
         self.assertIn('record_gate_evidence.py', wrapper)
         # Evidence before aggregation: recording a verdict after the checker read the directory
@@ -530,6 +562,29 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertLess(lines.index('"${compose[@]}" run --rm e2e'), checker[0],
                         'the browser suite must write its report before the checker reads it')
         self.assertIn('--e2e-junit-dir "${artifact_dir}/playwright" \\', lines[checker[0]:])
+        self.assertLess(lines.index('"${compose[@]}" run --rm web-quality'), checker[0],
+                        'the web suite must write its report before the checker reads it')
+        self.assertIn('--vitest-junit-dir "${artifact_dir}/vitest" \\', lines[checker[0]:])
+
+    def test_the_web_suite_writes_its_junit_where_the_gate_reads_it(self):
+        """Three declarations name one path, and the sandbox above fakes all three.
+
+        The reporter path is in apps/web/vite.config.ts, the bind that carries it out of the container
+        is in compose.integration.yml, and the directory the checker reads is in the wrapper. The
+        wrapper tests write the report where the checker looks, so any one of the three can drift and
+        they stay green; the gate would then fail on a missing report, or - worse - a reporter switched
+        off by a lost CI variable would be caught only by that same failure. So the three are held
+        against each other here.
+        """
+        compose = (ROOT / 'compose.integration.yml').read_text()
+        block = compose[compose.index('\n  web-quality:\n'):]
+        block = block[:block.index('\n\n')]
+        self.assertIn('CI: "true"', block, 'the reporter is switched on by CI')
+        self.assertIn('- ./.artifacts/integration/vitest:/workspace/apps/web/vitest-report', block)
+        config = (ROOT / 'apps/web/vite.config.ts').read_text()
+        self.assertIn("reporters: process.env.CI ? ['default', 'junit'] : ['default'],", config)
+        self.assertIn("junit: 'vitest-report/unit/results.xml'", config)
+        self.assertIn('--vitest-junit-dir "${artifact_dir}/vitest"', (ROOT / 'scripts/integration-test.sh').read_text())
 
 
 if __name__ == '__main__':

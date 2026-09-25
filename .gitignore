@@ -44,6 +44,7 @@ dist/
 coverage/
 **/coverage/
 playwright-report/
+vitest-report/
 test-results/
 storybook-static/
 *.tsbuildinfo
