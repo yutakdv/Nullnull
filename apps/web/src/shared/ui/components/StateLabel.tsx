@@ -10,6 +10,9 @@ import styles from './StateLabel.module.css';
 // never conveyed by colour alone.
 
 export type SourceState = components['schemas']['SourceState'];
+type QualityFlag = components['schemas']['DataProvenance']['qualityFlags'][number];
+/** The words a label can take: one per state, and the live-under-incident one. */
+export type StateWording = SourceState | 'PROVIDER_INCIDENT';
 
 /**
  * Korean wording, matching the Figma variants and the S15 data guide.
@@ -27,6 +30,15 @@ const LABELS: Record<SourceState, string> = {
   REPLAY: '과거 관측 재생 · 실시간 아님',
 };
 
+/**
+ * A LIVE reading whose provider reports an incident (A-068, owner 2026-09-25).
+ * The reading stays on screen; the word "live" does not, because the flag says
+ * the provider itself cannot vouch for it (CMP-ATT-004: the state is not
+ * hidden). Only LIVE is relabelled - every other state already says it is not
+ * a live observation.
+ */
+const INCIDENT_LABEL = '제공처 장애';
+
 export interface StateLabelProps {
   state: SourceState;
   /**
@@ -36,7 +48,9 @@ export interface StateLabelProps {
    * owns them, so the app passes the same distinction in the chosen language
    * rather than each screen inventing its own.
    */
-  labels?: Partial<Record<SourceState, string>>;
+  labels?: Partial<Record<StateWording, string>>;
+  /** The reading's `provenance.qualityFlags`; only PROVIDER_INCIDENT changes the words. */
+  qualityFlags?: readonly QualityFlag[];
   /**
    * Observation or target time. Shown next to the label because a state
    * without a reference time cannot be judged (CLAUDE.md invariant 8).
@@ -44,10 +58,18 @@ export interface StateLabelProps {
   observedAt?: string | null;
 }
 
-export function StateLabel({ state, labels, observedAt }: StateLabelProps) {
+export function StateLabel({ state, labels, observedAt, qualityFlags }: StateLabelProps) {
+  const incident =
+    state === 'LIVE' && (qualityFlags?.includes('PROVIDER_INCIDENT') ?? false);
   return (
-    <span className={styles.label} data-state={state}>
-      {labels?.[state] ?? LABELS[state]}
+    <span
+      className={styles.label}
+      data-quality={incident ? 'PROVIDER_INCIDENT' : undefined}
+      data-state={state}
+    >
+      {incident
+        ? (labels?.PROVIDER_INCIDENT ?? INCIDENT_LABEL)
+        : (labels?.[state] ?? LABELS[state])}
       {observedAt ? <span className={styles.time}>{observedAt}</span> : null}
     </span>
   );

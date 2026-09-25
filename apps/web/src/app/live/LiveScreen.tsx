@@ -18,6 +18,7 @@ import {
   SearchField,
   type SourceState,
   StateLabel,
+  type StateWording,
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
@@ -60,9 +61,10 @@ export function LiveScreen() {
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query, locale);
-  const stateLabels = Object.fromEntries(
-    STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-  ) as Partial<Record<SourceState, string>>;
+  const stateLabels = Object.fromEntries([
+    ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
+    ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
+  ]) as Partial<Record<StateWording, string>>;
   const seoulLevelLabels = {
     1: t('live.crowd.seoul.level1'),
     2: t('live.crowd.seoul.level2'),
@@ -113,6 +115,13 @@ export function LiveScreen() {
   const selectedArea = areas.data?.areas.find((area) => area.id === selectedAreaId);
   const observedAt = areas.data?.areas.find((area) => area.crowd)?.crowd?.provenance
     .observedAt;
+  // The header speaks for the list: while any area's provider reports an
+  // incident, the list is not called live (A-068). The rows say which.
+  const listFlags = areas.data?.areas.some((area) =>
+    area.crowd?.provenance.qualityFlags.includes('PROVIDER_INCIDENT'),
+  )
+    ? (['PROVIDER_INCIDENT'] as const)
+    : undefined;
 
   return (
     <section aria-labelledby="live-heading" className={styles.screen}>
@@ -130,6 +139,7 @@ export function LiveScreen() {
                       })
                     : null
                 }
+                qualityFlags={listFlags}
                 state={areas.data.mode}
               />
             </div>

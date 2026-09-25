@@ -28,6 +28,7 @@ const fixture = (path: string) =>
 const AREA_RESULT = {
   LIVE: fixture('live/area-result-live.json'),
   REPLAY: fixture('live/area-result-replay.json'),
+  INCIDENT: fixture('live/area-result-incident.json'),
 };
 const AREA_PLACES = fixture('live/area-places.json');
 const PLACE_DETAIL = fixture('live/place-detail-live.json');
@@ -36,18 +37,23 @@ const DETAIL_PLACE = (JSON.parse(PLACE_DETAIL) as { place: { id: string; name: s
   .place;
 const CSRF = fixture('session/csrf-token.json');
 
-// messages.ts state.LIVE, state.REPLAY and crowd.observedAt. Both examples
+// messages.ts state.LIVE, state.REPLAY, state.PROVIDER_INCIDENT,
+// live.crowd.seoul.level2 and crowd.observedAt. Both examples
 // observed at 05:00Z, which is 14:00 in Seoul (formatReferenceTime).
 const WORDS = {
   'ko-KR': {
     LIVE: '실시간 관측',
     REPLAY: '과거 관측 재생 · 실시간 아님',
+    INCIDENT: '제공처 장애',
     observed: '9. 20. 오후 2:00 관측 기준',
+    level2: '2 · 보통',
   },
   'en-US': {
     LIVE: 'Observed live',
     REPLAY: 'Replaying past observations · not live',
+    INCIDENT: 'Provider incident',
     observed: 'Observed 9/20, 2:00 PM',
+    level2: '2 · Moderate',
   },
 } as const;
 
@@ -517,6 +523,74 @@ for (const [name, path] of [
     expect(seen.asked, `${name} called the geolocation API`).toEqual([]);
     expect(seen.dialogs, `${name} opened a permission prompt`).toEqual([]);
     expect(seen.leaked, `${name} sent something shaped like a coordinate`).toEqual([]);
+    expect(unexpected, 'calls this file does not serve').toEqual([]);
+  });
+}
+
+// A-068 (owner, 2026-09-25): the approved liveAreasIncident example is a LIVE
+// reading its provider flagged PROVIDER_INCIDENT. It keeps its reading and is
+// not called live - in the header or on its row - and still fits.
+for (const width of [360, 180] as const) {
+  for (const locale of ['ko-KR', 'en-US'] as const) {
+    test(`FE-403-T1 FE-403-T3 a provider incident at ${String(width)}px in ${locale} is not called live and fits`, async ({
+      page,
+    }) => {
+      const words = WORDS[locale];
+      await page.setViewportSize({ width, height: 400 });
+      const unexpected = await serve(page, 'INCIDENT');
+      await page.addInitScript((value) => {
+        localStorage.setItem('nullnull.locale', value);
+      }, locale);
+      await page.goto('/live');
+
+      const state = page.getByTestId('live-persistent-state');
+      await expect(state).toContainText(words.INCIDENT);
+      await expect(state).not.toContainText(words.LIVE);
+      const rows = page.locator('button[aria-expanded]');
+      await expect(rows).toHaveCount(
+        (JSON.parse(AREA_RESULT.INCIDENT) as { areas: unknown[] }).areas.length,
+      );
+      for (const row of await rows.all()) {
+        await expect(row).toContainText(words.INCIDENT);
+        await expect(row).not.toContainText(words.LIVE);
+        await expect(row).toContainText(words.level2);
+      }
+
+      const measured = await overflow(page);
+      expect(measured.spilling, `spills: ${measured.widest.join(', ')}`).toEqual([]);
+      expect(measured.clipped, 'clips its own text').toEqual([]);
+      expect(unexpected, 'calls this file does not serve').toEqual([]);
+    });
+  }
+}
+
+// A-060 (owner, 2026-09-20): Seoul's four stages sit on cells 1-4 of five and
+// the fifth stays empty. The approved examples carry that scale; each Seoul
+// bar the list draws follows it.
+for (const locale of ['ko-KR', 'en-US'] as const) {
+  test(`FE-403-T4 a Seoul reading draws five cells with the fifth unpublished in ${locale}`, async ({
+    page,
+  }) => {
+    const unexpected = await serve(page, 'LIVE');
+    await page.addInitScript((value) => {
+      localStorage.setItem('nullnull.locale', value);
+    }, locale);
+    await page.goto('/live');
+    const areas = (JSON.parse(AREA_RESULT.LIVE) as { areas: unknown[] }).areas;
+    const bars = page.locator('button[aria-expanded] [role="img"]');
+    await expect(bars).toHaveCount(areas.length);
+    for (const bar of await bars.all()) {
+      await expect(bar).toHaveAccessibleName(
+        locale === 'ko-KR'
+          ? /^서울 혼잡도 5단계 중 [1-4]번째/
+          : /^Seoul crowd level [1-4] of 5/,
+      );
+      await expect(bar.locator(':scope > span')).toHaveCount(5);
+      await expect(bar.locator(':scope > span[data-unpublished]')).toHaveCount(1);
+      await expect(bar.locator(':scope > span:last-child')).toHaveAttribute(
+        'data-unpublished',
+      );
+    }
     expect(unexpected, 'calls this file does not serve').toEqual([]);
   });
 }

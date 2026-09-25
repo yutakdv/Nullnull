@@ -36,6 +36,35 @@ describe('StateLabel', () => {
     const text = screen.getByText(/과거 관측 재생/).textContent ?? '';
     expect(text).toContain('실시간 아님');
   });
+
+  // A-068 (owner, 2026-09-25): a live reading the provider has flagged with an
+  // incident is not called live.
+  it('FE-403-T1 does not call a reading live while its provider reports an incident', () => {
+    const { container } = render(
+      <StateLabel qualityFlags={['PROVIDER_INCIDENT']} state="LIVE" />,
+    );
+    expect(container).toHaveTextContent('제공처 장애');
+    expect(container).not.toHaveTextContent('실시간 관측');
+    expect(container.firstElementChild).toHaveAttribute(
+      'data-quality',
+      'PROVIDER_INCIDENT',
+    );
+  });
+
+  it('FE-403-T1 keeps a non-live state its own words under an incident', () => {
+    // Replay, stale and the rest already say they are not live.
+    const { container } = render(
+      <StateLabel qualityFlags={['PROVIDER_INCIDENT']} state="REPLAY" />,
+    );
+    expect(container).toHaveTextContent('과거 관측 재생 · 실시간 아님');
+  });
+
+  it('FE-403-T1 reads other quality flags as nothing to relabel', () => {
+    const { container } = render(
+      <StateLabel qualityFlags={['SCHEMA_DRIFT']} state="LIVE" />,
+    );
+    expect(container).toHaveTextContent('실시간 관측');
+  });
 });
 
 describe('FE-201-T2 FE-202-T2 DataAttribution (FCR-011 trace)', () => {
@@ -66,29 +95,82 @@ describe('FE-201-T2 FE-202-T2 DataAttribution (FCR-011 trace)', () => {
 });
 
 describe('CrowdLevel', () => {
-  it('uses four bars and Seoul wording for a Seoul observation', () => {
+  // A-060 (owner, 2026-09-20): Seoul's four stages sit on cells 1-4 of the
+  // product's five and the fifth stays empty. The server says so in
+  // ordinalScale; the bar follows it rather than a source name.
+  const SEOUL_SCALE = { size: 5, publishedCells: ['1', '2', '3', '4'] };
+
+  it('FE-403-T4 draws a Seoul reading on five cells and leaves the fifth unpublished', () => {
     render(
       <CrowdLevel
         crowd={{
           state: 'LIVE',
           label: 'diagnostic',
           ordinalLevel: '3',
+          ordinalScale: SEOUL_SCALE,
           value: null,
           unit: null,
           provenance: { source: 'SEOUL_CITYDATA' } as never,
         }}
       />,
     );
-    expect(screen.getByRole('img', { name: '4단계 중 3번째' }).children).toHaveLength(4);
+    const bar = screen.getByRole('img', { name: '5단계 중 3번째' });
+    expect(bar.children).toHaveLength(5);
+    expect(bar.querySelectorAll('[data-filled]')).toHaveLength(3);
+    // Only the fifth is a cell Seoul never fills, and it is drawn, not dropped.
+    const unpublished = bar.querySelectorAll('[data-unpublished]');
+    expect(unpublished).toHaveLength(1);
+    expect(unpublished[0]).toBe(bar.lastElementChild);
     expect(screen.getByText('3 · 약간 붐빔')).toBeInTheDocument();
   });
-  it('does not render a nonexistent fifth Seoul stage', () => {
+
+  it('FE-403-T4 draws a Seoul top reading short of the last cell', () => {
+    render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: 'diagnostic',
+          ordinalLevel: '4',
+          ordinalScale: SEOUL_SCALE,
+          value: null,
+          unit: null,
+          provenance: { source: 'SEOUL_CITYDATA' } as never,
+        }}
+      />,
+    );
+    const bar = screen.getByRole('img', { name: '5단계 중 4번째' });
+    expect(bar.querySelectorAll('[data-filled]')).toHaveLength(4);
+    expect(bar.lastElementChild).not.toHaveAttribute('data-filled');
+    expect(bar.lastElementChild).toHaveAttribute('data-unpublished');
+  });
+
+  it('FE-403-T4 keeps a Seoul reading on five cells when the scale is missing', () => {
+    // A server without the descriptor still may not give Seoul a fifth stage.
+    render(
+      <CrowdLevel
+        crowd={{
+          state: 'LIVE',
+          label: 'diagnostic',
+          ordinalLevel: '2',
+          value: null,
+          unit: null,
+          provenance: { source: 'SEOUL_CITYDATA' } as never,
+        }}
+      />,
+    );
+    const bar = screen.getByRole('img', { name: '5단계 중 2번째' });
+    expect(bar.children).toHaveLength(5);
+    expect(bar.querySelectorAll('[data-unpublished]')).toHaveLength(1);
+  });
+
+  it('FE-403-T4 does not render a fifth Seoul stage the scale does not publish', () => {
     render(
       <CrowdLevel
         crowd={{
           state: 'LIVE',
           label: 'diagnostic',
           ordinalLevel: '5',
+          ordinalScale: SEOUL_SCALE,
           value: null,
           unit: null,
           provenance: { source: 'SEOUL_CITYDATA' } as never,

@@ -209,7 +209,8 @@ export const messages = {
     'live.crowd.seoul.level2': '보통',
     'live.crowd.seoul.level3': '약간 붐빔',
     'live.crowd.seoul.level4': '붐빔',
-    'live.crowd.seoul.levelLabel': '서울 혼잡도 4단계 중 {level}번째',
+    'live.crowd.seoul.levelLabel':
+      '서울 혼잡도 5단계 중 {level}번째 · 5단계는 서울 자료에 없어요',
     'live.detail.back': '라이브로 돌아가기',
     'live.detail.title': '장소 혼잡 정보',
     'live.detail.loading': '장소 정보를 불러오고 있어요',
@@ -353,6 +354,7 @@ export const messages = {
     // distinction in English. Long-form explanations live in dataGuide.state.*.
     'mustVisit.badge': '꼭 가요',
     'state.LIVE': '실시간 관측',
+    'crowd.providerIncident': '제공처 장애',
     'state.FORECAST': '공식 혼잡 예측',
     'state.QUALITATIVE': '공식 혼잡 예측 범위 밖',
     'state.STALE': '업데이트 지연',
@@ -1299,7 +1301,8 @@ export const messages = {
     'live.crowd.seoul.level2': 'Moderate',
     'live.crowd.seoul.level3': 'Slightly crowded',
     'live.crowd.seoul.level4': 'Crowded',
-    'live.crowd.seoul.levelLabel': 'Seoul crowd level {level} of 4',
+    'live.crowd.seoul.levelLabel':
+      'Seoul crowd level {level} of 5 · Seoul data has no level 5',
     'live.detail.back': 'Back to Live',
     'live.detail.title': 'Place crowd information',
     'live.detail.loading': 'Loading place information',
@@ -1428,6 +1431,7 @@ export const messages = {
     'dataGuide.title2': 'handle its data?',
     'mustVisit.badge': 'Must visit',
     'state.LIVE': 'Observed live',
+    'crowd.providerIncident': 'Provider incident',
     'state.FORECAST': 'Official crowd forecast',
     'state.QUALITATIVE': 'Outside the forecast range',
     'state.STALE': 'Update delayed',

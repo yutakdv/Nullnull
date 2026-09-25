@@ -37,6 +37,7 @@ const LIVE_FIXTURES = {
   'area-result-replay': liveFixtures.areaResultReplay,
   'area-result-unavailable': liveFixtures.areaResultUnavailable,
   'area-result-stale': liveFixtures.areaResultStale,
+  'area-result-incident': liveFixtures.areaResultIncident,
   'area-places': liveFixtures.areaPlaces,
   'place-detail-live': liveFixtures.placeDetailLive,
   'place-detail-related-none': liveFixtures.placeDetailRelatedNone,
@@ -206,6 +207,44 @@ describe('FE-401 Live area list', () => {
     expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
   });
 
+  // A-068 (owner, 2026-09-25): the approved liveAreasIncident example is a LIVE
+  // reading its provider flagged PROVIDER_INCIDENT. The screen keeps the
+  // reading and stops calling it live, in the header and on the row.
+  it('FE-403-T1 says a provider incident instead of live and keeps the reading', async () => {
+    const incident = liveFixture<LiveAreaResult>('area-result-incident');
+    const area = incident.areas[0];
+    expect(area?.crowd?.state).toBe('LIVE');
+    expect(area?.crowd?.provenance.qualityFlags).toContain('PROVIDER_INCIDENT');
+    server.use(http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(incident)));
+
+    renderLive();
+
+    const state = await screen.findByTestId('live-persistent-state');
+    expect(state).toHaveTextContent('Provider incident');
+    expect(state).not.toHaveTextContent('Observed live');
+    const row = screen.getByRole('button', { name: new RegExp(area?.name ?? '') });
+    expect(row).toHaveTextContent('Provider incident');
+    expect(row).not.toHaveTextContent('Observed live');
+    // The reading itself stays: the flag says how far to trust it, not that
+    // it is gone.
+    expect(row).toHaveTextContent('2 · Moderate');
+  });
+
+  it('FE-403-T1 says a provider incident on the place detail too', async () => {
+    const detail = liveFixture<LivePlaceDetail>('place-detail-live');
+    if (!detail.crowd) throw new Error('Missing crowd fixture');
+    detail.crowd.provenance.qualityFlags = ['PROVIDER_INCIDENT'];
+    server.use(
+      http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
+    );
+
+    renderLive(`/live/places/${detail.place.id}`);
+
+    await screen.findByRole('heading', { level: 1, name: detail.place.name });
+    expect(screen.getAllByText('Provider incident')).toHaveLength(2);
+    expect(screen.queryByText('Observed live')).not.toBeInTheDocument();
+  });
+
   it('FE-403-T1 shows replay observation time without using response generation time', async () => {
     const replay = liveFixture<LiveAreaResult>('area-result-replay');
     const observedAt = replay.areas[0]?.crowd?.provenance.observedAt;
@@ -226,7 +265,7 @@ describe('FE-401 Live area list', () => {
     expect(state).not.toHaveTextContent(formatReferenceTime(replay.generatedAt, 'en-US'));
   });
 
-  it('uses the reviewed Seoul four-stage wording instead of the generic five-stage copy', async () => {
+  it('FE-403-T4 uses the reviewed Seoul wording on the five-cell scale instead of the generic copy', async () => {
     const result = liveFixture<LiveAreaResult>('area-result-live');
     const firstArea = result.areas[0];
     if (!firstArea?.crowd) throw new Error('Live fixture must include a crowd metric');
@@ -244,7 +283,11 @@ describe('FE-401 Live area list', () => {
     renderLive();
 
     expect(await screen.findByText('3 · Slightly crowded')).toBeVisible();
-    expect(screen.getByRole('img', { name: 'Seoul crowd level 3 of 4' })).toBeVisible();
+    expect(
+      screen.getByRole('img', {
+        name: 'Seoul crowd level 3 of 5 · Seoul data has no level 5',
+      }),
+    ).toBeVisible();
     expect(screen.queryByText('3 · Moderate')).not.toBeInTheDocument();
   });
 
@@ -673,7 +716,7 @@ describe('FE-401 Live area list', () => {
 });
 
 describe('FE-402 Live place detail', () => {
-  it('renders the Seoul four-stage reading in English on place detail', async () => {
+  it('FE-403-T4 renders the Seoul reading on five cells in English on place detail', async () => {
     const detail = liveFixture<LivePlaceDetail>('place-detail-live');
     if (!detail.crowd) throw new Error('Missing crowd fixture');
     detail.crowd.ordinalLevel = '3';
@@ -681,8 +724,11 @@ describe('FE-402 Live place detail', () => {
       http.get(`${API_BASE}/live/places/:placeId`, () => HttpResponse.json(detail)),
     );
     renderLive(`/live/places/${detail.place.id}`);
-    const bar = await screen.findByRole('img', { name: 'Seoul crowd level 3 of 4' });
-    expect(bar.children).toHaveLength(4);
+    const bar = await screen.findByRole('img', {
+      name: 'Seoul crowd level 3 of 5 · Seoul data has no level 5',
+    });
+    expect(bar.children).toHaveLength(5);
+    expect(bar.lastElementChild).toHaveAttribute('data-unpublished');
     expect(screen.getByText('3 · Slightly crowded')).toBeVisible();
   });
 

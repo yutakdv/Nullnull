@@ -133,7 +133,7 @@ Figma 최상위 node 수에 포함하지 않으며 출처 문구·link·source s
 | --- | --- |
 | `Data / StateLabel` | 6개 state 나열, REPLAY 단독, UNAVAILABLE |
 | `Data / MetricDelta` | 개선, 변화 없음, 비교 불가, 긴 사유 |
-| `CrowdLevel` | 1~5단계(`매우 여유`·`여유`·`보통`·`혼잡`·`매우 혼잡`), 데이터 없음, 척도 밖 |
+| `CrowdLevel` | 1~5단계(`매우 여유`·`여유`·`보통`·`혼잡`·`매우 혼잡`), 데이터 없음, 척도 밖. 칸 수와 채울 수 있는 칸은 서버 `ordinalScale`을 따른다 — source가 발표하지 않는 칸은 속이 빈 칸으로 그린다(서울은 5칸 중 1~4를 쓰고 5칸째가 빈다, A-060). 공급자가 `PROVIDER_INCIDENT`를 단 LIVE 판독은 수치를 두고 상태를 `제공처 장애`로 적는다(A-068) |
 | `Action / DecisionBar` | preview, applying, applied, stale, failed |
 | `Action / TripAddButton` | 6개 state 나열, loading, error |
 | `Form / LockControl` | 잠금 독립, 예약 잠금, disabled |
