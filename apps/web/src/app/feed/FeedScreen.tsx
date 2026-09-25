@@ -313,9 +313,13 @@ export function FeedScreen() {
     };
   }, [feed.fetchNextPage, feed.hasNextPage, feed.isFetchingNextPage]);
 
-  // The shared card components keep Korean defaults so Storybook can mount
-  // them without a provider; inside the app the selected locale's words are
-  // passed in. Built once rather than per card.
+  // The add button's words for each state. Built once rather than per card.
+  //
+  // Crowd and state words are NOT passed. StateLabel and CrowdLevel take them
+  // from the locale themselves, and a stage word depends on the reading's
+  // source: Seoul's 3 is "약간 붐빔", the generic 3 is "보통". A map passed from
+  // here wins over that choice, and one did - every card got the generic five,
+  // so a Seoul reading was worded as another source's (FE-201-T4).
   const cardLabels = {
     add: {
       idle: t('tripAdd.idle'),
@@ -325,23 +329,6 @@ export function FeedScreen() {
       loading: t('tripAdd.loading'),
       error: t('tripAdd.error'),
     },
-    state: {
-      LIVE: t('state.LIVE'),
-      FORECAST: t('state.FORECAST'),
-      QUALITATIVE: t('state.QUALITATIVE'),
-      STALE: t('state.STALE'),
-      UNAVAILABLE: t('state.UNAVAILABLE'),
-      REPLAY: t('state.REPLAY'),
-      PROVIDER_INCIDENT: t('crowd.providerIncident'),
-    },
-    crowdStages: {
-      1: t('crowd.stage.1'),
-      2: t('crowd.stage.2'),
-      3: t('crowd.stage.3'),
-      4: t('crowd.stage.4'),
-      5: t('crowd.stage.5'),
-    },
-    licenseTerms: t('license.terms'),
   };
 
   const cards = feed.data?.pages.flatMap((page) => page.items) ?? [];

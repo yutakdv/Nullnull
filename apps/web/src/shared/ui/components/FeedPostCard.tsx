@@ -26,13 +26,18 @@ export interface FeedPostCardProps {
   onAddCandidate?: (placeId: string) => void;
   /** Overrides the derived button state while a save is in flight or failed. */
   addState?: TripAddState;
-  /** Localized copy from the caller; each falls back to the component default. */
+  /**
+   * Localized copy from the caller; each falls back to the component default.
+   *
+   * There are no stage words here on purpose: CrowdLevel picks them by the
+   * reading's source (Seoul publishes its own four), and one map for every
+   * card would override that. There is no licence label either — the card's
+   * credit is compact and never draws the licence link.
+   */
   labels?: {
     add?: Partial<Record<TripAddState, string>>;
     state?: Partial<Record<StateWording, string>>;
-    crowdStages?: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
     crowdLevel?: string;
-    licenseTerms?: string;
   };
 }
 
@@ -76,7 +81,6 @@ export function FeedPostCard({
         <CrowdLevel
           crowd={crowd ?? null}
           levelLabel={labels?.crowdLevel}
-          levelLabels={labels?.crowdStages}
           stateLabels={labels?.state}
         />
         <h3 className={styles.title}>{post.title}</h3>
@@ -92,7 +96,6 @@ export function FeedPostCard({
           also={crowd ? [crowd.provenance] : undefined}
           compact
           place={primaryPlace}
-          termsLabel={labels?.licenseTerms}
         />
       </div>
 
