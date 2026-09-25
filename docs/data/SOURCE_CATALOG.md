@@ -232,7 +232,7 @@ licenseUrl: https://www.kogl.or.kr/info/licenseType1.do
 attributionTemplate: "출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)"
 ```
 
-등록은 revision 1이 아니라 revision 2(`V046`)에서 됐다. revision 1(`V007`)은 링크·이용허락·attribution이 비어 있던 자리표시였다. `V046`은 위 값 가운데 `displayName`을 옮기지 않았다. 그래서 registry와 화면의 표시명은 `서울 실시간 도시데이터`이고, 위 블록의 `서울시 실시간 도시데이터`와 다르다. 어느 쪽으로 맞출지는 결정 대기다. registry를 바꾸면 새 revision이 필요하다.
+등록은 revision 1이 아니라 revision 2(`V046`)에서 됐다. revision 1(`V007`)은 링크·이용허락·attribution이 비어 있던 자리표시였다. `V046`은 위 값 가운데 `displayName`을 옮기지 않았다. 그래서 registry와 화면의 표시명은 `서울 실시간 도시데이터`이고, 위 블록의 `서울시 실시간 도시데이터`와 다르다. 어느 쪽으로 맞출지는 결정 대기다. registry를 바꾸면 새 revision이 필요하다. `openapi.yaml`의 `DataProvenance` schema example은 09-06 packet을 그대로 옮긴 것이라 이 설명과도 어긋난다. 서울 example은 채워진 값을 revision 1로 적고, 표시명은 `서울시 실시간 도시데이터`이며, 서버가 채우지 않는 `attributionShort`를 싣는다. 그래서 어느 저장 revision의 값도 아니다. 이 example을 서버가 내는 모양으로 다시 쓸지는 FE 승인과 함께 따로 정한다.
 
 API는 위 문구와 URL을 `DataProvenance`에 넣는다. Frontend는 `source`로 제공자 문구를
 다시 만들지 않고 `attribution`을 그대로 표시하며, 온라인 화면에서는
