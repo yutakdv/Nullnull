@@ -23,7 +23,7 @@ type Place = components['schemas']['PlaceSummary'];
 // #312 / Figma 04 (920:257). Existing feed stays public; a trip is the
 // authoring workflow prerequisite, not a replacement for session authorization.
 export function PostCreateScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const trips = useTrips();
   const reserve = useCreatePostImageUpload();
@@ -34,7 +34,7 @@ export function PostCreateScreen() {
   const [body, setBody] = useState('');
   const [alt, setAlt] = useState('');
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const [places, setPlaces] = useState<Place[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [uploading, setUploading] = useState(false);

@@ -47,14 +47,14 @@ import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.j
 
 export function AddPlaceScreen() {
   const { tripId } = useParams();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState<AddTarget>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const trip = useTrip(tripId ?? null);
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const addItem = useAddTripItem(tripId ?? null);
   const addCandidate = useAddTripCandidate(tripId ?? null);
 

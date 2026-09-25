@@ -390,6 +390,10 @@
         {
           "id": "FE-103-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-103-T4",
+          "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

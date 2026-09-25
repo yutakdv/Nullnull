@@ -59,7 +59,7 @@ export function LiveScreen() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const stateLabels = Object.fromEntries(
     STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
   ) as Partial<Record<SourceState, string>>;

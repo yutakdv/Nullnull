@@ -379,7 +379,7 @@ describe('FE-401 Live area list', () => {
     server.use(
       http.post(`${API_BASE}/live/areas`, () => HttpResponse.json(areas)),
       http.post(`${API_BASE}/places/search`, async ({ request }) => {
-        expect(await request.json()).toEqual({ query: '경복궁' });
+        expect(await request.json()).toEqual({ query: '경복궁', locale: 'en-US' });
         return HttpResponse.json(placeFixtures.searchPage);
       }),
     );
