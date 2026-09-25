@@ -623,14 +623,14 @@ Vitest 구현 증거를 연결한다. test 이름의 `FCR-* trace`는 디자인 
 | FCR-002 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 feed/post를 먼저 렌더한 뒤 검색·알림·팔로우 control/호출 부재 증명 완료 |
 | FCR-003 | `FE-201-T2` (`feed.test.tsx`) | 실제 feed와 `listFeed` wire를 기준으로 정렬·filter control/parameter 부재 증명 완료 |
 | FCR-004 | `FE-503-T1`, `FE-505-T1` (`proposal-card.test.tsx`, `decision-wiring.test.tsx`) | before/after, provenance+eligible metric, 집계·개별 lock validation, 승인 전 쓰기 0건과 APPLY/KEEP 경계 증명 완료 |
-| FCR-005 | `FE-502-T2`, `FE-301-T1`, `FE-401-T1` (`optimization-run.test.tsx`, `trip-screen.test.tsx`, `live.test.tsx`) | 실제 optimization/trip/Live 데이터를 렌더한 뒤 route 문구·수치 부재 증명 완료 |
+| FCR-005 | `FE-502-T2`, `FE-301-T1`, `FE-401-T5` (`optimization-run.test.tsx`, `trip-screen.test.tsx`, `live.test.tsx`) | 실제 optimization/trip 데이터를 렌더한 뒤 route 문구·수치 부재 증명 완료. Live는 Figma가 '돌아가도 +N분'을 그렸던 장소 행(`listLiveAreaPlaces`)을 KO·EN 양쪽에서 렌더한 뒤 돌아가도·+N분·도보·우회·km(영문 대응 포함) 부재를 증명한다(`FE-401-T5`). 예전 근거였던 `FE-401-T1` case는 영어 UI의 권역 목록만 봤다 |
 | FCR-006 | `FE-105-T1` (`profile.test.tsx`) | 익명 저장 설명·inert login text·route/요청 0건 증명 완료 |
 | FCR-007 | `FE-404-T1` (`data-guide.test.tsx`) | 계약 `SourceState` 전체 순회와 REPLAY≠LIVE 증명 완료 |
 | FCR-008 | `FE-401-T1` (`live.test.tsx`, `live-map-sheet.mock.spec.ts`), `FE-401-T2` (`live.test.tsx`), `FE-401-T3` (`live.test.tsx`, `live-map-sheet.mock.spec.ts`), `FE-402-T2` (`live.test.tsx`) | canonical 검색→선택→상세, 상태와 keyboard 경로의 로컬 증거 완료. fixture 승인·composed browser 증거는 대기 |
 | FCR-009 | `FE-201-T2`, `FE-202-T2` (`feed.test.tsx`, `post.test.tsx`) | 실제 card/place row에 계약 없는 거리·기준을 만들지 않음 증명 완료 |
 | FCR-010 | `FE-501-T1` (`optimize-setup.test.tsx`) | ITEM만 wire에 도달하고 DAY/TRIP·DATE lock은 요청 0건 증명 완료 |
 | FCR-011 | `FE-201-T2`, `FE-202-T2`, `FE-402-T1` (`card-components.test.tsx`, `data-components.test.tsx`, `post.test.tsx`, `live.test.tsx`) | state/credit 분리와 Live 상세의 KTO 장소·Seoul 혼잡 출처 분리 증명 완료. 승인 fixture·폭 증거는 대기 |
-| FCR-012 | `FE-401-T1`·`T2`·`T3` (파일은 FCR-008 행과 같다), `FE-403-T2` (`live.test.tsx`), `FE-403-T3` (`live-map-sheet.mock.spec.ts`, `live-accessibility.mock.spec.ts`) | map OFF·list-first와 default/loading/empty/error/unavailable, keyboard·reflow의 로컬 증거 완료. Figma sheet geometry·area-level 출처와 composed browser 승인은 대기 |
+| FCR-012 | `FE-401-T1`·`T2`·`T3` (파일은 FCR-008 행과 같다), `FE-403-T2` (`live.test.tsx`), `FE-403-T3` (`live-replay-matrix.spec.ts` — 게이트, `live-map-sheet.mock.spec.ts`, `live-accessibility.mock.spec.ts`) | map OFF·list-first와 default/loading/empty/error/unavailable, keyboard·reflow의 증거 완료. 360·180px·ko/en·keyboard와 reduced motion은 게이트에서도 잰다(`live-replay-matrix.spec.ts`가 승인 fixture를 `page.route`로 준다). Figma sheet geometry·area-level 출처와 composed browser 승인은 대기 |
 | FCR-013 | `FE-301-T1` (`trip-screen.test.tsx`) | 실제 trip 화면에서 지원되는 최적화 진입은 남고 계약 없는 비교 banner/control은 없음 증명 완료 |
 | FCR-014 | `FE-502-T3`, `FE-504-T3` (`optimization-run.test.tsx`) | 이탈은 navigation이고 cancel control/요청이 아님을 증명 완료 |
 | FCR-015 | `FE-505-T1`·`T2` (`applied-panel.test.tsx`, `applied-revert.test.ts`, `trip-applied-panel.test.tsx`) | persistent panel 상태, version·deadline 규칙, wrapper의 실제 read→render·실패 경로 증명 완료 |
@@ -648,7 +648,7 @@ Storybook/Playwright ID 연결, `FCR-008`·`FCR-012`와 `FCR-005`·`FCR-011`의 
 
 위 표에서 두 FCR의 대기 항목(fixture 승인, composed browser 증거, Figma sheet geometry·area-level 출처)은 그 세 이슈에서 닫는다. 이 이관은 두 FCR에 대한 것이다. `FCR-005`·`FCR-011`의 Live 절과 PM 범위·문구 승인은 옮기지 않았다.
 
-두 행의 test 파일은 ID별로 적었다. 예전에는 ID와 파일을 한 괄호에 묶어, `FE-402-T2`·`FE-403-T2`가 mock spec에도 있는 것처럼 읽혔다. 실제로는 둘 다 `live.test.tsx`에만 있다. 반대로 `FE-403-T3`는 `live.test.tsx`에 없고 두 mock spec에만 있다. 세 파일에서 `FE-40[1-3]-T[0-9]+`를 찾아 확인했다.
+두 행의 test 파일은 ID별로 적었다. 예전에는 ID와 파일을 한 괄호에 묶어, `FE-402-T2`·`FE-403-T2`가 mock spec에도 있는 것처럼 읽혔다. 실제로는 둘 다 `live.test.tsx`에만 있다. 반대로 `FE-403-T3`는 `live.test.tsx`에 없고 두 mock spec에 있다 — 그리고 R4b부터는 게이트에서 도는 `live-replay-matrix.spec.ts`에도 있다(reduced motion 포함). 세 파일에서 `FE-40[1-3]-T[0-9]+`를 찾아 확인했고, 게이트 spec은 따로 확인했다.
 
 ## #11 계약 packet 검토 결과
 

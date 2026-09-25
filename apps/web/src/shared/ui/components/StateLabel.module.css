@@ -38,6 +38,15 @@
   border: var(--border-thin) dashed var(--color-border-strong);
 }
 
+/* A live reading under a provider incident (A-068) drops the live styling as
+   well as the live word, and reads as degraded like a stale one. After the
+   LIVE rule so it wins at equal specificity. */
+.label[data-quality='PROVIDER_INCIDENT'] {
+  border: var(--border-thin) dashed var(--color-border-strong);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
 .time {
   min-width: 0;
   overflow-wrap: anywhere;

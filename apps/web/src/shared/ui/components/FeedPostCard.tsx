@@ -1,7 +1,7 @@
 import type { components } from '@nullnull/api-client';
 import { CrowdLevel } from './CrowdLevel.js';
 import { PlaceAttribution } from './PlaceAttribution.js';
-import type { SourceState } from './StateLabel.js';
+import type { StateWording } from './StateLabel.js';
 import { TripAddButton, type TripAddState } from './TripAddButton.js';
 import styles from './FeedPostCard.module.css';
 
@@ -28,7 +28,7 @@ export interface FeedPostCardProps {
   /** Localized copy from the caller; each falls back to the component default. */
   labels?: {
     add?: Partial<Record<TripAddState, string>>;
-    state?: Partial<Record<SourceState, string>>;
+    state?: Partial<Record<StateWording, string>>;
     crowdStages?: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
     crowdLevel?: string;
     licenseTerms?: string;

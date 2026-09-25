@@ -962,6 +962,72 @@ describe('FE-201-T3 keyboard and accessible names', () => {
     ).toBeInTheDocument();
   });
 
+  it('FE-403-T5 names a reading by the steps its source publishes, not a fixed five', async () => {
+    // The feed passed 'Level N of 5' for every card. A source that publishes
+    // four steps of the five-cell scale is 'N of 4' (the contract's rule).
+    const card = feedFixtures.page.items[0];
+    expect(card).toBeDefined();
+    server.use(
+      http.get(`${API_BASE}/feed`, () =>
+        HttpResponse.json({
+          ...feedFixtures.page,
+          items: [
+            {
+              ...card,
+              crowd: {
+                ...FORECAST,
+                ordinalLevel: '3',
+                ordinalScale: { size: 5, publishedCells: ['1', '2', '3', '4'] },
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderFeed();
+    const article = (await screen.findByText(card?.post.title ?? '')).closest(
+      'article',
+    ) as HTMLElement;
+    expect(
+      within(article).getByRole('img', { name: 'Level 3 of 4' }),
+    ).toBeInTheDocument();
+  });
+
+  it('says a provider incident in the feed language, not in Korean', async () => {
+    // The feed passes its own state words, and that list had no
+    // PROVIDER_INCIDENT, so an English feed fell through to the Korean default.
+    const card = feedFixtures.page.items[0];
+    expect(card).toBeDefined();
+    server.use(
+      http.get(`${API_BASE}/feed`, () =>
+        HttpResponse.json({
+          ...feedFixtures.page,
+          items: [
+            {
+              ...card,
+              crowd: {
+                ...FORECAST,
+                state: 'LIVE',
+                provenance: {
+                  ...FORECAST.provenance,
+                  qualityFlags: ['PROVIDER_INCIDENT'],
+                },
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderFeed();
+    const article = (await screen.findByText(card?.post.title ?? '')).closest(
+      'article',
+    ) as HTMLElement;
+    expect(within(article).getByText('Provider incident')).toBeInTheDocument();
+    expect(within(article).queryByText('제공처 장애')).not.toBeInTheDocument();
+  });
+
   it('names the list after the screen heading', async () => {
     renderFeed();
     await screen.findByText(firstTitle);

@@ -25,6 +25,14 @@
   background: var(--color-data-filled);
 }
 
+/* A cell this source never fills (A-060: Seoul's fifth). Hollow rather than
+   absent, so the bar keeps the product's five cells and a Seoul 4 is visibly
+   not the last one; the level text and the bar's name carry the same. */
+.step[data-unpublished] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-data-empty);
+}
+
 .label {
   color: var(--color-text-primary);
   font-weight: 500;

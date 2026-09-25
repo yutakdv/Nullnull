@@ -94,9 +94,9 @@ export function MustVisitStep({
   startDate,
   endDate,
 }: MustVisitStepProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [query, setQuery] = useState('');
-  const search = usePlaceSearch(query);
+  const search = usePlaceSearch(query, locale);
   const searchResults = search.data?.items ?? [];
   const forecasts = usePlaceCrowdForecasts(
     searchResults.map((place) => place.id),

@@ -15,6 +15,7 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import type { SupportedLocale } from '../../i18n/locales.js';
 import { createApiClient, type components } from '@nullnull/api-client';
 import { isProblem, toProblem, type Problem } from './problem.js';
 import { crowdWindow } from '../crowd/forecast.js';
@@ -653,15 +654,22 @@ export function usePlaceCrowdForecasts(
  */
 export function usePlaceSearch(
   query: string,
+  /**
+   * The UI's locale, so result names come back in the language the rest of the
+   * screen speaks (FE-103-T4). Required: a caller that forgot it would get the
+   * contract's ko-KR default under an English UI.
+   */
+  locale: SupportedLocale,
 ): UseQueryResult<PlaceSearchPage, Problem | Error> {
   const trimmed = query.trim();
   return useQuery({
     // The query text is part of the cache key but never leaves the client in a
-    // URL; the request carries it in the body.
-    queryKey: ['places', 'search', trimmed],
+    // URL; the request carries it in the body. The locale is part of the key
+    // too: the same words in another language are another answer.
+    queryKey: ['places', 'search', locale, trimmed],
     enabled: trimmed.length > 0,
     queryFn: async () => {
-      const body: PlaceSearchRequest = { query: trimmed };
+      const body: PlaceSearchRequest = { query: trimmed, locale };
       const { data, error, response } = await getApiClient().POST('/places/search', {
         body,
       });
