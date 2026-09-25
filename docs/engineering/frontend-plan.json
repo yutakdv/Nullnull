@@ -2088,12 +2088,12 @@
       "id": "FE-604",
       "phase": "B08",
       "priority": "P0",
-      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003)",
+      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003; CMP-SUB-004는 검토)",
       "status": "blocked",
-      "reason": "다섯 행 모두 배포된 제출 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못하고, 심사 녹화·smoke·스크린샷은 그 URL이 서기 전에는 촬영 자체가 불가능하다. 안전 기본값: 그 전까지 이 다섯 행은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다. BA-071(staging)이 서면 해제된다.",
+      "reason": "네 행 모두 최종 제출 release의 배포 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못한다. 해제 조건은 #305 1단계(마지막 배포)로 최종 release가 동결되는 것이다. 예전 조건 'BA-071(staging)이 서면'은 staging이 이미 서 있어(BA-071 T1~T3 증명) 참인데도 이 카드를 풀지 못했고, BA-071은 오너가 T4(rollback 연습)를 빼서 끝나지 않으므로 조건으로 쓰지 않는다. 동결 전에 모은 증거는 재배포로 무효가 된다(#305). 안전 기본값: 그 전까지 이 행들은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다.",
       "dependsOn": [
         "FE-603",
-        "BA-071"
+        "BA-073"
       ],
       "operations": [],
       "featureIds": [
@@ -2102,10 +2102,10 @@
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "배포 URL에서 session·shell E2E를 재실행해 익명 접속으로 핵심 흐름이 완결되는지 확인한다",
-        "외부망 익명창에서 심사 흐름을 녹화하고 360px·200% zoom 접근성 조건을 함께 만족하는지 기록한다",
+        "#305 1단계로 최종 release가 동결되면 외부망 익명창에서 로그인 없이 핵심 흐름을 사람이 직접 밟고 녹화한다(#305 3단계·BA-073-T1과 같은 walk). Playwright를 배포 URL에 겨누지 않는다 — live demo/dev DB에 test를 돌리지 않는다는 전역 규칙과 충돌하므로 겨누려면 오너 승인이 먼저다",
+        "같은 walk에서 360px·200% zoom 접근성 조건을 만족하는지 기록한다",
         "촬영 대상 화면 목록을 사전 확정하고 준비 중 화면과 개인 입력이 담긴 화면을 제외한다",
-        "배포 직후 smoke를 돌려 제출 직전 상태를 증거로 남긴다"
+        "#305 1단계의 배포 smoke 결과를 그 release 이름과 함께 증거로 연결한다"
       ],
       "safety": "준비 중 화면과 P1 기능을 구현 완료로 제출하지 않는다. 촬영물에 개인 입력·붙여넣기 원문·좌표가 남지 않게 하고, 로그인 없이 완결되는 흐름만 증거로 쓴다.",
       "tests": [
@@ -2122,7 +2122,7 @@
           "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003 다섯 행을 이 카드가 소유한다. 셋은 responsive.spec·session.spec·shell.spec이 뼈대를 이미 갖고 있어 배포 URL에 겨누기만 하면 된다. 마감 2026-09-21 16:00.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003 네 행을 이 카드가 소유한다. CMP-SUB-004(외부 접속 URL)는 매트릭스대로 DRI가 BE·AI이고 FE는 검토한다 — 증거가 배포 작업인 HTTPS smoke라서다(bbc58308). responsive.spec·session.spec·shell.spec은 로컬·게이트의 뼈대이고 배포 URL 증거는 step 1의 사람 walk로 모은다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     }

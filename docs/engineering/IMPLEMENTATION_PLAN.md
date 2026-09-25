@@ -285,7 +285,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-601` | B08 | 전체 P0 responsive/긴 텍스트/200% zoom pass | 전 P0 화면 |
 | `FE-602` | B08 | Lighthouse/performance budget와 bundle 분석 | 전 P0 화면 |
 | `FE-603` | B08 | 공모전 준수 REQUIRED 행을 기계가 지키게 한다 (위치 0건·출처 coverage·이미지·TourAPI 단독 표기) | 전 P0 화면 |
-| `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — staging이 서기 전까지 blocked | 전 P0 화면 |
+| `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — 최종 release가 동결되기 전까지 blocked(#305 1단계) | 전 P0 화면 |
 | `FE-P1-101` | B09 | S12 알림 목록/empty/unread/read-all/allowlisted deep link | `442:3344` |
 | `FE-308` | B09 | FCR-017 확정 뒤 시간/duration 편집 | 미지정 · FCR-017 |
 | `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy — A-064로 deferred(BA-080) | 미지정 · P1 seed |

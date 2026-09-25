@@ -83,7 +83,7 @@ AI 도구 사용을 별도 가점이나 구현 완료 증거로 주장하지 않
 | CMP-ATT-001 | 공식/REQUIRED | 공공데이터 출처 텍스트 표시 | KTO 기본 `출처: ⓒ한국관광공사`; 승인된 경우 동등 문구 | KTO 화면 DOM/visual coverage 100% | FE / BE·AI |
 | CMP-ATT-002 | 공식/RECOMMENDED | `TourAPI` 단독 표기 지양 | provider display name과 텍스트 출처를 함께 사용 | forbidden-copy scan | FE / BE·AI |
 | CMP-ATT-003 | 공식/REQUIRED | 기관이 직접 운영하는 것처럼 오인시키는 CI·BI/명칭 사용 금지 | 별도 허가 없는 한국관광공사 CI·BI image 미사용 | asset ledger와 image scan | FE / BE·AI |
-| CMP-ATT-004 | 팀 결정/INTERNAL | 기준시각과 source state를 숨기지 않음 | LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE 표시 | contract/Storybook/E2E | FE / BE·AI |
+| CMP-ATT-004 | 팀 결정/INTERNAL | 기준시각과 source state를 숨기지 않음 | LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE 표시 | contract/Storybook/E2E. FE 소유 카드는 `FE-404`다. 지금 이 절을 재는 test는 `FE-404-T1`(`data-guide.test.tsx`, 여섯 state를 구분하고 결측을 채우지 않는다)과 `FE-403-T1`(`live.test.tsx`와 게이트의 `live-replay-matrix.spec.ts`, REPLAY를 live로 쓰지 않고 관측 시각을 서울 시각으로 표시한다)이다 | FE / BE·AI |
 | CMP-ATT-005 | 팀 결정/INTERNAL | 비교 불가 source를 수치 비교하지 않음 | server comparison eligibility와 reason 사용 | property/contract/UI test | BE/AI / FE |
 | CMP-ATT-006 | 팀 결정/INTERNAL | 이미지별 이용 조건을 확인 | 승인된 asset만 사용, 불명확하면 placeholder | asset license ledger | 공동 / 공동 |
 | CMP-ATT-007 | 팀 결정/INTERNAL | **실재 장소를 사진처럼 렌더한 합성 이미지를 쓰지 않는다**(`A-024`, 불변식 6) | 일러스트임이 명시적으로 보이는 asset만. 사진 같은 합성은 금지 | `apps/web` image allowlist(FE-603-T2)와 **C2PA 매니페스트 확인** — **allowlist scan 은 `docs/contest/covers/` 를 보지 않는다**(앱 번들이 아니라 배포 도메인이 서빙하는 자산이다) | 공동 / 공동 |
