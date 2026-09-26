@@ -162,8 +162,14 @@ title:  걷다가 앉는 곳
 | `cover.checksum` | 표지 파일의 sha256 — **파일이 정해지면** 계산 |
 | `publishedAt` | 임의로 두지 않았다. import 시점에 맞춰 BE가 정하거나, 필요하면 여기서 정한다 |
 
-표지는 **오너가 직접 촬영한 사진**을 쓴다(2026-09-18, A-024 개정). `alt` 초안은 글을 보고
-쓴 것이라 **실제 사진에 맞춰 고쳐야 한다** — `alt`는 이미지를 못 보는 사람에게 *실제로 무엇이
-보이는지* 말하는 값이고, 사진과 어긋나면 틀린 설명이 된다. 사진을 받은 뒤 FE가 맞춘다.
+**2026-09-26 정정 — 이 문단은 원래 *"표지는 오너가 직접 촬영한 사진을 쓴다"* 고 적고 있었고 그것은
+사실이 아니다.** 다섯 파일 전부의 C2PA 매니페스트가 생성 이미지(`gpt-image`, `trainedAlgorithmicMedia`)를
+가리키고, 촬영본을 편집한 흔적(`ingredient`/`c2pa.opened`)은 0건이다([`covers/`](covers/README.md)의
+2026-09-20 정정). 이 표지들은 `A-024`가 금지한 사진풍 합성 이미지에 해당한 채로 남아 있고, 오너가
+2026-09-20 교체하지 않기로 했다([결정·위험 대장](../project/DECISIONS_AND_RISKS.md)의 `R-040`).
+
+`alt`는 481c0c6f에서 다섯 장을 열어 보고 그림에 맞춰 고쳤다. 위 다섯 초안은 `covers/README.md`의
+표, `ops/curated-posts.json`의 `cover.alt`와 5/5 같다. 위 표의 BE 칸도 `ops/curated-posts.json`에
+채워졌고 `cover.checksum`은 파일의 sha256과 5/5 같다(2026-09-26 대조).
 
 원본은 [`covers/`](covers/README.md)에 둔다.

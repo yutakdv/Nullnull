@@ -453,7 +453,7 @@
           "assertion": "데이터 안내는 배포 UI에 없는 되돌리기를 약속하지 않는다(A-074)"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-ATT-004 행(기준시각과 source state를 숨기지 않음)을 FE 쪽에서 이 카드가 소유한다 — 매트릭스 행이 FE 소유 카드를 FE-404로 적으므로 이 카드에도 같은 사실을 적어 양쪽에 남긴다. 지금 그 절을 재는 test는 FE-404-T1(data-guide.test.tsx, 여섯 state를 구분하고 결측을 채우지 않는다)과 FE-403-T1(live.test.tsx와 게이트의 live-replay-matrix.spec.ts, REPLAY를 live로 표시하지 않는다)이다. 기준시각 쪽인 '관측 시각을 서울 시각으로 표시'는 FE-403-T1을 단 testcase가 함께 단언하지만 FE-403-T1의 절('REPLAY를 live로 표시하지 않고 degraded 상태를 명시한다')이 아니고, 그것을 소유한 FE 절 ID가 없다 — 알려진 구멍이다(#195의 빌린 ID 모양). 서울 시간대를 실제로 재는 것은 reference-time.test.ts의 FE-403-T1 case와, 고정 문자열('오후 2:00'·'2:00 PM')과 대조하는 게이트의 live-replay-matrix.spec.ts다. live.test.tsx의 두 case는 기대값을 같은 formatReferenceTime으로 만들므로 시간대를 UTC로 바꿔도 초록이다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
@@ -1594,8 +1594,8 @@
       "phase": "B09",
       "priority": "P1",
       "title": "독립 검색 route·filter·recent-search privacy",
-      "status": "blocked",
-      "reason": "디자이너가 /search 신규 화면을 제작 중이고 BA-080의 filter·sort·recent-search privacy 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 독립 /search route를 노출하지 않고 기존 P0 검색만 유지하는 것이다.",
+      "status": "deferred",
+      "reason": "A-064(오너 2026-09-21)가 이번 B09 범위에서 BA-080을 deferred로 뺐다. 이 카드가 기다리던 filter·sort·recent-search privacy 계약을 만들 카드가 없으므로 blocked가 아니라 deferred다. 안전 기본값은 독립 /search route를 노출하지 않고(routes.tsx에 없다) 기존 P0 검색만 유지하는 것이다. 다시 여는 것은 오너 결정이다.",
       "dependsOn": [
         "FE-103",
         "BA-080"
@@ -1629,7 +1629,7 @@
           "assertion": "loading·no-result·error·offline·비교 불가와 keyboard·360px·ko/en 상태를 각각 검증한다"
         }
       ],
-      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-080 계약·example·generated client, privacy 문구와 cursor reset 검증이 모두 있어야 blocked를 해제한다.",
+      "handoff": "오너가 BA-080과 함께 다시 연 뒤에 착수한다. 그때 사용자의 디자인 완료 확인, 확정 Figma node, BA-080 계약·example·generated client, privacy 문구와 cursor reset 검증이 모두 있어야 한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -1637,40 +1637,72 @@
       "id": "FE-P1-104",
       "phase": "B09",
       "priority": "P1",
-      "title": "게시물 작성·media upload·moderation 상태",
-      "status": "blocked",
-      "reason": "디자이너가 /posts/new 신규 화면을 제작 중이고 BA-082의 upload·moderation·license 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 /posts/new 진입점을 노출하지 않고 upload 요청을 보내지 않는 것이다.",
+      "title": "게시물 작성 /posts/new: 표지 업로드·장소 연결·즉시 공개(A-058)",
+      "status": "in-progress",
       "dependsOn": [
         "FE-202",
         "BA-082"
       ],
-      "operations": [],
+      "operations": [
+        "createPostImageUpload",
+        "createPost",
+        "searchPlaces",
+        "listTrips"
+      ],
       "featureIds": [
         "FR-PUB-01"
       ],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "사용자가 /posts/new 디자인 완료를 알린 뒤 확정 node와 작성·업로드 상태를 handoff에 등록한다",
-        "승인된 upload session·moderation·license 계약과 generated client를 검토한다",
-        "draft·progress·cancel·expiry·failure·pending·rejected 상태와 이탈 복구를 구현한다"
+        "post-create.test.tsx의 '#312' case 여섯을 본문과 대조해 ID를 단다. 이름만 옮기지 않는다. 본문 대조로 그대로 증명되는 것은 넷이다: 여행 없는 feed의 진입점 부재(T6, 진입점이 보이는 case가 그 대조군), 직접 진입의 여행 만들기 링크(T7), 여행 조회 실패(T8), 모호한 게시 실패의 같은 key·body 재시도(T5). T4는 업로드 실패 case가 실패만 재므로 업로드 중·취소 case를 더한다. T2는 재시도 case가 실패 뒤 작성 화면에 남는 것을 암묵적으로만 보므로 201 전 이동·'게시됨' 표시가 없음을 직접 단언하는 case를 더한다. T1(권리 문구)을 재는 case는 아직 없으므로 새로 쓴다",
+        "브라우저 증거가 게이트에서 제외되는 post-create.mock.spec.ts뿐이므로 composed spec을 만들지, mock spec을 게이트에서 돌릴지 정한다",
+        "FR-PUB-01을 P0로 올리려면 FUNCTIONAL_INVENTORY와 BA-082 priority를 같은 PR에서 바꾼다. validate_docs.py가 부르는 validate_backend_plan이 카드와 inventory의 우선순위 불일치를 거절한다(inventory만 P0로 바꾸면 'BA-082: feature priority differs from inventory: FR-PUB-01')"
       ],
-      "safety": "디자인과 계약 승인 전에는 /posts/new route·CTA·upload 요청을 추가하지 않는다. 권리 확인 전 publish하지 않고 moderation 사유를 응답 근거 없이 만들어내지 않는다.",
+      "safety": "여행이 없거나 여행 조회가 실패하면 작성 입력을 그리지 않는다. 표지는 표준 파일 입력 하나이고(capture 없음, 계약 형식 JPEG·PNG) 카메라를 직접 열지 않는다(A-057). 권리 동의는 체크박스가 아니라 문구로 알린다(#312). createPost가 201로 답하기 전에는 게시됐다고 표시하지 않고, 결과를 모르는 실패는 같은 Idempotency-Key와 body로만 다시 보낸다. 서버가 주지 않은 거절 사유를 만들어내지 않는다.",
       "tests": [
         {
           "id": "FE-P1-104-T1",
-          "assertion": "upload progress·cancel·expiry·failure가 draft를 조용히 잃지 않고 권리 확인 전 publish하지 않는다"
+          "assertion": "권리 동의는 체크박스 없이 게시 버튼 곁의 문구로 보인다(#312)"
         },
         {
           "id": "FE-P1-104-T2",
-          "assertion": "moderation pending·rejected를 구분하고 서버가 주지 않은 거절 사유를 만들어내지 않는다"
+          "assertion": "createPost가 201로 답하기 전에는 게시됐다고 표시하거나 게시물로 이동하지 않는다(A-058 동기 완결, moderation 대기 상태 없음)"
         },
         {
           "id": "FE-P1-104-T3",
-          "assertion": "작성 중 이탈·복구와 focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+          "assertion": "focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+        },
+        {
+          "id": "FE-P1-104-T4",
+          "assertion": "표지 업로드가 끝나지 않았으면(실패·취소 포함) 게시 요청을 보낼 수 없다"
+        },
+        {
+          "id": "FE-P1-104-T5",
+          "assertion": "결과를 모르는 게시 실패는 같은 Idempotency-Key와 같은 body로만 다시 보낸다"
+        },
+        {
+          "id": "FE-P1-104-T6",
+          "assertion": "여행이 없는 owner의 feed에는 게시물 작성 진입점이 없다"
+        },
+        {
+          "id": "FE-P1-104-T7",
+          "assertion": "여행이 없는 owner가 /posts/new에 바로 들어오면 업로드 입력 대신 여행 만들기 링크를 보인다"
+        },
+        {
+          "id": "FE-P1-104-T8",
+          "assertion": "여행 조회 실패를 여행 없음으로 읽지 않는다"
+        },
+        {
+          "id": "FE-P1-104-T9",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 NavBar의 '피드로 돌아가기'(Back to feed) control은 화면을 떠나기 전에 버릴지 묻는다"
+        },
+        {
+          "id": "FE-P1-104-T10",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 탭 닫기·새로고침에 브라우저의 떠나기 경고(beforeunload)를 건다"
         }
       ],
-      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-082 계약·example·generated client, upload 취소·expiry와 moderation 상태가 모두 있어야 blocked를 해제한다.",
+      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 작성 중 초안은 어디에도 저장하지 않으므로 복구가 없다. 입력을 지키는 장치는 NavBar의 '피드로 돌아가기' control이 여는 버리기 확인(T9, ConfirmDialog)과 탭 닫기·새로고침의 브라우저 떠나기 경고(T10, beforeunload) 둘이고, 모든 이탈을 덮지는 않는다. 알려진 구멍: 앱 안에서 이 화면으로 온 뒤 브라우저·시스템 뒤로 가기처럼 history를 되돌리면 react-router의 history 이동(popstate)이라 문서가 내려가지 않아 beforeunload가 불리지 않고, PostCreateScreen에는 useBlocker가 없어(NavBar의 onBack만 막는다) ConfirmDialog도 뜨지 않으므로 입력을 묻지 않고 버린다. TripEditForm.tsx는 같은 구멍을 useBlocker로 닫았다. 이 구멍을 재는 절 ID는 아직 없다. 예전 T3은 '이탈·복구'를 접근성 절과 한 ID에 묶고 이 화면에 없는 복구를 약속했으므로, T3을 접근성 절로 좁히고 이탈을 T9·T10으로 나눴다. 증거 상태: T9는 게이트 밖 post-create.mock.spec.ts만 잰다(입력 뒤 '피드로 돌아가기' 누름 → dialog → Escape로 입력과 focus 유지). Vitest case는 없다. T10을 재는 case는 아직 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다 — 넣으면 validate_docs.py가 'unverified Figma node'로 거절하므로, node를 확인해 FIGMA_HANDOFF에 먼저 등록해야 한다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -1728,7 +1760,8 @@
       "phase": "B09",
       "priority": "P1",
       "title": "프로필 정식 로그인과 익명 owner 데이터 승계·복구",
-      "status": "planned",
+      "status": "deferred",
+      "reason": "A-064(오너 2026-09-21)가 이번 B09 범위에서 BA-081을 deferred로 뺐다 — 로그인은 FE가 흉내만 내고 백엔드는 구현하지 않는다. 계정·승계 계약을 만들 카드가 없으므로 이 카드도 deferred다. 안전 기본값은 A-075(오너 2026-09-25)가 유지한 로그인 흉내 /sign-in(요청 0건)과 프로필 `TEST` 계정 표기이고, 인증·승계 요청은 보내지 않는다. 다시 여는 것은 오너 결정이다.",
       "dependsOn": [
         "FE-105",
         "BA-081"
@@ -1847,7 +1880,6 @@
       ],
       "operations": [
         "getLivePlace",
-        "listRelatedPlaces",
         "addTripCandidate"
       ],
       "featureIds": [
@@ -2064,12 +2096,11 @@
       "id": "FE-604",
       "phase": "B08",
       "priority": "P0",
-      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003)",
+      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003; CMP-SUB-004는 검토)",
       "status": "blocked",
-      "reason": "다섯 행 모두 배포된 제출 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못하고, 심사 녹화·smoke·스크린샷은 그 URL이 서기 전에는 촬영 자체가 불가능하다. 안전 기본값: 그 전까지 이 다섯 행은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다. BA-071(staging)이 서면 해제된다.",
+      "reason": "네 행 모두 최종 제출 release의 배포 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못한다. 해제 조건은 #305 1단계(마지막 배포)로 최종 release가 동결되는 것이다. 그 동결은 카드가 아니라 사건이라 dependsOn edge로 적지 않는다 — 그것을 담은 카드 BA-073을 edge로 걸면 BA-073이 BA-071에 기대므로 아래에서 뺀 조건이 한 단계 아래로 돌아오고, BA-073-T1은 이 카드의 step 1과 같은 walk라 이 카드가 자기 walk가 끝내는 카드를 기다리는 모양이 된다. 예전 조건 'BA-071(staging)이 서면'은 staging이 이미 서 있어(BA-071 T1~T3 증명) 참인데도 이 카드를 풀지 못했고, BA-071은 오너가 T4(rollback 연습)를 빼서 끝나지 않으므로 조건으로 쓰지 않는다. 동결 전에 모은 증거는 재배포로 무효가 된다(#305). 안전 기본값: 그 전까지 이 행들은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다.",
       "dependsOn": [
-        "FE-603",
-        "BA-071"
+        "FE-603"
       ],
       "operations": [],
       "featureIds": [
@@ -2078,10 +2109,10 @@
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "배포 URL에서 session·shell E2E를 재실행해 익명 접속으로 핵심 흐름이 완결되는지 확인한다",
-        "외부망 익명창에서 심사 흐름을 녹화하고 360px·200% zoom 접근성 조건을 함께 만족하는지 기록한다",
+        "#305 1단계로 최종 release가 동결되면 외부망 익명창에서 로그인 없이 핵심 흐름을 사람이 직접 밟고 녹화한다(#305 3단계·BA-073-T1과 같은 walk). Playwright를 배포 URL에 겨누지 않는다 — 오너의 작업 규칙 'test는 live demo/dev database에 대고 돌리지 않는다'(LOCAL_DEVELOPMENT.md가 인용하는 같은 규칙)와 충돌하므로 겨누려면 오너 승인이 먼저다",
+        "같은 walk에서 360px·200% zoom 접근성 조건을 만족하는지 기록한다",
         "촬영 대상 화면 목록을 사전 확정하고 준비 중 화면과 개인 입력이 담긴 화면을 제외한다",
-        "배포 직후 smoke를 돌려 제출 직전 상태를 증거로 남긴다"
+        "#305 1단계의 배포 smoke 결과를 그 release 이름과 함께 증거로 연결한다"
       ],
       "safety": "준비 중 화면과 P1 기능을 구현 완료로 제출하지 않는다. 촬영물에 개인 입력·붙여넣기 원문·좌표가 남지 않게 하고, 로그인 없이 완결되는 흐름만 증거로 쓴다.",
       "tests": [
@@ -2098,7 +2129,7 @@
           "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003 다섯 행을 이 카드가 소유한다. 셋은 responsive.spec·session.spec·shell.spec이 뼈대를 이미 갖고 있어 배포 URL에 겨누기만 하면 된다. 마감 2026-09-21 16:00.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003 네 행을 이 카드가 소유한다. CMP-SUB-004(외부 접속 URL)는 매트릭스대로 DRI가 BE·AI이고 FE는 검토한다 — 증거가 배포 작업인 HTTPS smoke라서다(bbc58308). responsive.spec·session.spec·shell.spec은 로컬·게이트의 뼈대이고 배포 URL 증거는 step 1의 사람 walk로 모은다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     }
