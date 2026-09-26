@@ -330,7 +330,8 @@ export const messages = {
     'profile.interests.conflict.reload': '최신 내용 불러오기',
     'profile.interests.conflict.discard': '내 변경 취소',
     // S14 lists locale among its rows; the note under it is the language the
-    // app is showing, read from the language names below (FCR-016).
+    // app is showing, read from `language.ko.name` / `language.en.name`
+    // (FCR-016).
     'profile.language.title': '언어',
     'profile.dataGuide.title': '혼잡도 데이터 안내',
     'profile.dataGuide.note': '실시간 관측 · 공식 예측 · 장기 참고의 차이',
