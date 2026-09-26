@@ -1671,7 +1671,7 @@
         },
         {
           "id": "FE-P1-104-T3",
-          "assertion": "작성 중 이탈·복구와 focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+          "assertion": "focus·keyboard·360px·ko/en 긴 문구를 검증한다"
         },
         {
           "id": "FE-P1-104-T4",
@@ -1692,9 +1692,17 @@
         {
           "id": "FE-P1-104-T8",
           "assertion": "여행 조회 실패를 여행 없음으로 읽지 않는다"
+        },
+        {
+          "id": "FE-P1-104-T9",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 뒤로 가기는 화면을 떠나기 전에 버릴지 묻는다"
+        },
+        {
+          "id": "FE-P1-104-T10",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 탭 닫기·새로고침에 브라우저의 떠나기 경고(beforeunload)를 건다"
         }
       ],
-      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다 — 넣으면 validate_docs.py가 'unverified Figma node'로 거절하므로, node를 확인해 FIGMA_HANDOFF에 먼저 등록해야 한다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 작성 중 초안은 어디에도 저장하지 않으므로 복구가 없다. 떠나는 길에 있는 것은 뒤로 가기의 버리기 확인(T9, ConfirmDialog)과 브라우저 떠나기 경고(T10)뿐이다. 예전 T3은 '이탈·복구'를 접근성 절과 한 ID에 묶고 이 화면에 없는 복구를 약속했으므로, T3을 접근성 절로 좁히고 이탈을 T9·T10으로 나눴다. 증거 상태: T9는 게이트 밖 post-create.mock.spec.ts만 잰다(입력 뒤 뒤로 가기 → dialog → Escape로 입력과 focus 유지). Vitest case는 없다. T10을 재는 case는 아직 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다 — 넣으면 validate_docs.py가 'unverified Figma node'로 거절하므로, node를 확인해 FIGMA_HANDOFF에 먼저 등록해야 한다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
