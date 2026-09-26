@@ -31,8 +31,8 @@ tags:
 | FR-SES-02 | P0 | session 만료/rotation/rebootstrap·새 tab | 공통 | `createDemoSession`, `issueCsrfToken`, 401 | 안전한 GET만 1회 자동 복구, tab token 독립 |
 | FR-SES-03 | P0 | CSRF/Origin 보호 | 공통 | `issueCsrfToken`, 모든 mutation | token 없거나 origin 불일치 거절 |
 | FR-SES-04 | P0 | session과 소유 data 삭제 요청/상태 확인 | S14 | `deleteCurrentSession`, `getDeletionRequest` | 즉시 revoke, receipt token으로 status만 조회 |
-| FR-PRO-01 | P0 | guest 프로필 shell/locale/active trip/데이터 안내 진입 | `422:2925` | `getCurrentOwner`, `updatePreferences` | 새로고침 후 유지, 내부 route allowlist |
-| FR-PRO-02 | P0 | 로그인 표현은 A-075(오너 2026-09-25)대로 둔다. onboarding의 /sign-in(`804:4537`)이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 정확히 대조하고, 프로필은 `TEST` 계정으로 표기한다 | `422:2925` | client capability(`accountAuth=false`) | API/route 호출 없음, 계정 생성·연결 없음, 로그인 없이 쓰는 경로 유지 |
+| FR-PRO-01 | P0 | 프로필 shell(`TEST` 계정 표기, A-075)/locale/active trip/데이터 안내 진입 | `422:2925` | `getCurrentOwner`, `updatePreferences` | 새로고침 후 유지, 내부 route allowlist |
+| FR-PRO-02 | P0 | 로그인 표현은 A-075(오너 2026-09-25)대로 둔다. onboarding의 /sign-in(`804:4537`)이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 정확히 대조하고, 프로필은 `TEST` 계정으로 표기한다 | `422:2925` | client capability(`accountAuth=false`) | 로그인·인증 API 호출 없음, 프로필 `TEST` 표기는 route 이동 없음, 계정 생성·연결 없음, 로그인 없이 쓰는 경로 유지 |
 | FR-PRO-03 | P0 | 내 여행 목록·active trip·empty state | `422:2925` | `listTrips` | row deep link, loading/empty/error 구분 |
 | FR-PRO-04 | P0 | AI 최적화 run 상태 이력 | `422:2925` | `listOptimizationHistory`, `getOptimization` | 상태/scope/시각/decision; 이력용 일정 본문 추가 보존 없음 |
 | FR-PRO-05 | P0 | 여행별 관심사 조회·전체 교체 | `422:2925` | `listTrips`, `getTrip`, `replaceTripInterests` | ETag/If-Match, 0개 허용, 중복 없음 |
@@ -204,7 +204,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | `FR-TRC-*` | wizard/draft/입력·재진입 | canonical mapping/import/create transaction | raw text 비영속, idempotent create |
 | `FR-FED-*`, `FR-PST-*`, `FR-CAN-*` | card/detail/sheet/result states | feed/post/candidate ownership·멱등성 | SavedPost·Candidate·Item 분리 E2E |
 | `FR-TRP-*`, `FR-ITM-*`, `FR-CON-*` | edit buffer, compare/reorder/confirm/accessibility | ETag/version/constraint/atomic mutation | stale conflict·lock·rollback E2E |
-| `FR-OPT-*` | setup/poll/preview/decision/error UI | optimizer, provenance/fingerprint, atomic apply/audit | 승인 전 mutation 0, 6 error code, revert |
+| `FR-OPT-*` | setup/poll/preview/decision/error UI | optimizer, provenance/fingerprint, atomic apply/audit | 승인 전 mutation 0, 6 error code (revert는 A-074로 앱에서 퇴역, 서버 API만 남음) |
 | `FR-LIV-*`, `FR-DAT-*` | list-first/state/relation/fallback, 승인 시 map | connector/mapping/freshness/comparability | LIVE·FORECAST·REPLAY·QUALITATIVE·STALE·UNAVAILABLE fixture |
 | `FR-NOT-*`, `FR-NBY-*`, `FR-PUB-*` | P1 route·permission·interaction | P1 schema/policy/storage | P0와 분리된 feature flag·contract |
 | `FR-OPS-*`, `NFR-*` | web telemetry/visual/a11y/E2E·출처 DOM | API/data/security/ops telemetry·KTO call-audit | 양쪽 required check, 익명 외부망과 staging evidence |

@@ -239,10 +239,10 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 
 | 화면 묶음 | API/fixture 준비 | FE가 확인할 결과 |
 | --- | --- | --- |
-| A 시작·S14 프로필 기본 | B02 | bootstrap/KO·EN/disabled login/삭제 복구 |
+| A 시작·S14 프로필 기본 | B02 | bootstrap/KO·EN/로그인 흉내·`TEST` 표기(A-075)/삭제 복구 |
 | S02 수동 여행·B feed/save | B03~B04 | canonical 검색·확인·201/duplicate·일정 무변경 |
 | S07 편집 | B05 | complete view·ETag·잠금·교체/순서·keyboard |
-| S09 최적화·S14 이력 | B06 | FCR-004 preview·scope union·decision union·stale·undo |
+| S09 최적화·S14 이력 | B06 | FCR-004 preview·scope union·decision union·stale(undo 진입점은 A-074로 퇴역) |
 | S02 붙여넣기 | B07 | 원문 제외 복구·remap·confirm |
 | S15 데이터 안내 | B03부터, B10에 서울 추가 | 6개 state·출처·시각/null·비교 불가 |
 | 선택 P1 화면 | B09, 위치는 B10 | 승인된 계약의 ON/OFF·privacy |
@@ -260,7 +260,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-004` | B01 | PWA manifest/service-worker offline shell 최소 구성 | 기반 · 화면 없음 |
 | `FE-005` | B02 | `packages/*` typecheck를 실제로 실행하는 게이트 | 기반 · 화면 없음 |
 | `FE-101` | B02 | A-1/A-2/A-3 route와 redirect state | `388:257`, `388:277`, `388:321`, `643:4088` |
-| `FE-105` | B02 | S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status | `422:2925` |
+| `FE-105` | B02 | S14 프로필 shell: `TEST` 계정 표기(A-075), KO/EN, trips, 데이터 안내, 삭제 receipt/status | `422:2925` |
 | `FE-103` | B03 | S02-4B/C 수동 입력과 장소 검색 integration | `438:3158`, `400:1201`, `438:3199` |
 | `FE-404` | B03 | S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가) | `423:2967` |
 | `FE-102` | B04 | S02-1/2/3 wizard, resume, validation, 확인·결정적 draft | `438:3012`, `438:3108`, `438:3134`, `438:3259`, `384:5673` |

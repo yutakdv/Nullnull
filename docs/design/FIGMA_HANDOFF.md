@@ -336,9 +336,9 @@ Candidate relation:
 
 S14 P0 범위 정합성:
 
-- 계정 로그인은 P1이다. P0의 로그인 표현은 A-075(오너 2026-09-25)대로 둔다: onboarding의 /sign-in이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 대조하고(요청 0건, 계정 생성·연결 없음), 프로필은 `TEST` 계정으로 표기한다. 이 줄의 옛 요구였던 disabled `준비 중` login control은 적용하지 않는다.
+- 계정 로그인은 P1이다. P0의 로그인 표현은 A-075(오너 2026-09-25)대로 둔다: onboarding의 /sign-in이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 대조하고(로그인·인증 요청 0건, 계정 생성·연결 없음), 프로필은 `TEST` 계정으로 표기한다. 이 줄의 옛 요구였던 disabled `준비 중` login control은 적용하지 않는다.
 - 현재 Figma의 `로그인하면 일정을 저장할 수 있어요`는 사실과 다르다. 익명 session에
-  저장된다는 문구로 바꾸고 활성 login affordance를 제거한다(`FCR-006`).
+  저장된다는 교체 문구는 A-075의 프로필 `TEST` 표기로 대체됐고, 프로필에는 활성 login affordance가 없다(`FCR-006`).
 - `내 여행`은 `listTrips`를 사용하며 empty/loading/error와 active trip을 구분한다.
 - `AI 최적화 이력`은 `listOptimizationHistory`로 run 상태, scope, 요청/완료 시각, decision만 보여 준다. 이력 목적으로 일정 before/after 본문을 별도 보존하지 않는다.
 - `여행별 관심사`는 여행을 선택한 뒤 `getTrip`/`replaceTripInterests`로 수정하며 `If-Match`와 최신 ETag를 쓴다.
@@ -385,7 +385,7 @@ S12 P1 범위 정합성:
 | 최적화 설정 `415:2268` | ITEM scope만 활성, lock summary, submit | `createOptimization`, snapshot/fingerprint | 승인 전 trip 미변경 |
 | 계산 중 `415:2413` | polling/backoff, refresh restore, timeout/cancel UX | `getOptimization`, state machine/Retry-After | terminal state/네트워 끊김 QA |
 | preview `439:3104` | before/after/delta/비교 적격성 | proposal, metrics, validation summary | fingerprint/expiry/잠금 표시 |
-| 적용 `417:2412` | applied revision, 중복 방지. undo CTA는 A-074로 퇴역했다 | decide 원자 transaction/audit(revert API는 남아 있지만 앱이 부르지 않는다) | apply/keep E2E(`optimization-keyboard.spec.ts`). revert E2E는 퇴역, `applied-panel.spec.ts`가 부재를 지킨다 |
+| 적용 `417:2412` | 적용 결과 문구(`이 대안을 적용했어요`·`일정을 업데이트했어요`)와 결정 한 번만 전송. revision 표시와 undo CTA는 A-074로 퇴역했다 | decide 원자 transaction/audit(revert API는 남아 있지만 앱이 부르지 않는다) | apply/keep E2E(`optimization-keyboard.spec.ts`). revert E2E는 퇴역, `applied-panel.spec.ts`가 부재를 지킨다 |
 | 최적화 예외 `417:2567`, `485:3517` | code별 copy/CTA, 일정 미변경 표시 | 정확한 code/status, recompute guard | 6 error code fixture 전부 |
 | Live 목록/지도 `418:2523` | 목록 필수, map은 provider capability, 동일 filter/selection | `queryLiveAreas`/`listLiveAreaPlaces`, freshness/source state | map OFF/list와 map ON 전환 상태 유지 |
 | Live 상세 `419:2617` | crowd/freshness/action, unavailable UX | `getLivePlace`, source mapping/fallback | state·source·시각 100% 표시 |
@@ -406,11 +406,11 @@ S12 P1 범위 정합성:
 3. B Feed `391:310`/게시물 `398:611`: KTO 기반 장소와 텍스트 출처 확인
 4. 후보 저장 `399:658`~`399:1179`: 특정 여행 후보로 저장되고 일정은 변하지 않음
 5. D/E 내 여행 `410:1738`/`411:1837`: 후보 일정화·날짜/시간 변경
-6. F 최적화 `415:2268`~`417:2412`: 변경 전후·근거 확인 후 사용자가 APPLY 또는 KEEP
+6. F 최적화 `415:2268`~`417:2412`: 변경 전후·근거 확인 후 사용자가 APPLY 또는 KEEP(`417:2412`의 되돌리기 진입점은 A-074로 퇴역)
 7. G Live `418:2523`~`421:2850`: 기준시각과 LIVE/FORECAST/REPLAY 상태를 오인 없이 확인
 8. I 데이터 안내 `423:2967`: 실제 KTO 활용, 출처, 상태 의미와 문의 안내 확인
 
-제출 profile에서 JA/ZH, P1 알림·주변·DAY/TRIP 최적화는 `준비 중`/capability OFF다. 로그인 표현은 A-075대로 /sign-in 흉내(요청 0건)와 프로필 `TEST` 표기다. **게시물 작성은 2026-09-20부터 제출 범위라 이 목록에서 빠진다**(`A-058`) — 실제로 동작하는 화면이고 기능설명서의 구현 목록에도 들어간다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
+제출 profile에서 JA/ZH, P1 알림·주변·DAY/TRIP 최적화는 `준비 중`/capability OFF다. 로그인 표현은 A-075대로 /sign-in 흉내(로그인·인증 요청 0건)와 프로필 `TEST` 표기다. **게시물 작성은 2026-09-20부터 제출 범위라 이 목록에서 빠진다**(`A-058`) — 실제로 동작하는 화면이고 기능설명서의 구현 목록에도 들어간다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
 
 ## 5. Component 계약
 
@@ -508,7 +508,7 @@ shared/          ui, api-generated, i18n, analytics, test fixtures
 - 데이터 state/provenance 표시 여부
 - OpenAPI/ERD 영향과 migration 필요 여부
 - 실제 KTO 데이터가 나타나는 위치, 출처 문구, 기준시각과 source state
-- 공모전 profile에서 P1/위치 control의 disabled·OFF 상태와 A-075 로그인 표현(/sign-in 흉내 요청 0건, 프로필 `TEST` 표기)
+- 공모전 profile에서 P1/위치 control의 disabled·OFF 상태와 A-075 로그인 표현(/sign-in 흉내 로그인·인증 요청 0건, 프로필 `TEST` 표기)
 
 시각값(color/type/spacing)은 Figma variable을 export한 token으로 구현하고, 이 문서에 수치를 복사해 이중 관리하지 않는다.
 

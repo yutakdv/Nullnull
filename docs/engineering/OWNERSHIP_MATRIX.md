@@ -78,7 +78,7 @@ tags:
 | `415:2268` | S09-0 최적화 설정 | P0 | item/scope/lock/capability | create run/input snapshot | P0 ITEM만 활성 |
 | `415:2413` | S09-1 계산 중 | P0 | poll/back/resume/timeout | async state/Retry-After | refresh 복원 |
 | `439:3104` | S09-D1 하루 preview | P1 | DAY capability/preview | day engine/route gate | OFF state 우선 |
-| `417:2412` | S09-3 적용 완료 | P0 | applied/undo/result | revision/decision/revert | 원자 apply·revert |
+| `417:2412` | S09-3 적용 완료 | P0 | applied/result(undo 진입점은 A-074로 퇴역) | revision/decision/revert | 원자 apply·revert |
 | `417:2567` | S09 오류 reference | P0 ref | 오류 6종 story/CTA | 정확 code/state | 각 오류 일정 미변경 |
 | `485:3517` | stale reference | P0 ref | 재계산 UX | trip/data fingerprint | stale 적용 차단 |
 | `418:2523` | S11-1 Live | P0 | list-first/area selection, map capability | area/places/readiness | map OFF 목록·map ON attribution·state label |
@@ -87,7 +87,7 @@ tags:
 | `420:2950` | S11-N 대안 없음 | P0 | empty/recovery CTA | relation NONE/reason | fake 후보 없음 |
 | `421:2850` | S11-R replay | P0 | replay badge/banner | replay snapshot metadata | 현재값 오인 없음 |
 | `501:3750` | S11-4 재계획 진입 | P1 | 동의/capability | consent/location boundary | OFF state·DPIA 선행 |
-| `422:2925` | S14 프로필 | P0 | guest/login 준비 중, KO/EN, 여행·관심사·최적화 이력, 삭제/data link | owner/trip/history projection, interests, deletion job | refresh·ETag·이력 cursor·삭제 추적 |
+| `422:2925` | S14 프로필 | P0 | `TEST` 계정 표기(A-075), KO/EN, 여행·관심사·최적화 이력, 삭제/data link | owner/trip/history projection, interests, deletion job | refresh·ETag·이력 cursor·삭제 추적 |
 | `423:2967` | S15 데이터 안내 | P0 | source/state/신뢰 설명 | source registry/capability | 실제 응답 용어와 일치 |
 | `442:3344` | S12 알림 | P1 | empty/unread/read-all/deep link | notification/read/allowlist | OFF state·삭제 target |
 | `442:3370` | S10 주변 | P1 | opt-in/list/취소 | consent/minimized location | 정밀 위치 기본 수집 0 |
