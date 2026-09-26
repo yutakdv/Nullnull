@@ -205,8 +205,8 @@ describe('CrowdLevel', () => {
   });
 
   it('takes its wording from the caller when given', () => {
-    // How the app localizes it: the Korean defaults stay for Storybook, and
-    // the screen passes the selected locale's words in.
+    // A caller's words win over both the locale and the Korean defaults, which
+    // are only for a render with no provider at all.
     render(
       <CrowdLevel
         crowd={{
