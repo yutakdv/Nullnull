@@ -28,7 +28,10 @@
 //     packages/contracts/fixtures);
 //   - it is the straightest reading of CLAUDE.md's "외부 URL은 allowlist";
 //   - the accepted cost: if BE later serves an http image it will not render,
-//     and someone has to trace the blank image back to this function.
+//     and someone has to trace the blank image back to this function. (Today
+//     it cannot: V010's `media_assets_served_url_check` stores https only.)
+//     A refused feed cover keeps an empty box of the cover's size, because
+//     that cover is the card's only control into the post (FE-603-T13).
 //
 // That last line is why the cost is written down rather than just the rule.
 //

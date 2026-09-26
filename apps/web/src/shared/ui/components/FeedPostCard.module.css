@@ -25,6 +25,16 @@
   object-fit: cover;
 }
 
+/* Stands in for a cover isSafeUrl refused, at the cover's own size, so the
+   button that opens the post keeps a visible, tappable area. A plain surface
+   on purpose: no picture and no icon that could read as someone's image. */
+.coverPlaceholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: var(--color-bg-subtle);
+}
+
 .body {
   display: flex;
   flex-direction: column;

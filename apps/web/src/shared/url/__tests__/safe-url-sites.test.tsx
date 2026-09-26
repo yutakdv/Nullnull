@@ -120,7 +120,9 @@ describe('FE-603-T12 FeedPostCard draws only an https cover', () => {
     render(<FeedPostCard card={{ ...card, post: { ...card.post, coverUrl: SCRIPT } }} />);
     expect(coverImages()).toHaveLength(0);
     // The cover is also the control that opens the post; losing the picture
-    // must not lose the way in.
+    // must not lose the way in. This only finds the button in the DOM: jsdom
+    // has no layout, so whether it is still visible and 44px tall is measured
+    // in a browser by FE-603-T13 (e2e/feed-refused-cover.spec.ts).
     expect(
       within(screen.getByRole('article')).getByRole('button', { name: card.post.title }),
     ).toBeInTheDocument();

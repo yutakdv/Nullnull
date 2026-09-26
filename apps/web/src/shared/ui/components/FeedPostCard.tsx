@@ -71,10 +71,16 @@ export function FeedPostCard({
         aria-label={post.title}
       >
         {/* Only an https cover is drawn (FE-603-T12). The button stays either
-            way: it is the control that opens the post, not the picture's. */}
+            way: it is the control that opens the post, not the picture's.
+            Its size came only from the image, so a refused cover used to
+            leave a 0px button - focusable, invisible, untappable. The empty
+            box keeps the cover's size and says nothing about a source
+            (FE-603-T13, measured in a browser: jsdom has no layout). */}
         {isSafeUrl(post.coverUrl) ? (
           <img src={post.coverUrl} alt="" loading="lazy" />
-        ) : null}
+        ) : (
+          <span aria-hidden="true" className={styles.coverPlaceholder} />
+        )}
       </button>
 
       <div className={styles.body}>
