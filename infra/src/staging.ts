@@ -74,7 +74,10 @@ export const FORECAST_SCHEDULE_RATE_HOURS = 12;
 export const FORECAST_MISSING_PERIOD_HOURS = 1;
 export const FORECAST_MISSING_PERIODS = 18;
 // The demo places, as staging_operator.py's `places` input spells them: contentId:contentTypeId.
-export const FORECAST_DEMO_PLACES = "126508:12,128611:12";
+// A-070/A-071: the two original places first, then the three existing places, then the #351 places, each only if
+// the owner's 2026-09-26 detail batch and forecast probe gave REFRESHED with coverage>0 and no rejection
+// (126508/128611 fixed; 2470006 and 129507 measured coverage=0 and stay out). Derived from the ops logs, not typed.
+export const FORECAST_DEMO_PLACES = "126508:12,128611:12,126509:12,126537:12,127642:12,126511:12,126484:12,126510:12,126535:12,126485:12,264353:12,126804:12,1059479:12,126498:12,126532:12,2589349:12,129703:14,1934593:14";
 // OPS_TASKS['kto-demo-forecast'] and ['kto-demo-detail'] in scripts/aws/staging_operator.py name these
 // same main classes, with these same approval variables.
 export const FORECAST_MAIN =
