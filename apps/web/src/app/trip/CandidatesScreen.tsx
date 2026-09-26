@@ -327,7 +327,8 @@ function CandidateCardRow({
           {/* Saved as a must-visit, e.g. from the wizard's S02-4B picks (#185).
               An intention on the candidate, not a lock yet: scheduling turns
               it into the item's MUST_VISIT constraint. Outside the h2 so the
-              card's accessible name stays the place. */}
+              heading's name stays the place name alone; the <article> itself
+              has no accessible name. */}
           {candidate.mustVisit ? (
             <span className={styles.mustVisit}>
               <MustVisitBadge label={t('mustVisit.badge')} />
