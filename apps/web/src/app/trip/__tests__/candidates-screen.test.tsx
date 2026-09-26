@@ -941,3 +941,34 @@ describe('the saved-places count agrees with the screen that links here', () => 
     );
   });
 });
+
+describe('FE-303-T4 a candidate saved as a must-visit carries the badge', () => {
+  // #185: the wizard's must-visit picks arrive here as candidates with
+  // `mustVisit: true` (#180 option B). The intention survives only if the
+  // screen that lists them says so; it becomes a lock when scheduled.
+  it('marks the must-visit candidate, in the reader locale, and no other card', async () => {
+    if (!active) throw new Error('fixture lost its SIMILAR candidate');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json({
+          ...page,
+          items: page.items.map((c) => ({ ...c, mustVisit: c.id === active.id })),
+        }),
+      ),
+    );
+    renderPanel();
+    await loaded();
+
+    const cards = screen.getAllByRole('article');
+    // Every fixture candidate renders, so "no other card" covers real cards.
+    expect(cards).toHaveLength(page.items.filter((c) => c.status !== 'DISMISSED').length);
+    for (const card of cards) {
+      const name = within(card).getByRole('heading', { level: 2 }).textContent;
+      if (name === active.place.name) {
+        expect(card).toHaveTextContent(copy['mustVisit.badge']);
+      } else {
+        expect(card).not.toHaveTextContent(copy['mustVisit.badge']);
+      }
+    }
+  });
+});
