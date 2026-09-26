@@ -7,6 +7,7 @@ import {
   DataAttribution,
   DecisionBar,
   MetricDelta,
+  type MetricDeltaProps,
   StateLabel,
   type SourceState,
 } from '../index.js';
@@ -204,8 +205,8 @@ describe('CrowdLevel', () => {
   });
 
   it('takes its wording from the caller when given', () => {
-    // How the app localizes it: the Korean defaults stay for Storybook, and
-    // the screen passes the selected locale's words in.
+    // A caller's words win over both the locale and the Korean defaults, which
+    // are only for a render with no provider at all.
     render(
       <CrowdLevel
         crowd={{
@@ -318,6 +319,17 @@ describe('MetricDelta', () => {
     );
     expect(screen.getByText('4 · 혼잡 → 1 · 매우 여유')).toBeInTheDocument();
   });
+
+  it('cannot be told a pair is not comparable without being told why', () => {
+    // A type-level check, run by `tsc` (this file is in the typecheck
+    // program): with `eligible: false` the reason is required. It used to be
+    // optional behind a Korean fallback no caller reached, which any caller
+    // that forgot it would have put on an English screen. If the reason
+    // becomes optional again this directive is unused and `tsc` fails.
+    // @ts-expect-error -- a refused comparison must carry its reason
+    const refused: MetricDeltaProps = { label: 'Crowd', eligible: false };
+    expect(refused.eligible).toBe(false);
+  });
 });
 
 describe('DecisionBar', () => {
@@ -345,7 +357,8 @@ describe('DecisionBar', () => {
 // Inside the app the words are the chosen locale's, whether or not the caller
 // passed its own. A caller that forgot one key - the feed's state list had no
 // PROVIDER_INCIDENT - used to fall through to the Korean defaults below,
-// which only a page with no I18nProvider (a bare story or test) should see.
+// which only a render with no I18nProvider (a bare unit test; the Storybook
+// stories run inside one) should see.
 describe('inside the app, crowd words come from the locale', () => {
   afterEach(() => {
     localStorage.removeItem('nullnull.locale');

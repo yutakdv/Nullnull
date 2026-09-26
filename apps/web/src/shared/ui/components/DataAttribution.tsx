@@ -1,5 +1,7 @@
 import { useId } from 'react';
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
+import { isSafeUrl } from '../../url/safe-url.js';
 import { shownText, type AttributionSource } from './credits.js';
 import styles from './DataAttribution.module.css';
 
@@ -14,6 +16,13 @@ import styles from './DataAttribution.module.css';
 //     back to the full string otherwise. It never truncates by itself.
 //   - officialUrl and licenseUrl come from the response; the client keeps no
 //     provider URL of its own.
+//   - Each becomes a link only when it is https (isSafeUrl, FE-603-T12). An
+//     anchor is where a `javascript:` URL runs, and `rel` says nothing about
+//     the scheme. A refused credit URL draws the words unlinked, exactly as a
+//     null one does, because the credit itself is still owed (CMP-ATT-001).
+
+/** Only with no I18nProvider at all (a bare unit test); the app takes `license.terms`. */
+const DEFAULT_TERMS_LABEL = '이용조건';
 
 type Provenance = components['schemas']['DataProvenance'];
 type SourceAttribution = components['schemas']['SourceAttribution'];
@@ -28,7 +37,8 @@ export interface DataAttributionProps {
    * Localized text for the licence link, from the caller.
    *
    * The credit itself is never localized — it is the server's approved
-   * wording, shown verbatim (CMP-ATT-003). Only this link is our own label.
+   * wording, shown verbatim (CMP-ATT-003). Only this link is our own label,
+   * and an omitted one takes the locale's word (FE-001-T4).
    */
   termsLabel?: string;
   /**
@@ -48,14 +58,23 @@ export interface DataAttributionProps {
 
 export function DataAttribution({
   provenance,
-  termsLabel = '이용조건',
+  termsLabel: callerTermsLabel,
   compact = false,
   showLicense = false,
   context = null,
   nameWithContext = false,
 }: DataAttributionProps) {
   const contextId = useId();
-  const { officialUrl, licenseUrl } = provenance;
+  const i18n = useOptionalI18n();
+  const termsLabel = callerTermsLabel ?? i18n?.t('license.terms') ?? DEFAULT_TERMS_LABEL;
+  const officialUrl =
+    provenance.officialUrl && isSafeUrl(provenance.officialUrl)
+      ? provenance.officialUrl
+      : null;
+  const licenseUrl =
+    provenance.licenseUrl && isSafeUrl(provenance.licenseUrl)
+      ? provenance.licenseUrl
+      : null;
   const text = shownText(provenance, compact);
   if (!text) return null;
 

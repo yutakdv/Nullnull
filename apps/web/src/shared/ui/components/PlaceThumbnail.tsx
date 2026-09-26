@@ -1,4 +1,5 @@
 import type { components } from '@nullnull/api-client';
+import { isSafeUrl } from '../../url/safe-url.js';
 import styles from './PlaceThumbnail.module.css';
 
 // A place's thumbnail, shown only when its source can be named (CMP-ATT-001).
@@ -37,6 +38,9 @@ export interface PlaceThumbnailProps {
  */
 export function PlaceThumbnail({ place, size }: PlaceThumbnailProps) {
   if (!place.thumbnailUrl) return null;
+  // Not https, not drawn (FE-603-T12) - and the credit goes with it, since it
+  // would credit a picture that is not there.
+  if (!isSafeUrl(place.thumbnailUrl)) return null;
   if (!place.thumbnailAttribution) return null;
   return (
     <span className={styles.wrap} style={{ width: size }}>

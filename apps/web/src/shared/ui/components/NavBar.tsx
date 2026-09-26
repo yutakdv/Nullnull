@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
 import { IconBack } from '../icons/index.js';
 import styles from './NavBar.module.css';
 
@@ -13,13 +14,20 @@ import styles from './NavBar.module.css';
 // the user wherever they were before — or on a blank tab. Each screen names its
 // own destination instead.
 
+/** Only with no I18nProvider at all (a bare unit test); the app takes `nav.back`. */
+const DEFAULT_BACK_LABEL = '뒤로';
+
 export interface NavBarProps {
   title?: string;
   /** Uses the existing title token when a detail screen needs stronger hierarchy. */
   titleSize?: 'default' | 'large';
   /** Renders the back control when given. */
   onBack?: () => void;
-  /** Accessible name for the back control; the glyph alone is not a name. */
+  /**
+   * Accessible name for the back control; the glyph alone is not a name.
+   * Screens name their own destination here ("Leave", "Back to trip"); an
+   * omitted one takes the locale's plain "back" (FE-001-T4).
+   */
   backLabel?: string;
   /** Trailing controls, e.g. settings. */
   actions?: ReactNode;
@@ -29,14 +37,15 @@ export function NavBar({
   title,
   titleSize = 'default',
   onBack,
-  backLabel = '뒤로',
+  backLabel,
   actions,
 }: NavBarProps) {
+  const i18n = useOptionalI18n();
   return (
     <header className={styles.bar}>
       {onBack ? (
         <button
-          aria-label={backLabel}
+          aria-label={backLabel ?? i18n?.t('nav.back') ?? DEFAULT_BACK_LABEL}
           className={styles.back}
           onClick={onBack}
           type="button"

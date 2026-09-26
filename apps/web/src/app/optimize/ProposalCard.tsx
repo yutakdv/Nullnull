@@ -273,10 +273,9 @@ export function ProposalCard({
                 The distinction the user needs is "we cannot compare these",
                 not which of the server's internal predicates said so.
 
-                `reason` is always passed, so MetricDelta's own Korean fallback
-                (`reason ?? '확인 불가'`) is unreachable FROM THIS SCREEN. That
-                is a property of this call site, not of the component — another
-                caller that omits `reason` would still hit it. */}
+                `reason` is required here by MetricDelta's type (with
+                `eligible={false}`), and the component has no fallback of its
+                own: it used to show '확인 불가' to any caller that omitted it. */}
             <MetricDelta
               eligible={false}
               label={labels.crowdLabel}

@@ -7,6 +7,7 @@ import {
   useUnsavePost,
 } from '../../shared/api/index.js';
 import { NavBar, PlaceAttribution } from '../../shared/ui/index.js';
+import { isSafeUrl } from '../../shared/url/safe-url.js';
 import styles from './PostScreen.module.css';
 
 // Figma: S03-D post detail `804:4595` (FR-PST-01, FR-PST-02).
@@ -97,7 +98,11 @@ export function PostScreen() {
   const asset = detail.coverAsset ?? null;
   const coverCredit =
     asset?.attributionRequired === true ? (asset.attributionText ?? null) : null;
-  const coverBlocked = asset?.attributionRequired === true && coverCredit === null;
+  // An https cover only (FE-603-T12). A refused URL withholds the image and
+  // its credit together: a credit line under no picture credits nothing.
+  const coverBlocked =
+    !isSafeUrl(detail.coverUrl) ||
+    (asset?.attributionRequired === true && coverCredit === null);
 
   return (
     <section aria-labelledby="post-heading" className={styles.screen}>
@@ -121,7 +126,9 @@ export function PostScreen() {
           src={detail.coverUrl}
         />
       )}
-      {coverCredit === null ? null : <p className={styles.coverCredit}>{coverCredit}</p>}
+      {coverBlocked || coverCredit === null ? null : (
+        <p className={styles.coverCredit}>{coverCredit}</p>
+      )}
 
       <div className={styles.titleBlock}>
         <h1 className={styles.title} id="post-heading">

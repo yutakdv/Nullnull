@@ -98,6 +98,18 @@
         {
           "id": "FE-001-T3",
           "assertion": "쿠키 없는 첫 방문에서 세션 생성 전에 나가 쿠키 없음 401을 받은 활성 조회는 세션이 생긴 뒤 한 번 다시 부른다"
+        },
+        {
+          "id": "FE-001-T4",
+          "assertion": "한국어 기본값을 가진 공유 컴포넌트는 앱 안에서 caller가 문구를 넘기지 않아도 선택한 locale의 문구를 쓴다(한국어 기본값은 I18nProvider 없는 렌더에서만 쓰인다)"
+        },
+        {
+          "id": "FE-001-T5",
+          "assertion": "root 오류 경계는 한국어 줄과 영어 줄에 각자의 lang을 달아, 영어 세션 뒤(html lang이 en-US)에도 한국어 줄을 한국어로 읽게 한다"
+        },
+        {
+          "id": "FE-001-T6",
+          "assertion": "src/app·src/shared 코드의 JSX 텍스트·문자열·template literal에 locale을 거치지 않는 한국어가 없다(명시한 예외 파일의 정확한 문자열, 한국어 기본값 컴포넌트가 이름으로 지정한 module 수준 기본값 선언, mock 데이터 디렉터리 제외)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -613,6 +625,10 @@
         {
           "id": "FE-201-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-201-T4",
+          "assertion": "feed 카드는 혼잡 판독의 단계 문구를 그 판독 source가 발행한 단계로 적는다(서울 판독에 일반 5단계 문구를 쓰지 않는다)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -2086,9 +2102,17 @@
         {
           "id": "FE-603-T11",
           "assertion": "출처 링크는 버튼·링크·선택 컨트롤(radio 등) 안에 두지 않는다"
+        },
+        {
+          "id": "FE-603-T12",
+          "assertion": "서버가 준 URL은 https일 때만 href·src에 넣고, 그 밖의 scheme이면 링크·이미지로 그리지 않는다"
+        },
+        {
+          "id": "FE-603-T13",
+          "assertion": "표지 URL이 거부된 feed 카드에도 게시물을 여는 표지 control이 보이고 가로·세로 44px 이상이다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. 서버 URL이 href·src에 닿는 다섯 자리(출처 링크 둘, 장소 썸네일, feed·게시물 표지)는 isSafeUrl(https만)을 거치고, 자리마다 거부·통과 양방향 render test가 있다(T12, src/shared/url/__tests__/safe-url-sites.test.tsx·post.test.tsx). feed 표지는 게시물을 여는 유일한 control인데 크기가 이미지에서만 나와, 거부되면 0px로 접혀 보이지도 눌리지도 않았다 — 표지 크기의 빈 면을 대신 그리고, jsdom에는 layout이 없어 브라우저에서 잰다(T13, e2e/feed-refused-cover.spec.ts). ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },

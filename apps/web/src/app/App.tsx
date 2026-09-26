@@ -15,7 +15,13 @@ const router = createBrowserRouter(routes);
 // themselves, where there is no router left to render into. It cannot use
 // useI18n — the provider it guards may be the thing that failed — so its copy
 // is intentionally minimal and locale-independent.
-class RootErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+//
+// Exported for its test (root-error-boundary.test.tsx); App below is the only
+// place that mounts it.
+export class RootErrorBoundary extends Component<
+  { children: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -32,8 +38,14 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { failed: boo
     if (this.state.failed) {
       return (
         <main id="main">
-          <h1>널널 · Nullnull</h1>
-          <p>앱을 시작하지 못했어요. 새로고침해주세요.</p>
+          {/* Each line names its own language (FE-001-T5). `<html lang>` is
+              the last locale I18nProvider set, not index.html's "ko", so after
+              an English session an unmarked Korean line is read with English
+              rules. */}
+          <h1>
+            <span lang="ko">널널</span> · Nullnull
+          </h1>
+          <p lang="ko">앱을 시작하지 못했어요. 새로고침해주세요.</p>
           <p lang="en">The app could not start. Please reload.</p>
         </main>
       );

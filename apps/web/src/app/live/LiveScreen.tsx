@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { onlineManager } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useOutletContext } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import type { MessageKey } from '../../i18n/messages.js';
 import {
   useLiveAreaPlaces,
   useLiveAreas,
@@ -16,9 +15,7 @@ import {
   DataAttribution,
   PlaceAttribution,
   SearchField,
-  type SourceState,
   StateLabel,
-  type StateWording,
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
@@ -28,15 +25,6 @@ import { readLiveReturn } from './live-return.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
-
-const STATES: SourceState[] = [
-  'LIVE',
-  'FORECAST',
-  'QUALITATIVE',
-  'STALE',
-  'UNAVAILABLE',
-  'REPLAY',
-];
 
 export function LiveScreen() {
   const { locale, t } = useI18n();
@@ -59,10 +47,6 @@ export function LiveScreen() {
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query, locale);
-  const stateLabels = Object.fromEntries([
-    ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-    ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
-  ]) as Partial<Record<StateWording, string>>;
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
@@ -114,7 +98,6 @@ export function LiveScreen() {
           {areas.data ? (
             <div className={styles.persistentState} data-testid="live-persistent-state">
               <StateLabel
-                labels={stateLabels}
                 observedAt={
                   observedAt
                     ? t('crowd.observedAt', {
@@ -306,7 +289,6 @@ export function LiveScreen() {
                     <span>{area.name}</span>
                     <CrowdLevel
                       crowd={area.crowd}
-                      stateLabels={stateLabels}
                       unavailableReason={t('live.noReading')}
                     />
                     <span aria-hidden="true">›</span>
@@ -345,7 +327,6 @@ export function LiveScreen() {
                                 </span>
                                 <CrowdLevel
                                   crowd={item.crowd ?? null}
-                                  stateLabels={stateLabels}
                                   unavailableReason={t('live.noReading')}
                                 />
                                 <span aria-hidden="true">›</span>

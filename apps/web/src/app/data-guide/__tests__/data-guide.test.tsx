@@ -81,10 +81,10 @@ afterEach(() => {
 
 describe('the screen speaks one language at a time', () => {
   it('renders the state labels in the selected locale, not always Korean', async () => {
-    // The defect this guards: StateLabel keeps Korean defaults so Storybook
-    // can mount it without a provider, and this screen did not pass the
-    // localized set — so an English reader saw "실시간 관측" welded to the
-    // English sentence explaining it.
+    // The defect this guards: StateLabel keeps Korean defaults for a render
+    // with no provider at all, and this screen once reached them — an English
+    // reader saw "실시간 관측" welded to the English sentence explaining it.
+    // StateLabel now reads the locale itself; this is that path on the screen.
     localStorage.setItem('nullnull.locale', 'en-US');
     renderGuide();
     await screen.findByRole('heading', { level: 1 });

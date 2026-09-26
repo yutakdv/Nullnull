@@ -216,10 +216,10 @@ describe('FE-103-T1 results and the kept list', () => {
   });
 
   it('labels the badge in the selected locale', async () => {
-    // MustVisitBadge keeps a Korean default so Storybook can mount it without
-    // a provider. The screen must pass the chosen locale's word instead, or
-    // the badge ignores the locale entirely — this file runs in en-US, so the
-    // default and the correct answer differ and the assertion is meaningful.
+    // MustVisitBadge keeps a Korean default for a render with no provider at
+    // all. Inside the app the word is the locale's, whether this screen passes
+    // it or the badge reads it itself (FE-001-T4) — this file runs in en-US, so
+    // the default and the correct answer differ and the assertion is meaningful.
     const user = await searchFor('서울');
     await user.click(await addButton(first?.name ?? ''));
     const kept = await screen.findByRole('list', { name: copy['mustVisit.picked'] });
