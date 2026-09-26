@@ -164,15 +164,17 @@ export function TripWizardScreen() {
   // The trip this wizard run has created, set in the same call that receives
   // createTrip's answer. submit() refuses while it is set.
   //
-  // A ref rather than `heldTrip` because state is only read back on the next
-  // render, and the gap between the answer and that render is exactly where a
-  // second submit would slip through. Defence in depth (#185 review): with
-  // the back control gone and the held step pinned, no screen should reach
-  // submit() once this is set.
+  // A ref rather than `heldTrip`: state is only read back on the next render,
+  // so a check on it would leave a gap between the answer and that render.
+  // Defence in depth (#185 review): with the back control gone and the held
+  // step pinned, no screen reaches submit() once this is set. Measured by
+  // mutation: removing this check alone turns no test red; removing it
+  // together with the pinned step (`shownStep`) makes the review's path create
+  // two trips again (FE-103-T34).
   const createdTrip = useRef<string | null>(null);
   // Whether this wizard run is still mounted. savePicks awaits each write, and
-  // the promise outlives the component: leaving /start mid-save (browser
-  // Back, typing a URL) unmounts the wizard but not the loop.
+  // the promise outlives the component: leaving /start mid-save by browser
+  // Back, which stays inside the app, unmounts the wizard but not the loop.
   const mounted = useRef(true);
   useEffect(() => {
     // Set here as well as in the initialiser: StrictMode runs this cleanup
@@ -419,12 +421,14 @@ export function TripWizardScreen() {
   // A held trip pins the must-visit step, whatever `step` says (#185 review).
   // The review reached step 3 while the trip was being created; the trip then
   // arrived with a pick unsaved and step 3 had nothing to say about it — the
-  // place was dropped without a word, and step 3's CTA made a second trip.
-  // The back control is gone for that whole stretch now, but it goes only
-  // once createTrip's pending state is published, which TanStack Query does
-  // on a zero-delay timer after the press, so a second press in that moment
-  // still lands. `step` is left as it is: the held state ends only by leaving
-  // /start, and not moving it writes no snapshot after clearSnapshot().
+  // place was dropped without a word, and going on from step 3 made a second
+  // trip. The back control is gone for that whole stretch now, but it goes
+  // only once createTrip's pending state is published, which TanStack Query
+  // does on a zero-delay timer after the press (query-core notifyManager, read
+  // at 5.90.2), so a second press in that moment can still land; a test
+  // reaches it with two clicks in one tick. `step` is left as it is: the held
+  // state ends only by leaving /start, and not moving it writes no snapshot
+  // after clearSnapshot().
   const shownStep = heldTrip ? 4 : step;
   const branch = heldTrip ? 'must-visit' : nextAfterPlanning(draft);
 
