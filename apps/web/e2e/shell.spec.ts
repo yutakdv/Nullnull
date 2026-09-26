@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { createRepresentativeTrip, createSeededTrip } from './seeded-trip.js';
 
 // FE-001 covers the shell only: the app boots, routes resolve and keyboard
@@ -642,5 +642,69 @@ test.describe('onboarding and profile in a real browser', () => {
     expect(requests).toHaveLength(requestCount);
 
     // No request at all, which is stronger than checking one guessed auth path.
+  });
+});
+
+// FE-105-T6 and FE-101-T6 together, by keyboard alone, in a real browser: the
+// profile row opens the language screen, and that screen's Next comes back to
+// the profile rather than walking on through the intro and sign-in. The unit
+// tests prove each half; this proves the halves meet, over the actual
+// `?from=profile` URL and the actual PATCH the language screen sends.
+// FE-101-T7, the other direction (any other `from` goes on to the intro), is
+// the unit test's alone: this walk only ever opens the screen from the profile.
+//
+// en-US on purpose, so choosing 한국어 is a change the page has to show.
+test.describe('FE-105-T6 FE-101-T6 the profile reopens the language choice', () => {
+  test.use({ locale: 'en-US' });
+
+  /**
+   * Tabs until `selector` holds focus.
+   *
+   * Two failures, two guards. A target that is not in the page at all fails on
+   * the count first — without it, `evaluate` below waited for the element until
+   * the 30s test timeout (measured with the row's `?from=profile` dropped). The
+   * press bound is for a target that exists but that Tab never reaches.
+   */
+  async function tabTo(page: Page, selector: string) {
+    await expect(page.locator(selector)).toHaveCount(1);
+    for (let press = 0; press < 40; press += 1) {
+      if (await page.locator(selector).evaluate((el) => el === document.activeElement))
+        return;
+      await page.keyboard.press('Tab');
+    }
+    throw new Error(`Tab never reached ${selector}`);
+  }
+
+  test('switches KO/EN from the profile and comes back by keyboard', async ({ page }) => {
+    // The splash mints the session; the language screen's PATCH needs one.
+    await page.goto('/');
+    await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+    await page.goto('/profile');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('My info');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+
+    await tabTo(page, 'a[href="/language?from=profile"]');
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/language\?from=profile$/);
+
+    // The owner record is where search and place names read the locale from
+    // (WEB-RT-1), so the switch is saved, not just shown.
+    const saved = page.waitForRequest(
+      (request) =>
+        request.method() === 'PATCH' &&
+        new URL(request.url()).pathname.endsWith('/me') &&
+        (request.postData() ?? '').includes('"ko-KR"'),
+    );
+    await tabTo(page, 'button[lang="ko"]');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko-KR');
+    await saved;
+
+    await tabTo(page, 'button:has-text("다음")');
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/profile$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('내 정보');
+    // The row now names the language it was switched to.
+    await expect(page.getByRole('link', { name: /언어/ })).toContainText('한국어');
   });
 });

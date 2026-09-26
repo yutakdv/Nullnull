@@ -8,8 +8,26 @@
 //
 // FE-101-T1: bootstrap failure and retry never produce a redirect loop, and
 //            JA/ZH send no request.
-// FE-101-T2: default/loading/empty/error/offline/stale states each render.
-// FE-101-T3: keyboard reach, focus, accessible names, reduced motion.
+// FE-101-T2: the splash renders its in-flight, server-error and cold-start
+//            connection-failure states. The connection failure is a request
+//            that fails with no response while the browser believes it is
+//            online; a bootstrap started after the browser announced it is
+//            offline is not covered (see that case and the card's handoff).
+// FE-101-T3: keyboard reach and accessible names. 360px and 200% zoom are the
+//            other half, measured on /, /language and /intro by
+//            e2e/responsive.spec.ts.
+// FE-101-T4: Next saves the locale the screen shows.
+// FE-101-T5: reduced motion — the skipped splash hold here, the collapse of
+//            motion on /, /language and /intro in e2e/responsive.spec.ts.
+// FE-101-T6: opened from the profile, the language screen returns there.
+// FE-101-T7: opened with any other `from`, it continues to the intro.
+//
+// T2 and T3 used to be the template's six states and six a11y clauses, with no
+// testcase carrying either id. T2 is narrowed to the states these screens can
+// enter: A-1 is one request that renders no list and no freshness claim, so
+// `empty` and `stale` name states nothing here produces, and A-2/A-3 render no
+// fetched data at all. T3 lost `focus 복귀` because none of A-1..A-3 opens a dialog or a sheet
+// to return from, and `reduced motion` became T5 (the FE-104/FE-203 split).
 //
 // Requests are counted rather than asserted from the policy table: a table that
 // says "no request" while the screen fires one would pass an inspection test
@@ -17,14 +35,14 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sessionFixtures } from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
-import { API_BASE } from '../../../shared/testing/msw/handlers.js';
+import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
 
@@ -129,7 +147,50 @@ describe('A-1 splash bootstraps the anonymous session', () => {
     expect(bootstrap?.url).not.toMatch(/owner|ownerId|userId/i);
   });
 
-  it('offers a retry instead of a blank screen when bootstrap fails', async () => {
+  it('FE-101-T2 says it is starting while the bootstrap is in flight', async () => {
+    // Reduced motion is on (beforeEach), so there is no hold: the status line
+    // here can only come from the request being in flight.
+    server.use(
+      http.post(`${API_BASE}/demo/sessions`, async () => {
+        await delay('infinite');
+        return HttpResponse.json(sessionFixtures.bootstrap, { status: 201 });
+      }),
+    );
+    renderAt('/');
+    expect(await screen.findByRole('status')).toHaveTextContent(copy['splash.loading']);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'splash-heading',
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('FE-101-T2 offers a retry when the server refuses the bootstrap', async () => {
+    // A Problem body, which is a different input from the dropped connection
+    // below even though both land in the same branch. Bootstrap is
+    // `retry: false`, so the answer shows at once.
+    server.use(
+      http.post(`${API_BASE}/demo/sessions`, () => problemResponse('INTERNAL_ERROR')),
+    );
+    renderAt('/');
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy['splash.failed']);
+    expect(
+      screen.getByRole('button', { name: copy['splash.retry'] }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+      'id',
+      'splash-heading',
+    );
+  });
+
+  it('FE-101-T2 offers a retry instead of a blank screen when bootstrap fails', async () => {
+    // A cold-start connection failure: HttpResponse.error() is a network
+    // failure with no response at all, sent while the browser believes it is
+    // online (TanStack's onlineManager starts online and only an `offline`
+    // event changes that). A bootstrap that starts AFTER such an event is not
+    // this case: TanStack's default networkMode pauses it instead of failing
+    // it, and the splash shows no alert and no retry until the connection
+    // returns — measured, and left as a known gap in FE-101's handoff.
     server.use(http.post(`${API_BASE}/demo/sessions`, () => HttpResponse.error()));
     renderAt('/');
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['splash.failed']);
@@ -195,7 +256,7 @@ describe('A-1 splash bootstraps the anonymous session', () => {
     ).toBeInTheDocument();
   });
 
-  it('skips the hold when the traveller asked for reduced motion', async () => {
+  it('FE-101-T5 skips the hold when the traveller asked for reduced motion', async () => {
     // styles.css already collapses animation for this preference. A held
     // splash is time spent withholding content, which is the same bargain,
     // so it is skipped rather than shortened.
@@ -225,6 +286,31 @@ describe('A-1 splash bootstraps the anonymous session', () => {
     const user = userEvent.setup();
     renderAt('/');
     await user.click(await screen.findByRole('button', { name: copy['splash.retry'] }));
+    expect(
+      await screen.findByRole('heading', { name: /Choose your language/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('FE-101-T3 reaches the retry by keyboard and starts the app with it', async () => {
+    // The retry is the splash's only control, and it exists only once the
+    // bootstrap has failed. The case above clicks it; without a pointer a
+    // failed start is a dead end unless Tab reaches it and Enter works it.
+    let failed = false;
+    server.use(
+      http.post(`${API_BASE}/demo/sessions`, () => {
+        if (failed) return undefined;
+        failed = true;
+        return HttpResponse.error();
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/');
+    const retry = await screen.findByRole('button', { name: copy['splash.retry'] });
+    for (let i = 0; i < 10 && document.activeElement !== retry; i += 1) {
+      await user.tab();
+    }
+    expect(retry).toHaveFocus();
+    await user.keyboard('{Enter}');
     expect(
       await screen.findByRole('heading', { name: /Choose your language/ }),
     ).toBeInTheDocument();
@@ -292,7 +378,7 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
     expect(localStorage.getItem('nullnull.locale')).toBeNull();
   });
 
-  it('names each language in its own language for a screen reader', async () => {
+  it('FE-101-T3 names each language in its own language for a screen reader', async () => {
     renderAt('/language');
     expect(await screen.findByRole('button', { name: /日本語/ })).toHaveAttribute(
       'lang',
@@ -301,7 +387,7 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
     expect(screen.getByRole('button', { name: /中文/ })).toHaveAttribute('lang', 'zh');
   });
 
-  it('reaches every enabled control by keyboard', async () => {
+  it('FE-101-T3 reaches every enabled control by keyboard', async () => {
     const user = userEvent.setup();
     renderAt('/language');
     await screen.findByRole('button', { name: /한국어/ });
@@ -448,6 +534,48 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
       'id',
       'intro-heading',
     );
+  });
+});
+
+// FE-101-T6 and T7. The profile's language row (FE-105-T6) opens this screen with
+// `?from=profile`. Next used to go to /intro unconditionally, which walked a
+// traveller who only wanted to switch KO/EN back through the intro and the
+// sign-in screen. The value is compared, never followed: only `profile`
+// changes where Next goes, so the query string cannot send anyone to a path
+// of its choosing.
+//
+// T6 and T7 are the two directions of that one rule, split because one id on
+// both was satisfied by either case (AGENTS.md registration rule 3). The
+// describe title carries neither: it would lend each case the other's id.
+describe('the language screen returns to the profile only when opened from it', () => {
+  it('FE-101-T6 goes back to the profile, in the language just chosen', async () => {
+    const user = userEvent.setup();
+    renderAt('/language?from=profile');
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'profile-heading',
+      );
+    });
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      messages['ko-KR']['profile.title'],
+    );
+  });
+
+  it('FE-101-T7 continues onboarding for any other return target', async () => {
+    const user = userEvent.setup();
+    renderAt('/language?from=%2Ffeed');
+    await user.click(await screen.findByRole('button', { name: copy['language.next'] }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'intro-heading',
+      );
+    });
   });
 });
 

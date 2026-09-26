@@ -15,6 +15,77 @@ function fe503T3AcceptanceId(screenName: string) {
   return !composedStack && screenName === 'optimization run' ? 'FE-503-T3 ' : '';
 }
 
+// FE-101 (A-1/A-2/A-3) and FE-105 (S14) own a screen each, so their layout and
+// motion clauses ride on the cases that measure THAT screen and on no other.
+// On a describe title, as FE-104-T3 is, an id reads as proven by every screen
+// in SCREENS, and the aggregator cannot tell which case measured the card's
+// own. T3 is keyboard 이동·접근성 이름과 360px·200% zoom; T5 is reduced motion.
+const ONBOARDING = new Set(['splash', 'language', 'intro']);
+
+function screenT3AcceptanceId(screenName: string) {
+  if (ONBOARDING.has(screenName)) return 'FE-101-T3 ';
+  return screenName === 'profile' ? 'FE-105-T3 ' : '';
+}
+
+// The splash included. Under `reduce` it skips its 800ms hold and redirects as
+// soon as the bootstrap lands, so after `networkidle` the case named "splash"
+// measured /language (5/5 runs) and carried no id. It now holds the bootstrap
+// open like every splash case (openHeldSplash below), which keeps A-1 on
+// screen under `reduce` too — the redirect waits on the bootstrap, not only on
+// the floor — so the case measures A-1 as the language and intro cases measure
+// theirs. The skipped hold itself is the other half of the splash's reduced
+// motion, and the unit test in onboarding.test.tsx proves that.
+function screenMotionAcceptanceId(screenName: string) {
+  if (ONBOARDING.has(screenName)) return 'FE-101-T5 ';
+  return screenName === 'profile' ? 'FE-105-T5 ' : '';
+}
+
+// The splash is measured on a HELD bootstrap, not after `networkidle` — in
+// every describe below that walks SCREENS, not only the T3 ones.
+//
+// It stays up for an 800ms floor from mount (SplashScreen.tsx
+// MINIMUM_VISIBLE_MS) and then redirects, and `networkidle` landed 638-746ms
+// after navigation in the mock run: a margin the gate's production build spends
+// on registering sw.js and on a real POST /demo/sessions. The case named
+// "splash" would then measure /language and still carry its ids. Measured:
+// with the splash made to leave at once, every splash case that did not hold
+// stayed green — first the two T3 cases, then the four others once only the
+// T3 cases held. So the bootstrap is caught and never answered, which keeps
+// the splash on its in-flight frame for as long as the case measures it, in
+// the mock run and in the gate alike, and the case proves the splash is on
+// screen before measuring.
+//
+// That frame is the only one measured. The error frame, which carries the
+// splash's one control (retry), is reached by no case here.
+//
+// page.route cannot see a request the MSW worker answers
+// (live-replay-matrix.spec.ts), so the splash cases block service workers.
+// Without the worker the request reaches the network, where the route holds it.
+const SPLASH = 'splash';
+
+async function openHeldSplash(page: Page) {
+  let held = false;
+  await page.route('**/api/v1/demo/sessions', () => {
+    // Neither fulfilled nor continued: the bootstrap stays in flight.
+    held = true;
+  });
+  await page.goto('/');
+  await expect
+    .poll(() => held, { message: 'the bootstrap never reached the hold' })
+    .toBe(true);
+  await expect(page.locator('#splash-heading')).toBeVisible();
+  // The in-flight frame, which is the one these cases claim to measure.
+  await expect(
+    page.locator('section[aria-labelledby="splash-heading"]').getByRole('status'),
+  ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  // `networkidle` also waited out font loading, and it cannot be reached while
+  // a request is held open.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+}
+
 async function expectOptimizationRunContent(page: Page, screenName: string) {
   if (composedStack || screenName !== 'optimization run') return;
 
@@ -56,16 +127,28 @@ async function expectOptimizationRunContent(page: Page, screenName: string) {
 // (AGENTS.md registration rule 3).
 test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
-    test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expectOptimizationRunContent(page, screen.name);
-      const result = await overflow(page);
-      expect(result.spilling, `${screen.name} has content past the viewport`).toEqual([]);
-      expect(result.clipped, `${screen.name} clips text`).toEqual([]);
-      const requested = page.viewportSize()?.width ?? 0;
-      expect(result.documentWidth).toBeLessThanOrEqual(requested);
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
+    // Anonymous, so the testcase name is unchanged: it exists to give the
+    // splash alone `serviceWorkers: 'block'` (see openHeldSplash).
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expectOptimizationRunContent(page, screen.name);
+        const result = await overflow(page);
+        expect(result.spilling, `${screen.name} has content past the viewport`).toEqual(
+          [],
+        );
+        expect(result.clipped, `${screen.name} clips text`).toEqual([]);
+        const requested = page.viewportSize()?.width ?? 0;
+        expect(result.documentWidth).toBeLessThanOrEqual(requested);
+      });
     });
   }
 });
@@ -73,33 +156,42 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
 test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
-    test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
-      page,
-    }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expectOptimizationRunContent(page, screen.name);
-      const result = await overflow(page);
-      // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
-      //
-      // Compared against the viewport we asked for, not window.innerWidth: a
-      // `min-width` on the page widens innerWidth to match, so comparing the
-      // document to it would compare a number to itself and always pass. That
-      // is exactly how the min-width floor hid from an earlier version here.
-      const requested = page.viewportSize()?.width ?? 0;
-      expect(
-        result.documentWidth,
-        // The widest elements are named because this failure depends on the
-        // rendering environment: a container without the Figma font falls back
-        // to metrics that differ from a developer machine, so "it passed
-        // locally" is not evidence and the message has to say what was wide.
-        `${screen.name} forces horizontal scrolling at 200% zoom: document is ` +
-          `${String(result.documentWidth)}px in a ${String(requested)}px viewport. ` +
-          `Widest: ${result.widest.join(' | ') || 'none measured'}`,
-      ).toBeLessThanOrEqual(requested);
-      expect(result.spilling).toEqual([]);
-      expect(result.clipped).toEqual([]);
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
+        page,
+      }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expectOptimizationRunContent(page, screen.name);
+        const result = await overflow(page);
+        // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
+        //
+        // Compared against the viewport we asked for, not window.innerWidth: a
+        // `min-width` on the page widens innerWidth to match, so comparing the
+        // document to it would compare a number to itself and always pass. That
+        // is exactly how the min-width floor hid from an earlier version here.
+        const requested = page.viewportSize()?.width ?? 0;
+        expect(
+          result.documentWidth,
+          // The widest elements are named because this failure depends on the
+          // rendering environment: a container without the Figma font falls back
+          // to metrics that differ from a developer machine, so "it passed
+          // locally" is not evidence and the message has to say what was wide.
+          `${screen.name} forces horizontal scrolling at 200% zoom: document is ` +
+            `${String(result.documentWidth)}px in a ${String(requested)}px viewport. ` +
+            `Widest: ${result.widest.join(' | ') || 'none measured'}`,
+        ).toBeLessThanOrEqual(requested);
+        expect(result.spilling).toEqual([]);
+        expect(result.clipped).toEqual([]);
+      });
     });
   }
 });
@@ -107,13 +199,21 @@ test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () 
 test.describe('FE-601-T2 with English copy, which runs longer than the Korean', () => {
   test.use({ locale: 'en-US' });
   for (const screen of SCREENS) {
-    test(`${screen.name} holds the longer strings`, async ({ page }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
-      const result = await overflow(page);
-      expect(result.spilling).toEqual([]);
-      expect(result.clipped).toEqual([]);
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${screen.name} holds the longer strings`, async ({ page }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+        const result = await overflow(page);
+        expect(result.spilling).toEqual([]);
+        expect(result.clipped).toEqual([]);
+      });
     });
   }
 });
@@ -142,134 +242,149 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
-    test(`${acceptanceId}BA-070-T5 ${screen.name} puts focus on something visible`, async ({
-      page,
-    }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expectOptimizationRunContent(page, screen.name);
+    // Not the splash's ids: held in flight it renders no control at all (nor
+    // on success, before it redirects), so its walk finds nothing to judge and
+    // would carry FE-101-T3 and BA-070-T5 without measuring either. The case
+    // still holds the splash, so the walk it does run is run on A-1 and not on
+    // the screen A-1 redirects to.
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) +
+      (screen.name === SPLASH ? '' : `${screenT3AcceptanceId(screen.name)}BA-070-T5 `);
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} puts focus on something visible`, async ({
+        page,
+      }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expectOptimizationRunContent(page, screen.name);
 
-      // EIGHT presses, not one. One press only ever measured each screen's
-      // first stop, and the defect this exists to catch was on the SECOND:
-      // SearchField set `outline: none` with nothing put back, so the add-place
-      // search box took focus while showing no ring at all, and this test was
-      // green the whole time (measured, #279).
-      //
-      // Eight rather than "until it wraps": every screen in SCREENS reaches its
-      // own wrap point within eight, and a fixed bound cannot hang on a screen
-      // whose order never repeats.
-      //
-      // Landing on <body> is NOT a failure. Measured on normal code: nine of
-      // these screens hand focus back to the document between cycles, and
-      // splash has no interactive content at all, so requiring an element on
-      // every press would reject correct code rather than find a defect. Each
-      // press is judged only when something took focus.
-      const stops: Array<{
-        tag: string;
-        name: string;
-        onScreen: boolean;
-        hasIndicator: boolean;
-      }> = [];
-      for (let press = 0; press < 8; press += 1) {
-        await page.keyboard.press('Tab');
-        const stop = await page.evaluate(() => {
-          const el = document.activeElement as HTMLElement | null;
-          if (!el || el === document.body) return null;
-          const box = el.getBoundingClientRect();
-          return {
-            tag: el.tagName.toLowerCase(),
-            // An <input> has no textContent, and its name usually comes from the
-            // <label> around it or from aria-labelledby. Reading only aria-label
-            // and textContent reported "no name" for a correctly labelled field
-            // — which flagged the product for a gap in this check. The order
-            // below follows the accessible-name computation as far as it matters
-            // here: aria-label, then aria-labelledby, then the associated label,
-            // then the element's own text.
-            name: (() => {
-              const aria = el.getAttribute('aria-label');
-              if (aria?.trim()) return aria.trim().slice(0, 40);
-              const labelledBy = el.getAttribute('aria-labelledby');
-              if (labelledBy) {
-                const text = labelledBy
-                  .split(/\s+/)
-                  .map((id) => document.getElementById(id)?.textContent ?? '')
-                  .join(' ')
-                  .trim();
-                if (text) return text.slice(0, 40);
-              }
-              const labels = (el as HTMLInputElement).labels;
-              if (labels?.length) {
-                const text = Array.from(labels)
-                  .map((l) => l.textContent ?? '')
-                  .join(' ')
-                  .trim();
-                if (text) return text.slice(0, 40);
-              }
-              return (el.textContent ?? '').trim().slice(0, 40);
-            })(),
-            onScreen:
-              box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
-            // A focus ring the browser removed with nothing put back is a trap
-            // for keyboard users even though the element is technically focused.
-            //
-            // What counts is a style that CHANGES when focus arrives, not any
-            // outline or shadow present on the node. Ancestors have to be
-            // considered, because the ring does not have to sit on the focused
-            // element: SearchField draws it on the 48px pill with
-            // `:focus-within`, since an outline on the transparent <input>
-            // inside would trace the text box rather than the control the user
-            // sees. But accepting any ancestor shadow is how the first version
-            // of this check passed on the very defect it was written for — the
-            // pill carries a decorative `--elevation-subtle` shadow at rest, so
-            // "the label has a box-shadow" was true with the focus ring deleted
-            // (measured: the mutation was live and all 16 screens stayed green).
-            //
-            // So each candidate is compared against its own resting style,
-            // captured while focus is elsewhere. Bounded at four levels up so
-            // this stays a local check.
-            hasIndicator: (() => {
-              const focusStyles: string[] = [];
-              const nodes: HTMLElement[] = [];
-              let node: HTMLElement | null = el;
-              for (let up = 0; node && up < 4; up += 1) {
-                const s = getComputedStyle(node);
-                nodes.push(node);
-                focusStyles.push(`${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`);
-                node = node.parentElement;
-              }
-              // Move focus away and re-read the same nodes. `blur()` is enough:
-              // it drops :focus and :focus-within without scrolling the page or
-              // disturbing the tab order the caller is walking.
-              el.blur();
-              const restStyles = nodes.map((n) => {
-                const s = getComputedStyle(n);
-                return `${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`;
-              });
-              // Put focus back so the next Tab continues from here.
-              el.focus();
-              return focusStyles.some((f, i) => f !== restStyles[i]);
-            })(),
-          };
-        });
-        if (stop) stops.push(stop);
-      }
+        // EIGHT presses, not one. One press only ever measured each screen's
+        // first stop, and the defect this exists to catch was on the SECOND:
+        // SearchField set `outline: none` with nothing put back, so the add-place
+        // search box took focus while showing no ring at all, and this test was
+        // green the whole time (measured, #279).
+        //
+        // Eight rather than "until it wraps": every screen in SCREENS reaches its
+        // own wrap point within eight, and a fixed bound cannot hang on a screen
+        // whose order never repeats.
+        //
+        // Landing on <body> is NOT a failure. Measured on normal code: nine of
+        // these screens hand focus back to the document between cycles, and
+        // splash has no interactive content at all, so requiring an element on
+        // every press would reject correct code rather than find a defect. Each
+        // press is judged only when something took focus.
+        const stops: Array<{
+          tag: string;
+          name: string;
+          onScreen: boolean;
+          hasIndicator: boolean;
+        }> = [];
+        for (let press = 0; press < 8; press += 1) {
+          await page.keyboard.press('Tab');
+          const stop = await page.evaluate(() => {
+            const el = document.activeElement as HTMLElement | null;
+            if (!el || el === document.body) return null;
+            const box = el.getBoundingClientRect();
+            return {
+              tag: el.tagName.toLowerCase(),
+              // An <input> has no textContent, and its name usually comes from the
+              // <label> around it or from aria-labelledby. Reading only aria-label
+              // and textContent reported "no name" for a correctly labelled field
+              // — which flagged the product for a gap in this check. The order
+              // below follows the accessible-name computation as far as it matters
+              // here: aria-label, then aria-labelledby, then the associated label,
+              // then the element's own text.
+              name: (() => {
+                const aria = el.getAttribute('aria-label');
+                if (aria?.trim()) return aria.trim().slice(0, 40);
+                const labelledBy = el.getAttribute('aria-labelledby');
+                if (labelledBy) {
+                  const text = labelledBy
+                    .split(/\s+/)
+                    .map((id) => document.getElementById(id)?.textContent ?? '')
+                    .join(' ')
+                    .trim();
+                  if (text) return text.slice(0, 40);
+                }
+                const labels = (el as HTMLInputElement).labels;
+                if (labels?.length) {
+                  const text = Array.from(labels)
+                    .map((l) => l.textContent ?? '')
+                    .join(' ')
+                    .trim();
+                  if (text) return text.slice(0, 40);
+                }
+                return (el.textContent ?? '').trim().slice(0, 40);
+              })(),
+              onScreen:
+                box.width > 0 && box.height > 0 && box.right <= window.innerWidth + 1,
+              // A focus ring the browser removed with nothing put back is a trap
+              // for keyboard users even though the element is technically focused.
+              //
+              // What counts is a style that CHANGES when focus arrives, not any
+              // outline or shadow present on the node. Ancestors have to be
+              // considered, because the ring does not have to sit on the focused
+              // element: SearchField draws it on the 48px pill with
+              // `:focus-within`, since an outline on the transparent <input>
+              // inside would trace the text box rather than the control the user
+              // sees. But accepting any ancestor shadow is how the first version
+              // of this check passed on the very defect it was written for — the
+              // pill carries a decorative `--elevation-subtle` shadow at rest, so
+              // "the label has a box-shadow" was true with the focus ring deleted
+              // (measured: the mutation was live and all 16 screens stayed green).
+              //
+              // So each candidate is compared against its own resting style,
+              // captured while focus is elsewhere. Bounded at four levels up so
+              // this stays a local check.
+              hasIndicator: (() => {
+                const focusStyles: string[] = [];
+                const nodes: HTMLElement[] = [];
+                let node: HTMLElement | null = el;
+                for (let up = 0; node && up < 4; up += 1) {
+                  const s = getComputedStyle(node);
+                  nodes.push(node);
+                  focusStyles.push(`${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`);
+                  node = node.parentElement;
+                }
+                // Move focus away and re-read the same nodes. `blur()` is enough:
+                // it drops :focus and :focus-within without scrolling the page or
+                // disturbing the tab order the caller is walking.
+                el.blur();
+                const restStyles = nodes.map((n) => {
+                  const s = getComputedStyle(n);
+                  return `${s.outlineStyle}|${s.outlineWidth}|${s.boxShadow}`;
+                });
+                // Put focus back so the next Tab continues from here.
+                el.focus();
+                return focusStyles.some((f, i) => f !== restStyles[i]);
+              })(),
+            };
+          });
+          if (stop) stops.push(stop);
+        }
 
-      // A screen with no interactive content is allowed to have nothing to
-      // focus; one that does must show where focus went, and name it.
-      for (const [i, stop] of stops.entries()) {
-        expect(stop.onScreen, `${screen.name}: focus is off-screen (stop ${i})`).toBe(
-          true,
-        );
-        expect(
-          stop.name,
-          `${screen.name}: focused <${stop.tag}> has no name (stop ${i})`,
-        ).not.toBe('');
-        expect(
-          stop.hasIndicator,
-          `${screen.name}: focused <${stop.tag}> "${stop.name}" shows no focus ring (stop ${i})`,
-        ).toBe(true);
-      }
+        // A screen with no interactive content is allowed to have nothing to
+        // focus; one that does must show where focus went, and name it.
+        for (const [i, stop] of stops.entries()) {
+          expect(stop.onScreen, `${screen.name}: focus is off-screen (stop ${i})`).toBe(
+            true,
+          );
+          expect(
+            stop.name,
+            `${screen.name}: focused <${stop.tag}> has no name (stop ${i})`,
+          ).not.toBe('');
+          expect(
+            stop.hasIndicator,
+            `${screen.name}: focused <${stop.tag}> "${stop.name}" shows no focus ring (stop ${i})`,
+          ).toBe(true);
+        }
+      });
     });
   }
 });
@@ -354,97 +469,107 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 //
 test.describe('FE-104-T4 FE-203-T5 reduced motion, per screen', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T4 ' : '';
-    test(`${acceptanceId}${screen.name} collapses motion under reduce`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
+    const acceptanceId =
+      (screen.name === 'optimization run' ? 'FE-503-T4 ' : '') +
+      screenMotionAcceptanceId(screen.name);
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} collapses motion under reduce`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
 
-      if (screen.name === 'optimization run' && !composedStack) {
-        // The local MSW state machine reaches READY on its third read. Guard
-        // the real FE-503 content before crediting its ID: otherwise this case
-        // could pass on the route's not-found screen while measuring only the
-        // global stylesheet. The composed gate keeps the optimization
-        // capability off, so there the probe below is the honest boundary.
-        await expect(
-          page.getByRole('heading', {
-            level: 1,
-            name: /대안을 확인해 주세요|Review the alternatives/,
-          }),
-        ).toBeVisible({ timeout: 10_000 });
-        await expect(
-          page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
-        ).toBeVisible();
-        await expect(page.locator('dialog')).toHaveCount(0);
-      }
+        if (screen.name === 'optimization run' && !composedStack) {
+          // The local MSW state machine reaches READY on its third read. Guard
+          // the real FE-503 content before crediting its ID: otherwise this case
+          // could pass on the route's not-found screen while measuring only the
+          // global stylesheet. The composed gate keeps the optimization
+          // capability off, so there the probe below is the honest boundary.
+          await expect(
+            page.getByRole('heading', {
+              level: 1,
+              name: /대안을 확인해 주세요|Review the alternatives/,
+            }),
+          ).toBeVisible({ timeout: 10_000 });
+          await expect(
+            page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
+          ).toBeVisible();
+          await expect(page.locator('dialog')).toHaveCount(0);
+        }
 
-      const measured = await page.evaluate(() => {
-        // The probe declares motion the reduce rule has to override. Inline
-        // styles are used so the declaration cannot be lost to a selector that
-        // happens not to match on this screen; `!important` in styles.css
-        // outranks an inline declaration, which is precisely what is measured.
-        const probe = document.createElement('div');
-        probe.setAttribute('data-nn-motion-probe', '');
-        probe.style.transitionProperty = 'opacity';
-        probe.style.transitionDuration = '600ms';
-        probe.style.animationName = 'nn-motion-probe';
-        probe.style.animationDuration = '900ms';
-        document.body.appendChild(probe);
-        const probed = getComputedStyle(probe);
-        const probeResult = {
-          transitionDuration: probed.transitionDuration,
-          animationDuration: probed.animationDuration,
-        };
-        probe.remove();
+        const measured = await page.evaluate(() => {
+          // The probe declares motion the reduce rule has to override. Inline
+          // styles are used so the declaration cannot be lost to a selector that
+          // happens not to match on this screen; `!important` in styles.css
+          // outranks an inline declaration, which is precisely what is measured.
+          const probe = document.createElement('div');
+          probe.setAttribute('data-nn-motion-probe', '');
+          probe.style.transitionProperty = 'opacity';
+          probe.style.transitionDuration = '600ms';
+          probe.style.animationName = 'nn-motion-probe';
+          probe.style.animationDuration = '900ms';
+          document.body.appendChild(probe);
+          const probed = getComputedStyle(probe);
+          const probeResult = {
+            transitionDuration: probed.transitionDuration,
+            animationDuration: probed.animationDuration,
+          };
+          probe.remove();
 
-        // Anything the screen itself declares is measured too, so a future
-        // animation added to a real component is covered without editing this.
-        const own = [...document.querySelectorAll('*')]
-          .map((el) => getComputedStyle(el as HTMLElement))
-          .filter((s) => s.animationDuration !== '0s' || s.transitionDuration !== '0s')
-          .map((s) => `${s.animationDuration}/${s.transitionDuration}`);
+          // Anything the screen itself declares is measured too, so a future
+          // animation added to a real component is covered without editing this.
+          const own = [...document.querySelectorAll('*')]
+            .map((el) => getComputedStyle(el as HTMLElement))
+            .filter((s) => s.animationDuration !== '0s' || s.transitionDuration !== '0s')
+            .map((s) => `${s.animationDuration}/${s.transitionDuration}`);
 
-        return { probeResult, own };
-      });
+          return { probeResult, own };
+        });
 
-      // The zero-count guard. Not "did the screen have animations" — it had
-      // none, and requiring some would reject correct code — but "did the
-      // thing this test measures actually get measured". If the probe never
-      // landed, every assertion below is a statement about nothing.
-      // attribution-coverage.test.ts ('has targets to measure at all') is the
-      // precedent: 100% of nothing is the shape of a compliance claim that
-      // passes while the rule goes unchecked.
-      expect(
-        measured.probeResult.transitionDuration,
-        `${screen.name}: the motion probe did not render, so nothing was measured`,
-      ).not.toBe('');
-      expect(
-        measured.probeResult.animationDuration,
-        `${screen.name}: the motion probe did not render, so nothing was measured`,
-      ).not.toBe('');
-
-      // A duration is acceptable only if it is instant. styles.css collapses to
-      // 0.01ms, which computes as `1e-05s`; a plain `0s` would be fine too. The
-      // 600ms and 900ms the probe asked for must not survive.
-      const instant = /^(?:0s|1e-05s|0\.00001s)$/;
-      expect(
-        measured.probeResult.transitionDuration,
-        `${screen.name}: a 600ms transition survived prefers-reduced-motion`,
-      ).toMatch(instant);
-      expect(
-        measured.probeResult.animationDuration,
-        `${screen.name}: a 900ms animation survived prefers-reduced-motion`,
-      ).toMatch(instant);
-
-      // And nothing the screen declares on its own may run either.
-      for (const pair of measured.own) {
+        // The zero-count guard. Not "did the screen have animations" — it had
+        // none, and requiring some would reject correct code — but "did the
+        // thing this test measures actually get measured". If the probe never
+        // landed, every assertion below is a statement about nothing.
+        // attribution-coverage.test.ts ('has targets to measure at all') is the
+        // precedent: 100% of nothing is the shape of a compliance claim that
+        // passes while the rule goes unchecked.
         expect(
-          pair,
-          `${screen.name}: an element runs ${pair} under prefers-reduced-motion`,
-        ).not.toMatch(/(?:^|\/)(?:[1-9]\d*|0\.[1-9])s/);
-      }
+          measured.probeResult.transitionDuration,
+          `${screen.name}: the motion probe did not render, so nothing was measured`,
+        ).not.toBe('');
+        expect(
+          measured.probeResult.animationDuration,
+          `${screen.name}: the motion probe did not render, so nothing was measured`,
+        ).not.toBe('');
+
+        // A duration is acceptable only if it is instant. styles.css collapses to
+        // 0.01ms, which computes as `1e-05s`; a plain `0s` would be fine too. The
+        // 600ms and 900ms the probe asked for must not survive.
+        const instant = /^(?:0s|1e-05s|0\.00001s)$/;
+        expect(
+          measured.probeResult.transitionDuration,
+          `${screen.name}: a 600ms transition survived prefers-reduced-motion`,
+        ).toMatch(instant);
+        expect(
+          measured.probeResult.animationDuration,
+          `${screen.name}: a 900ms animation survived prefers-reduced-motion`,
+        ).toMatch(instant);
+
+        // And nothing the screen declares on its own may run either.
+        for (const pair of measured.own) {
+          expect(
+            pair,
+            `${screen.name}: an element runs ${pair} under prefers-reduced-motion`,
+          ).not.toMatch(/(?:^|\/)(?:[1-9]\d*|0\.[1-9])s/);
+        }
+      });
     });
   }
 });
@@ -456,51 +581,59 @@ test.describe('touch targets', () => {
   const MIN = 44;
 
   for (const screen of SCREENS) {
-    test(`${screen.name} keeps every control tappable`, async ({ page }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-
-      const undersized = await page.evaluate((min) => {
-        const found: string[] = [];
-        const controls = 'a, button, [role="button"], input, select, textarea';
-        for (const el of document.querySelectorAll(controls)) {
-          const node = el as HTMLElement;
-          // Disabled controls are not tap targets; `준비 중` rows are inert by
-          // design and must not be dragged up to 44px to satisfy a rule.
-          if ((node as HTMLButtonElement).disabled) continue;
-          // A link inside a run of text is measured by the line it sits on,
-          // not by a box of its own, and WCAG 2.5.5/2.5.8 exempt it for that
-          // reason. The KTO credit is exactly this: required caption text
-          // (CMP-ATT-001) whose provider link wraps with the sentence. Giving
-          // it a 44px box would either inflate the caption or detach the link
-          // from the words around it. `display: inline` is the test: a control
-          // laid out as a block or flex item is a tap target and is measured.
-          if (getComputedStyle(node).display === 'inline') continue;
-          // A checkbox or radio wrapped in its <label> is tapped by the label:
-          // every point in it toggles the control, so the label IS the target
-          // and WCAG measures the region that activates it. Inflating the box
-          // itself to 44px would draw a checkbox the size of a button. The
-          // label is measured in its place — and only when it genuinely wraps
-          // the input, so a detached <label for> still fails here.
-          const kind = (node as HTMLInputElement).type;
-          const wrapper =
-            kind === 'checkbox' || kind === 'radio' ? node.closest('label') : null;
-          const box = (wrapper ?? node).getBoundingClientRect();
-          if (box.width === 0 || box.height === 0) continue;
-          if (box.height < min || box.width < min) {
-            found.push(
-              `<${node.tagName.toLowerCase()}> ${Math.round(box.width)}×${Math.round(box.height)} ` +
-                `"${(node.textContent ?? '').trim().slice(0, 24)}"`,
-            );
-          }
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${screen.name} keeps every control tappable`, async ({ page }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
         }
-        return found;
-      }, MIN);
 
-      expect(
-        undersized,
-        `${screen.name} has controls below ${String(MIN)}px: ${undersized.join(' | ')}`,
-      ).toEqual([]);
+        const undersized = await page.evaluate((min) => {
+          const found: string[] = [];
+          const controls = 'a, button, [role="button"], input, select, textarea';
+          for (const el of document.querySelectorAll(controls)) {
+            const node = el as HTMLElement;
+            // Disabled controls are not tap targets; `준비 중` rows are inert by
+            // design and must not be dragged up to 44px to satisfy a rule.
+            if ((node as HTMLButtonElement).disabled) continue;
+            // A link inside a run of text is measured by the line it sits on,
+            // not by a box of its own, and WCAG 2.5.5/2.5.8 exempt it for that
+            // reason. The KTO credit is exactly this: required caption text
+            // (CMP-ATT-001) whose provider link wraps with the sentence. Giving
+            // it a 44px box would either inflate the caption or detach the link
+            // from the words around it. `display: inline` is the test: a control
+            // laid out as a block or flex item is a tap target and is measured.
+            if (getComputedStyle(node).display === 'inline') continue;
+            // A checkbox or radio wrapped in its <label> is tapped by the label:
+            // every point in it toggles the control, so the label IS the target
+            // and WCAG measures the region that activates it. Inflating the box
+            // itself to 44px would draw a checkbox the size of a button. The
+            // label is measured in its place — and only when it genuinely wraps
+            // the input, so a detached <label for> still fails here.
+            const kind = (node as HTMLInputElement).type;
+            const wrapper =
+              kind === 'checkbox' || kind === 'radio' ? node.closest('label') : null;
+            const box = (wrapper ?? node).getBoundingClientRect();
+            if (box.width === 0 || box.height === 0) continue;
+            if (box.height < min || box.width < min) {
+              found.push(
+                `<${node.tagName.toLowerCase()}> ${Math.round(box.width)}×${Math.round(box.height)} ` +
+                  `"${(node.textContent ?? '').trim().slice(0, 24)}"`,
+              );
+            }
+          }
+          return found;
+        }, MIN);
+
+        expect(
+          undersized,
+          `${screen.name} has controls below ${String(MIN)}px: ${undersized.join(' | ')}`,
+        ).toEqual([]);
+      });
     });
   }
 });
