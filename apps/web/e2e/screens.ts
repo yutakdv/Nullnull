@@ -76,15 +76,26 @@ export const SCREENS: ReadonlyArray<Screen> = [
   // measured at 360px, at 200% zoom, or against the 44px touch floor.
   { path: '/feed', name: 'feed' },
   { path: '/posts/new', name: 'post authoring' },
-  { path: '/language', name: 'language' },
-  { path: '/intro', name: 'intro' },
+  // Onboarding screens and the profile declare what only they draw, so the
+  // IDs responsive.spec.ts puts on them (FE-101-T3/T5, FE-105-T3/T5) measure
+  // the screen they name and not a redirect or a not-found page.
+  {
+    path: '/language',
+    name: 'language',
+    shows: { role: 'button', key: 'language.next' },
+  },
+  { path: '/intro', name: 'intro', shows: { role: 'button', key: 'intro.start' } },
   // A-4 sign-in (#265). Added in the same commit as the route, because this
   // list is the only thing that puts a screen in front of either spec and
   // nothing checks the two agree — measured on this very screen: with the
   // route added and this line missing, `tsc` exited 0 and all 1,059 unit tests
   // passed. route-parity.test.ts now closes that, and it was written here.
   { path: '/sign-in', name: 'sign in' },
-  { path: '/profile', name: 'profile' },
+  // Only the route: the profile's data sections share no drawn state between
+  // the mock (a trip list) and the gate (a fresh session, no trips), and the
+  // trip count's message is a bare `{count}` that would match any text. So a
+  // loading or error frame of the trip list is not excluded here.
+  { path: '/profile', name: 'profile', shows: { role: 'heading', key: 'profile.title' } },
   // `activeTripId` is nullable even when trips exist. The My Trip tab routes
   // that state here so the owner can choose the representative trip instead
   // of silently landing on the account screen.
