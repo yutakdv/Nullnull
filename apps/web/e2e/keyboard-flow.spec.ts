@@ -314,7 +314,7 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     );
   });
 
-  test('BA-040-T4 FE-304-T4 moving a stop whose lock does not hold its date leaves focus in the page', async ({
+  test('BA-040-T4 FE-305-T4 moving a stop whose lock does not hold its date leaves focus in the page', async ({
     page,
   }) => {
     // The path where MoveDaySheet's own restore is the only guard, in the gate as well

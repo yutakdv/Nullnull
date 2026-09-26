@@ -952,10 +952,6 @@
         {
           "id": "FE-304-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
-        },
-        {
-          "id": "FE-304-T4",
-          "assertion": "날짜를 묶지 않는 잠금(MUST_VISIT)만 있는 항목을 키보드로 다른 날로 옮긴 뒤 focus가 <body>로 떨어지지 않고 페이지 안에 남는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1018,6 +1014,10 @@
         {
           "id": "FE-305-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-305-T4",
+          "assertion": "날짜를 묶지 않는 잠금(MUST_VISIT)만 있는 항목을 키보드로 다른 날로 옮긴 뒤 focus가 <body>로 떨어지지 않고 페이지 안에 남는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

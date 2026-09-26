@@ -97,7 +97,7 @@ export function MoveDaySheet({
   //
   // What goes red if this line is reverted to a bare `.focus()`, measured:
   // keyboard-flow.spec.ts "moving a stop whose lock does not hold its date"
-  // (FE-304-T4) in 8 runs of 8, and locally "a completed move leaves focus
+  // (FE-305-T4) in 8 runs of 8, and locally "a completed move leaves focus
   // somewhere" in 8 of 8 as well. Both read focus only once the stop has moved
   // and focus has left the closed sheet; read earlier, the pressed day button
   // still held it and the second test caught the revert in 1 run of 6.
@@ -109,7 +109,7 @@ export function MoveDaySheet({
   //   - In the gate, "a completed move" moves FIRST_ITEM, which carries a DATE
   //     lock (seeded-trip.ts), so `onPick` leaves through the lock confirm and
   //     ConfirmDialog does the restore. The MUST_VISIT stop (SECOND_ITEM) is the
-  //     path where this line is the only guard, and FE-304-T4 walks it in the
+  //     path where this line is the only guard, and FE-305-T4 walks it in the
   //     gate as well as in the mock.
   useEffect(() => {
     if (open) return;
