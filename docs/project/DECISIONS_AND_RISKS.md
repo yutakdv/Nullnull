@@ -38,7 +38,7 @@ tags:
 | A-017 | Frontend는 장기 `frontend`, Backend/AI는 장기 `backend`에서 작업하고 각각 `main`에 merge-commit PR | [브랜치·Docker 통합](../engineering/BRANCH_AND_INTEGRATION.md) |
 | A-018 | 모든 main PR은 `docs-contract`와 `docker-integration`; B01 marker 후 full Docker를 생략할 수 없음 | CI와 테스트 전략 |
 | A-019 | 개발 일정은 날짜 없이 우선순위·의존성 B00~B10으로 관리하고 Live를 마지막에 구현한다. 공식 제출 마감은 공모전 공지 정본을 따른다 | [실행 순서](../engineering/IMPLEMENTATION_PLAN.md) |
-| A-020 | 제출은 로그인 불필요·위치 OFF이며 실제 KTO OpenAPI 호출/이력/텍스트 출처가 필수 | 공모전 준수 매트릭스 **2026-09-26 갱신(A-075)**: 앱에는 공모전 테스트 계정을 미리 채운 `/sign-in` 흉내가 있지만, 브라우저 안에서만 대조하고 로그인·인증 요청은 보내지 않는다. 제출 양식의 '로그인 불필요' 선택이 이 동작과 맞는지는 오너 확인 대기다. |
+| A-020 | 제출은 로그인 불필요·위치 OFF이며 실제 KTO OpenAPI 호출/이력/텍스트 출처가 필수 | 공모전 준수 매트릭스 **2026-09-26 갱신(A-075)**: 앱에는 공모전 테스트 계정을 미리 채운 `/sign-in` 흉내가 있지만, 브라우저 안에서만 대조하고 로그인·인증 요청은 보내지 않는다. 제출 양식의 '로그인 불필요' 선택은 오너가 2026-09-26에 유지로 확인했다(nullnull-69 세션 AskUserQuestion, *"로그인 불필요 유지"*). 같은 날 지침 파일(CLAUDE.md, AGENTS.md 원칙 13, README, frontend rule)도 A-075에 맞췄다(오너 *"A-075에 맞게 고친다"*). |
 | A-021 | 총괄 PM은 scope·문구·공모전 claim·최종 go/no-go를 승인하되 두 기술 DRI의 safety veto와 필수 review를 대신하지 않음 | [현재 상태와 검수 gate](DECISIONS_AND_RISKS.md) |
 | A-022 | 추천 계산 전체(feed 순서·관련 장소·slot·ITEM·설명 template)는 Python 서비스 `apps/ai`가 담당하고 Spring은 hydration·gateway·재검증·저장을 담당. 공개 OpenAPI는 변경 없음 | [ADR-0006](../decisions/ARCHITECTURE_DECISIONS.md#adr-0006), 2026-09-07 결정 |
 | A-023 | D-015 stale threshold는 KTO forecast `PT24H`, KTO place detail 및 내부 catalog rule `P7D`로 고정한다. threshold가 없는 source는 collection하지 않는다 | 2026-09-07 팀 결정; C1 source registry v1 |
