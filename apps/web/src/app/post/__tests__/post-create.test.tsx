@@ -110,6 +110,28 @@ describe('#54 the place checklist continues past the first page', () => {
   });
 });
 
+describe('FE-103-T19 a failed next page is not a failed search here', () => {
+  it('FE-103-T8 FE-103-T19 keeps the checklist and adds no search failure', async () => {
+    // The screen's own alert is for a search that failed outright; a failed
+    // page two is the continuation's to report.
+    servePlaceSearchPages({ failNext: 1 });
+    const [a, b] = searchPages.first;
+    const user = userEvent.setup();
+    mount();
+    await user.type(await screen.findByLabelText(copy['author.search']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    for (const place of [a, b]) {
+      expect(screen.getByRole('checkbox', { name: place.name })).toBeInTheDocument();
+    }
+    expect(screen.queryByText(copy['author.searchFailed'])).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
+  });
+});
+
 describe('#312 authoring and trip prerequisite', () => {
   it('keeps the feed visible but hides authoring when there is no itinerary', async () => {
     server.use(

@@ -922,6 +922,34 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     ).toBeInTheDocument();
     expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
   });
+
+  it('FE-103-T8 FE-103-T19 a failed next page keeps the results and adds no search failure', async () => {
+    // This step gated its list on `isSuccess`, which a failed page two turns
+    // false, so the results received already would vanish with it. And the
+    // step's own alert is for a search that failed outright.
+    servePlaceSearchPages({ failNext: 1 });
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    for (const place of searchPages.first) {
+      expect(
+        screen.getByRole('button', {
+          name: copy['manual.addNamed'].replace('{place}', place.name),
+        }),
+      ).toBeInTheDocument();
+    }
+    expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
+  });
 });
 
 describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () => {

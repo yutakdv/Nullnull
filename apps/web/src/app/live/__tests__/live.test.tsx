@@ -470,6 +470,41 @@ describe('FE-401 Live area list', () => {
     expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
   });
 
+  it('FE-103-T8 FE-103-T19 a failed next page keeps the results and adds no search failure', async () => {
+    // The screen's own alert is for a search that failed outright. A failed
+    // page two is reported by the continuation, and a second, first-page
+    // alert here would tell the traveller their search is gone while its
+    // results are still on screen.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    servePlaceSearchPages({ failNext: 1 });
+    const [a, b] = searchPages.first;
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', {
+      name: messages['en-US']['placeSearch.retryMore'],
+    });
+
+    for (const place of [a, b]) {
+      expect(
+        screen.getByRole('link', {
+          name: messages['en-US']['live.searchOpen'].replace('{name}', place.name),
+        }),
+      ).toBeVisible();
+    }
+    expect(screen.queryByText(messages['en-US']['live.searchError'])).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      messages['en-US']['placeSearch.moreFailed'],
+    );
+  });
+
   it('FE-603-T5 credits each place a search returns', async () => {
     // The result row named a catalogue place with no credit; the same place
     // chosen onto the map was credited under it. Each row is checked through
