@@ -25,7 +25,45 @@ const fixture = (path: string) =>
 const RUN = JSON.parse(fixture('optimizations/run-ready.json')) as {
   id: string;
   tripId: string;
+  proposals: { summary: string; dataProvenance: Record<string, unknown>[] }[];
 };
+
+// The one sentence on the run screen the server writes, per locale.
+//
+// The approved READY example is written for a Korean reader - its proposal's
+// summary is the server's ko sentence - and there is no en-US READY example to
+// serve instead (packages/contracts/fixtures belongs to the contract). Served
+// as it was, the en-US run showed that Korean sentence and passed, because every
+// check here read the app's own copy and none read the server's. The server
+// writes it in the owner's language (OptimizeItemHandler picks ko or en, and
+// apps/ai explain/templates.py renders it), so an en-US reader gets the EN
+// template. This is that sentence for the example's own facts. The source
+// credit stays as the registry wrote it, which is what the server passes in.
+const CREDIT = String(RUN.proposals[0]?.dataProvenance[0]?.attribution);
+const SUMMARY = {
+  'ko-KR': RUN.proposals[0]?.summary ?? '',
+  'en-US':
+    'Moving Insadong from Oct 4 13:00 to Oct 7 13:00 lowers relative concentration ' +
+    `from 88 to 41 (47 points). ${CREDIT}`,
+} as const;
+
+/**
+ * Text the server wrote about its sources, which the screen quotes as written:
+ * every string on the run's provenance records. The only Korean an en-US run
+ * screen may show.
+ */
+const SOURCE_TEXT = [
+  ...new Set(
+    RUN.proposals.flatMap((proposal) =>
+      proposal.dataProvenance.flatMap((record) =>
+        Object.values(record).filter(
+          (value): value is string => typeof value === 'string',
+        ),
+      ),
+    ),
+  ),
+].sort((a, b) => b.length - a.length);
+
 const TRIP = fixture('trips/trip-detail-scheduled.json');
 const TRIP_VERSION = (JSON.parse(TRIP) as { version: number }).version;
 const DETAIL = fixture('live/place-detail-live.json');
@@ -49,7 +87,15 @@ async function serve(page: Page, locale: keyof typeof messages): Promise<string[
     if (method === 'GET' && pathname === `/api/v1/trips/${RUN.tripId}`)
       return json(TRIP, { ETag: `"${String(TRIP_VERSION)}"` });
     if (method === 'GET' && pathname === `/api/v1/optimizations/${RUN.id}`)
-      return json(fixture('optimizations/run-ready.json'));
+      return json(
+        JSON.stringify({
+          ...RUN,
+          proposals: RUN.proposals.map((proposal) => ({
+            ...proposal,
+            summary: SUMMARY[locale],
+          })),
+        }),
+      );
     if (method === 'POST' && pathname === '/api/v1/live/areas')
       return json(fixture('live/area-result-live.json'));
     if (method === 'GET' && pathname === `/api/v1/live/places/${PLACE_ID}`)
@@ -119,6 +165,35 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await expect(
       page.getByRole('button', { name: M['decision.keep'], exact: true }),
     ).toBeVisible();
+    // The server's sentence, verbatim, in the language of the screen around it.
+    await expect(page.getByText(SUMMARY[locale], { exact: true })).toBeVisible();
+    if (locale === 'en-US') {
+      // And no other Korean: every text node and accessible label on the
+      // screen, with the source credits quoted as written taken out. The
+      // checks above read the controls this file names; this reads the rest,
+      // so a Korean sentence anywhere - the server's or the app's - fails here.
+      const korean = await page.evaluate((quoted) => {
+        const found: string[] = [];
+        const check = (text: string) => {
+          const rest = quoted.reduce(
+            (left, credit) => left.split(credit).join(' '),
+            text,
+          );
+          if (/[ㄱ-ㆎ가-힣]/.test(rest)) found.push(text.trim());
+        };
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          check(node.textContent ?? '');
+        }
+        for (const element of document.querySelectorAll('[aria-label]')) {
+          check(element.getAttribute('aria-label') ?? '');
+        }
+        return found;
+      }, SOURCE_TEXT);
+      expect(korean, 'Korean on the en-US run screen besides the source credits').toEqual(
+        [],
+      );
+    }
     expect(unexpected, 'calls this file does not serve').toEqual([]);
   });
 
