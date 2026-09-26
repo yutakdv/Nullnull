@@ -43,21 +43,19 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // screen table lists one path for trip creation (`/start`) and never gave this
 // one a URL.
 //
-// The picks still do not reach the server, but NOT because the contract is
-// missing — that part is settled and this comment used to say otherwise.
-// #180 was answered on 2026-09-13 with option B: the intention rides on the
-// CANDIDATE, so `AddCandidateRequest.mustVisit` exists today (and is typed in
-// the generated client). `CreateTripRequest` will never carry it — a dateless
-// place cannot be a `seedItem` (`date` is required) and cannot hold a lock
-// (`trip_constraints.trip_item_id` is NOT NULL), so it stays an intention until
-// scheduling promotes it to a `MUST_VISIT` constraint.
+// The picks reach the server as CANDIDATES of the new trip. #180 was answered
+// on 2026-09-13 with option B: the intention rides on the candidate
+// (`AddCandidateRequest.mustVisit`). `CreateTripRequest` will never carry it —
+// a dateless place cannot be a `seedItem` (`date` is required) and cannot hold
+// a lock (`trip_constraints.trip_item_id` is NOT NULL), so it stays an
+// intention until scheduling promotes it to a `MUST_VISIT` constraint.
 //
-// What is still open is the WRITE, not the field: sending the picks means N
-// `addTripCandidate` calls after `createTrip`, and those N+1 requests are not
-// one transaction (invariant 5). #185 asks what this screen should show when
-// the trip is created and only some picks land, and that is unanswered. Until
-// it is, the wizard carries the picks in its draft and `toCreateRequest` drops
-// them, so what reaches the API stays honest.
+// So 이대로 채우기 is `createTrip` followed by one `addTripCandidate` per pick
+// (TripWizardScreen `savePicks`), and those N+1 requests are not one
+// transaction (invariant 5). When the trip is created and only some picks land,
+// this step names the ones that did not and offers 다시 시도 for exactly those
+// — the same trip, the same keys — or 여행으로 가기 without them (#185). The
+// frame for that state is not drawn yet (FCR-039).
 //
 // MOCK DATA: searchPlaces has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
@@ -78,8 +76,21 @@ export interface MustVisitStepProps {
   onSubmit: () => void;
   /** Create the trip without any, which is a real answer rather than a cancel. */
   onSkip: () => void;
-  /** True while createTrip is in flight, so neither exit fires twice. */
+  /**
+   * True while createTrip or the picks' candidate writes are in flight, so
+   * neither exit fires twice.
+   */
   isSubmitting: boolean;
+  /**
+   * Picks the created trip could not take (#185). Non-empty only once the trip
+   * exists and some of its candidate writes failed; the step then offers to
+   * retry exactly these or to open the trip without them, and nothing else.
+   */
+  unsaved: PlaceSummary[];
+  /** Re-send the unsaved picks to the same trip. Never creates a trip. */
+  onRetryUnsaved: () => void;
+  /** Open the created trip without the unsaved picks. */
+  onOpenTrip: () => void;
   startDate: string | null;
   endDate: string | null;
 }
@@ -91,6 +102,9 @@ export function MustVisitStep({
   onSubmit,
   onSkip,
   isSubmitting,
+  unsaved,
+  onRetryUnsaved,
+  onOpenTrip,
   startDate,
   endDate,
 }: MustVisitStepProps) {
@@ -105,6 +119,10 @@ export function MustVisitStep({
   );
 
   const pickedIds = new Set(picked.map((place) => place.id));
+  // The list is what gets sent, so it stops changing once sending starts: a
+  // place kept after the press would not be among the picks 다시 시도 sends,
+  // and one removed would still be sent (#185).
+  const locked = isSubmitting || unsaved.length > 0;
 
   function meta(place: PlaceSummary): string {
     // categoryName, not categoryCode. BA-022 made the distinction explicit in
@@ -202,7 +220,7 @@ export function MustVisitStep({
                       // accessible name carries it.
                       aria-label={t('mustVisit.addNamed', { place: place.name })}
                       className={styles.action}
-                      disabled={pickedIds.has(place.id)}
+                      disabled={pickedIds.has(place.id) || locked}
                       onClick={() => {
                         onAdd(place);
                       }}
@@ -253,6 +271,7 @@ export function MustVisitStep({
                     type="button"
                     className={styles.action}
                     aria-label={`${place.name} ${t('mustVisit.remove')}`}
+                    disabled={locked}
                     onClick={() => {
                       onRemove(place.id);
                     }}
@@ -264,6 +283,19 @@ export function MustVisitStep({
             </ul>
           )}
         </div>
+
+        {/* #185's partial failure: the trip exists and these picks are not on
+            it. No Figma frame yet (FCR-039), so this is an FE placeholder in
+            the wizard's own error style. Hidden while a retry is in flight and
+            rendered again if it fails, so the alert is announced each time. */}
+        {unsaved.length > 0 && !isSubmitting ? (
+          <p className={`${styles.state} ${styles.unsaved}`} role="alert">
+            {t('mustVisit.unsaved', {
+              count: unsaved.length,
+              places: unsaved.map((place) => place.name).join(', '),
+            })}
+          </p>
+        ) : null}
       </div>
 
       {/* The two exits now do different things, which is the whole point of
@@ -274,23 +306,46 @@ export function MustVisitStep({
 
           Both create the trip, so both are blocked while one is in flight —
           a second press would be a second trip, which Idempotency-Key guards
-          against but the user should not have to discover. */}
-      <BottomCta
-        fixed
-        label={t('mustVisit.next')}
-        disabled={isSubmitting}
-        onClick={onSubmit}
-        secondary={
-          <button
-            type="button"
-            className={styles.skip}
-            disabled={isSubmitting}
-            onClick={onSkip}
-          >
-            {t('mustVisit.skip')}
-          </button>
-        }
-      />
+          against but the user should not have to discover.
+
+          Once the trip exists with picks unsaved, neither is offered: each
+          would create the trip again. The same bar carries 다시 시도, which
+          re-sends only those picks, and 여행으로 가기. */}
+      {unsaved.length > 0 ? (
+        <BottomCta
+          fixed
+          label={t('mustVisit.retry')}
+          disabled={isSubmitting}
+          onClick={onRetryUnsaved}
+          secondary={
+            <button
+              type="button"
+              className={styles.skip}
+              disabled={isSubmitting}
+              onClick={onOpenTrip}
+            >
+              {t('mustVisit.openTrip')}
+            </button>
+          }
+        />
+      ) : (
+        <BottomCta
+          fixed
+          label={t('mustVisit.next')}
+          disabled={isSubmitting}
+          onClick={onSubmit}
+          secondary={
+            <button
+              type="button"
+              className={styles.skip}
+              disabled={isSubmitting}
+              onClick={onSkip}
+            >
+              {t('mustVisit.skip')}
+            </button>
+          }
+        />
+      )}
     </div>
   );
 }

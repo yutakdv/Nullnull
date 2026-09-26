@@ -10,7 +10,7 @@
 //   - the separate crowd batch stays in search-result order and retains each
 //     selected point's date, state and provenance.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -96,8 +96,8 @@ let router: ReturnType<typeof createMemoryRouter>;
  * that it is reached by answering MUST_VISIT_ONLY rather than by any other
  * route through the wizard.
  */
-async function renderStep4() {
-  const user = userEvent.setup();
+/** Mounts the app at /start, the way a load or a reload of that URL does. */
+function mountWizard() {
   router = createMemoryRouter(routes, { initialEntries: ['/start'] });
   render(
     <QueryClientProvider client={createQueryClient()}>
@@ -106,6 +106,11 @@ async function renderStep4() {
       </I18nProvider>
     </QueryClientProvider>,
   );
+}
+
+async function renderStep4() {
+  const user = userEvent.setup();
+  mountWizard();
 
   // Step 1: any day twice is a one-day range, which the contract allows.
   const day = await screen.findByRole('button', { name: '15' });
@@ -605,5 +610,197 @@ describe('FE-103-T31 once every pick is saved the wizard opens the trip, as befo
     await waitFor(() => {
       expect(patched).toEqual([{ activeTripId: TRIP }]);
     });
+  });
+});
+
+/** The partial-failure message for these place names, as the screen words it. */
+const unsavedText = (names: string[]) =>
+  copy['mustVisit.unsaved']
+    .replace('{count}', String(names.length))
+    .replace('{places}', names.join(', '));
+
+/** Waits for the partial-failure state and returns its message. */
+async function unsavedState(names: string[]) {
+  const message = await screen.findByText(unsavedText(names));
+  // Announced, not only painted: the press that led here gave no other sign.
+  expect(message.closest('[role="alert"]')).not.toBeNull();
+  return message;
+}
+
+describe('FE-103-T32 when a pick cannot be saved, the wizard stays and names it', () => {
+  beforeEach(answerWrites);
+
+  it('says the trip exists and names only the place that failed, without leaving', async () => {
+    failing.add(second?.id ?? '');
+    await keepTwoAndFill();
+
+    const message = await unsavedState([second?.name ?? '']);
+    expect(message).not.toHaveTextContent(first?.name ?? '');
+    expect(saved).toHaveLength(2);
+    // Still here. Opening the trip would have dropped the failed place
+    // without a word, which is the defect #185 reported in the first place.
+    expect(router.state.location.pathname).toBe('/start');
+  });
+});
+
+describe('FE-103-T33 다시 시도 re-sends only the failed places, under their first keys', () => {
+  beforeEach(answerWrites);
+
+  it('retries the one that failed with the same key, then opens the trip', async () => {
+    failing.add(second?.id ?? '');
+    const user = await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+    const firstKey = saved.find((s) => s.body.placeId === second?.id)?.key;
+
+    failing.clear();
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.retry'] }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/trip/${TRIP}`);
+    });
+    const retried = saved.slice(2);
+    // Only the failed place: the one that landed is not sent twice.
+    expect(retried.map((s) => s.body.placeId)).toEqual([second?.id]);
+    // The same key, so a first attempt that DID commit before its response was
+    // lost is replayed by the server rather than saved a second time.
+    expect(firstKey).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(retried[0]?.key).toBe(firstKey);
+    expect(retried[0]?.tripId).toBe(TRIP);
+  });
+});
+
+describe('FE-103-T34 while a created trip is held, nothing creates a second one', () => {
+  beforeEach(answerWrites);
+
+  it('keeps one trip across a retry that fails again', async () => {
+    failing.add(second?.id ?? '');
+    const user = await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.retry'] }));
+    await waitFor(() => {
+      expect(saved).toHaveLength(3);
+    });
+    await unsavedState([second?.name ?? '']);
+    expect(createdTrips).toBe(1);
+  });
+
+  it('offers no way back to a step that could submit again', async () => {
+    // Every other branch ends in a createTrip, so a back control here would
+    // be a road to a second trip. The trip exists; what is left is to finish
+    // its picks or open it without them.
+    failing.add(second?.id ?? '');
+    await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+
+    expect(screen.queryByRole('button', { name: copy['wizard.back'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['mustVisit.next'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['mustVisit.skip'] })).toBeNull();
+    expect(createdTrips).toBe(1);
+  });
+});
+
+describe('FE-103-T35 여행으로 가기 opens the created trip without the failed places', () => {
+  beforeEach(answerWrites);
+
+  it('leaves for the trip and sends nothing more', async () => {
+    failing.add(second?.id ?? '');
+    const user = await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.openTrip'] }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/trip/${TRIP}`);
+    });
+    expect(saved).toHaveLength(2);
+    expect(createdTrips).toBe(1);
+  });
+});
+
+describe('FE-103-T36 건너뛰기 saves no candidate, even after places were kept', () => {
+  beforeEach(answerWrites);
+
+  it('creates the trip and writes nothing onto it', async () => {
+    const user = await searchFor('서울');
+    await user.click(await addButton(first?.name ?? ''));
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.skip'] }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/trip/${TRIP}`);
+    });
+    expect(createdTrips).toBe(1);
+    expect(saved).toEqual([]);
+  });
+});
+
+describe('FE-103-T37 a reload after the trip exists does not restore a draft that would create it again', () => {
+  beforeEach(answerWrites);
+
+  it('starts again at step 1 rather than on the kept places', async () => {
+    // The held trip lives in component state, which a reload drops. Had the
+    // draft survived with it, the reload would reopen step 4 with the same
+    // picks and 이대로 채우기 would make a second trip. The draft became a
+    // trip when createTrip answered, so it goes then — not when the wizard
+    // finally leaves.
+    failing.add(second?.id ?? '');
+    await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+
+    // Unmounting and mounting again is what a reload does to this component:
+    // the state goes, the Storage stays (FR-TRC-12's own harness).
+    cleanup();
+    mountWizard();
+
+    expect(await screen.findByText(`${copy['wizard.step']} 1`)).toBeInTheDocument();
+    expect(createdTrips).toBe(1);
+  });
+});
+
+describe('FE-103-T38 the kept list cannot change once sending starts', () => {
+  beforeEach(answerWrites);
+
+  it('offers neither keeping nor removing while the picks are being sent', async () => {
+    // The picks are read when 이대로 채우기 is pressed. A place kept during the
+    // writes would be shown as kept and never sent.
+    const third = placeFixtures.searchPage.items[2];
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(`${API_BASE}/trips/:tripId/candidates`, async () => {
+        await held;
+        return HttpResponse.error();
+      }),
+    );
+    await keepTwoAndFill();
+
+    await waitFor(async () => {
+      expect(await addButton(third?.name ?? '')).toBeDisabled();
+    });
+    expect(
+      screen.getByRole('button', {
+        name: `${first?.name ?? ''} ${copy['mustVisit.remove']}`,
+      }),
+    ).toBeDisabled();
+    release();
+  });
+
+  it('offers neither keeping nor removing while the unsaved picks are held', async () => {
+    // A place kept now would not be among the picks 다시 시도 sends, and one
+    // removed would still be sent: either way the list would say something
+    // the trip does not.
+    const third = placeFixtures.searchPage.items[2];
+    failing.add(second?.id ?? '');
+    await keepTwoAndFill();
+    await unsavedState([second?.name ?? '']);
+
+    expect(await addButton(third?.name ?? '')).toBeDisabled();
+    expect(
+      screen.getByRole('button', {
+        name: `${first?.name ?? ''} ${copy['mustVisit.remove']}`,
+      }),
+    ).toBeDisabled();
   });
 });

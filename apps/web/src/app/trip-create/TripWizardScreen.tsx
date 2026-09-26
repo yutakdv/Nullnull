@@ -151,6 +151,16 @@ export function TripWizardScreen() {
   // option B, #185). No hook-level trip: the id is only known once createTrip
   // answers, so every call names it.
   const addCandidate = useAddTripCandidate(null);
+  // The trip this wizard has created but not yet left for, because its picks
+  // are still being saved or some could not be (#185). createTrip and the N
+  // candidate writes are not one transaction (invariant 5), so this is the
+  // state between them. While it is set the wizard is no longer a draft: the
+  // step offers only to retry `unsaved` or to open the trip, and there is no
+  // way back to a step whose CTA would create a second trip.
+  const [heldTrip, setHeldTrip] = useState<{ id: string; unsaved: PendingPick[] } | null>(
+    null,
+  );
+  const [savingPicks, setSavingPicks] = useState(false);
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -230,15 +240,35 @@ export function TripWizardScreen() {
   // runs these one at a time whatever the client does. Firing them together
   // only adds lock waits, which on a slow day turn into failures of saves that
   // would have succeeded.
+  //
+  // Every pick is tried even after one fails, so the traveller is told about
+  // all of them at once rather than one per retry. Only those that failed are
+  // kept, with their keys, for 다시 시도.
   async function savePicks(tripId: string, picks: PendingPick[]) {
+    setSavingPicks(true);
+    setHeldTrip((current) => current ?? { id: tripId, unsaved: [] });
+    const unsaved: PendingPick[] = [];
     for (const pick of picks) {
-      await addCandidate.mutateAsync({
-        tripId,
-        idempotencyKey: pick.key,
-        request: { placeId: pick.place.id, source: { type: 'SEARCH' }, mustVisit: true },
-      });
+      try {
+        await addCandidate.mutateAsync({
+          tripId,
+          idempotencyKey: pick.key,
+          request: {
+            placeId: pick.place.id,
+            source: { type: 'SEARCH' },
+            mustVisit: true,
+          },
+        });
+      } catch {
+        unsaved.push(pick);
+      }
     }
-    enterTrip(tripId);
+    setSavingPicks(false);
+    if (unsaved.length === 0) {
+      enterTrip(tripId);
+      return;
+    }
+    setHeldTrip({ id: tripId, unsaved });
   }
 
   function enterTrip(tripId: string) {
@@ -356,7 +386,7 @@ export function TripWizardScreen() {
     <section className={styles.screen} aria-labelledby="wizard-heading">
       <NavBar
         backLabel={t('wizard.back')}
-        onBack={goBack}
+        onBack={heldTrip ? undefined : goBack}
         actions={
           <span className={styles.navStep}>
             {step === 6 || (step === 4 && draft.planningLevel === 'NOTHING')
@@ -768,16 +798,26 @@ export function TripWizardScreen() {
             // first keeps that honest — pressing 건너뛰기 after picking some
             // must not quietly carry them.
             //
-            // The cleared draft is passed rather than only stored, for the
-            // reason submit() states. It makes no difference to the request
-            // today, because toCreateRequest drops mustVisit either way, and
-            // it is written this way so it does not start mattering silently
-            // when #180's wiring gives the picks somewhere to go.
+            // No picks are passed, so no candidate is written: the picks
+            // reach the server only as submit's third argument, which 이대로
+            // 채우기 fills and this leaves empty (#185). The cleared draft is
+            // passed rather than only stored, for the reason submit() states.
             const cleared = { ...draft, mustVisit: [] };
             setDraft(cleared);
             submit(cleared);
           }}
-          isSubmitting={createTrip.isPending}
+          isSubmitting={createTrip.isPending || savingPicks}
+          unsaved={heldTrip?.unsaved.map((pick) => pick.place) ?? []}
+          onRetryUnsaved={() => {
+            // The same trip and the same keys: nothing here can create a
+            // trip, and a place whose first save did land is replayed.
+            if (heldTrip) void savePicks(heldTrip.id, heldTrip.unsaved);
+          }}
+          onOpenTrip={() => {
+            // Without the unsaved places, which the traveller was just told
+            // about by name.
+            if (heldTrip) enterTrip(heldTrip.id);
+          }}
           startDate={draft.startDate}
         />
       ) : null}

@@ -147,3 +147,10 @@
   min-width: 44px;
   cursor: pointer;
 }
+
+/* #185 partial failure (FCR-039 placeholder). It names places the server
+   supplied, which can be long and unbroken, so it wraps anywhere rather than
+   pushing the step past 360px or 200% zoom. */
+.unsaved {
+  overflow-wrap: anywhere;
+}
