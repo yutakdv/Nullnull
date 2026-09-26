@@ -9,7 +9,11 @@
 //     specifically so free-form text stays out of CDN, proxy and history logs;
 //   - the separate crowd batch stays in search-result order and retains each
 //     selected point's date, state and provenance.
-import { QueryClientProvider } from '@tanstack/react-query';
+import {
+  type InfiniteData,
+  type QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -93,11 +97,11 @@ afterEach(() => {
  * that it is reached by answering MUST_VISIT_ONLY rather than by any other
  * route through the wizard.
  */
-async function renderStep4() {
+async function renderStep4(client = createQueryClient()) {
   const user = userEvent.setup();
   const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
   render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
@@ -623,5 +627,81 @@ describe('FE-103-T14 a second press while loading sends nothing', () => {
     served.release();
     await addButton(searchPages.next[0].name);
     expect(served.bodies.filter((body) => body.cursor === NEXT_CURSOR)).toHaveLength(1);
+  });
+});
+
+describe('FE-103-T15 a continuation that settles after its search changed moves no focus', () => {
+  // The press awaits page two; by the time it settles the traveller may have
+  // typed a new query. fetchNextPage then resolves with the observer's CURRENT
+  // result, which belongs to the new search, so nothing it says is about the
+  // page that was pressed for. Found by a reviewer's probe: typing while page
+  // two loaded moved focus from the search box onto a result of the new search.
+  //
+  // Two cases because the press has two ways to move focus, split by how many
+  // results the new search holds against the count at the press.
+
+  /** The press's own page two has landed in the old search's cache entry. */
+  async function pageTwoSettled(client: QueryClient) {
+    await waitFor(() => {
+      const pageCounts = client
+        .getQueryCache()
+        .findAll({ queryKey: ['places', 'search'] })
+        .map(
+          (query) =>
+            (query.state.data as InfiniteData<unknown> | undefined)?.pages.length,
+        );
+      expect(pageCounts).toContain(2);
+    });
+  }
+
+  it('FE-103-T15 leaves focus in the search box when the new search has no more than before', async () => {
+    const client = createQueryClient();
+    const served = servePlaceSearchPages({ hold: true });
+    const user = await renderStep4(client);
+    const box = screen.getByRole('searchbox');
+    await user.type(box, '서울');
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.loadingMore'] });
+
+    // A new search while page two is out. It answers the same two places, so
+    // its count equals the count at the press.
+    await user.type(box, 'x');
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
+    expect(served.bodies.some((body) => body.query === '서울x')).toBe(true);
+
+    served.release();
+    await pageTwoSettled(client);
+    expect(box).toHaveFocus();
+  });
+
+  it('FE-103-T15 leaves focus in the search box when the new search has more than before', async () => {
+    const client = createQueryClient();
+    const served = servePlaceSearchPages({ hold: true });
+    // The new query answers three places on one page, past the count of two
+    // at the press. Every other body falls through to the two-page server.
+    server.use(
+      http.post(`${API_BASE}/places/search`, async ({ request }) => {
+        const body = (await request.clone().json()) as { query: string };
+        if (body.query !== '서울x') return undefined;
+        return HttpResponse.json({
+          items: [...searchPages.first, ...searchPages.next],
+          page: { nextCursor: null, hasMore: false },
+        });
+      }),
+    );
+    const user = await renderStep4(client);
+    const box = screen.getByRole('searchbox');
+    await user.type(box, '서울');
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.loadingMore'] });
+
+    await user.type(box, 'x');
+    await addButton(searchPages.next[0].name);
+
+    served.release();
+    await pageTwoSettled(client);
+    expect(box).toHaveFocus();
   });
 });

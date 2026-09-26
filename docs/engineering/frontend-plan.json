@@ -474,6 +474,10 @@
         {
           "id": "FE-103-T14",
           "assertion": "다음 page를 받는 동안 다시 눌러도 다음 page 요청은 한 번만 간다"
+        },
+        {
+          "id": "FE-103-T15",
+          "assertion": "다음 page를 받는 사이 검색어가 바뀌면 그 요청이 끝나도 focus를 옮기지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

@@ -89,6 +89,13 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
     if (busy || data === undefined) return;
     const pressed = { from: data.items.length, first: data.pages[0] ?? [] };
     const result = await search.fetchNextPage();
+    // fetchNextPage resolves with the observer's CURRENT result. If the query
+    // changed while the page loaded (typed, or the panel closed), that result
+    // is another search's, and nothing below is about the page pressed for:
+    // acting on it moved focus out of the search box mid-typing (FE-103-T15).
+    // The landing effect makes the same test, but the branch at the end moves
+    // focus at once, not through that effect.
+    if (result.data?.pages[0] !== pressed.first) return;
     // On failure focus stays on the button, which now offers the retry.
     if (result.isError) return;
     const count = result.data?.items.length ?? 0;
