@@ -343,7 +343,12 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   });
 });
 
-test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () => {
+// No acceptance id in this title. Playwright's JUnit writes a testcase name as
+// the describe titles followed by the test's own (junit.js, `titlePath()`), so
+// an id here lands on EVERY test inside - including the focus-ring test below
+// that says in as many words it is NOT BA-070-T5, which the aggregator counted
+// as BA-070-T5 all the same. Each test carries the ids it proves itself.
+test.describe('the judged walk-through is operable by keyboard', () => {
   // FIGMA_HANDOFF's numbered walk-through is what a contest judge follows. These
   // cover the steps a keyboard user could be stopped by; the per-screen focus
   // and touch-target checks live in responsive.spec.ts and are not repeated.
