@@ -28,6 +28,18 @@ import {
   type WizardDraft,
 } from './wizard.js';
 import { clearSnapshot, readSnapshot, writeSnapshot } from './wizard-storage.js';
+import {
+  ATTEMPT_CHANGED,
+  claimCreate,
+  claimSave,
+  isCreating,
+  isSaving,
+  readAttempt,
+  releaseCreate,
+  releaseSave,
+  writeAttempt,
+  type PendingPick,
+} from './wizard-attempt.js';
 import { ConfirmStopsStep } from './ConfirmStopsStep.js';
 import { InputMethodStep } from './InputMethodStep.js';
 import { ManualStopsStep } from './ManualStopsStep.js';
@@ -39,16 +51,8 @@ import styles from './TripWizardScreen.module.css';
 type PlaceSummary = components['schemas']['PlaceSummary'];
 type PlanningLevel = components['schemas']['PlanningLevel'];
 type SeedTripItem = components['schemas']['SeedTripItem'];
+type TripDetail = components['schemas']['TripDetail'];
 type TripDraftPreview = components['schemas']['TripDraftPreview'];
-
-/**
- * A must-visit pick on its way to the created trip, with the Idempotency-Key
- * that write keeps across retries.
- */
-interface PendingPick {
-  place: PlaceSummary;
-  key: string;
-}
 
 // Figma: S02-1 dates `438:3012`, S02-2 interests `438:3108`,
 // S02-3 planning level `438:3134`.
@@ -98,8 +102,21 @@ export function TripWizardScreen() {
   // to prevent — and on the calendar step it would also reset the month.
   // `useState`'s initializer runs once, before the first paint.
   const restored = useRef(readSnapshot()).current;
-  const [step, setStep] = useState(restored?.step ?? 1);
-  const [draft, setDraft] = useState<WizardDraft>(restored?.draft ?? EMPTY_DRAFT);
+  const restoredAttempt = useRef(readAttempt()).current;
+  const recovering =
+    restoredAttempt?.tripId &&
+    (restoredAttempt.phase === 'saving' || restoredAttempt.phase === 'failed');
+  const [attempt, setAttempt] = useState(restoredAttempt);
+  const [step, setStep] = useState(recovering ? 4 : (restored?.step ?? 1));
+  const [draft, setDraft] = useState<WizardDraft>(
+    recovering
+      ? {
+          ...EMPTY_DRAFT,
+          planningLevel: 'MUST_VISIT_ONLY',
+          mustVisit: restoredAttempt.picks.map((pick) => pick.place),
+        }
+      : (restored?.draft ?? EMPTY_DRAFT),
+  );
   // The step the heading was last moved to, so focus follows a CHANGE rather
   // than a render.
   //
@@ -117,7 +134,7 @@ export function TripWizardScreen() {
   // step CHANGE from a render. Hardcoding 1 here would make a recovery onto
   // step 3 look like a move from 1 to 3 and steal focus on load — the thing the
   // comment below says must not happen.
-  const focusedStep = useRef(restored?.step ?? 1);
+  const focusedStep = useRef(recovering ? 4 : (restored?.step ?? 1));
   const [month, setMonth] = useState(() => new Date());
 
   // One effect rather than a write beside each of the fifteen setStep/setDraft
@@ -127,6 +144,13 @@ export function TripWizardScreen() {
   // component (ImportPasteScreen holds it, on its own route), which is why the
   // canary test checks every Storage rather than trusting that shape.
   useEffect(() => {
+    // Once this run has made its trip the draft is spent: clearSnapshot() ran
+    // when createTrip answered. The step still renders at least once before
+    // the trip's route commits (see `createdTrip`), and an edit there — 담기
+    // after 건너뛰기, measured (FE-103-T37) — would otherwise write the draft
+    // back, and the next /start would open on it.
+    const phase = readAttempt()?.phase;
+    if (createdTrip.current !== null || (phase && phase !== 'create-failed')) return;
     // The recommendation response is `private, no-store`, so it is never put
     // in sessionStorage. Persist step 3 while that ephemeral screen is open:
     // a refresh keeps the user's dates/interests/answer without restoring a
@@ -140,13 +164,6 @@ export function TripWizardScreen() {
   const [recommendedPicks, setRecommendedPicks] = useState<Set<string>>(() => new Set());
   // Points the owner's 내 여행 tab at whatever this wizard creates (BA-011).
   const setActiveTrip = useUpdatePreferences();
-  // The key for the request in flight, held across retries of THAT request.
-  // Keyed by the request body so it rotates exactly when the draft changes:
-  // pressing 만들기 again after a failure replays the first attempt, while
-  // editing the dates or the planning level makes it a new command. Minting
-  // one per press would let a retry after a lost response create a second
-  // trip (invariant 6).
-  const submitKey = useRef<{ for: string; key: string } | null>(null);
   // The must-visit picks go to the trip as candidates, after it exists (#180
   // option B, #185). No hook-level trip: the id is only known once createTrip
   // answers, so every call names it.
@@ -158,23 +175,39 @@ export function TripWizardScreen() {
   // must-visit step is what shows (see `shownStep`), it offers only to retry
   // `unsaved` or to open the trip, and there is no back control.
   const [heldTrip, setHeldTrip] = useState<{ id: string; unsaved: PendingPick[] } | null>(
-    null,
+    recovering
+      ? {
+          id: restoredAttempt.tripId as string,
+          unsaved: restoredAttempt.phase === 'failed' ? restoredAttempt.pending : [],
+        }
+      : null,
   );
-  const [savingPicks, setSavingPicks] = useState(false);
-  // The trip this wizard run has created, set in the same call that receives
-  // createTrip's answer. submit() refuses while it is set.
+  const [savingPicks, setSavingPicks] = useState(
+    Boolean(recovering && restoredAttempt.phase === 'saving'),
+  );
+  const [leavingTrip, setLeavingTrip] = useState(false);
+  // The trip this wizard run has created, set as soon as createTrip answers.
+  // submit() refuses while it is set, and the snapshot effect stops writing.
   //
   // A ref rather than `heldTrip`: state is only read back on the next render,
   // so a check on it would leave a gap between the answer and that render.
-  // Defence in depth (#185 review): with the back control gone and the held
-  // step pinned, no screen reaches submit() once this is set. Measured by
-  // mutation: removing this check alone turns no test red; removing it
-  // together with the pinned step (`shownStep`) makes the review's path create
-  // two trips again (FE-103-T34).
+  //
+  // Not only defence in depth, as this comment used to say (#185 review).
+  // Once the trip is asked for, the wizard renders at least once more before
+  // the trip's route commits, because React Router commits a navigation
+  // inside startTransition (RouterProvider, read at 7.18). With no picks to
+  // save — 건너뛰기, and every other branch — that render has the step's
+  // controls enabled again, since createTrip is no longer pending. A press of
+  // an exit there would mint a new key, the draft's having been dropped with
+  // the answer, and this check is what refuses it (FE-103-T34, the 건너뛰기
+  // case); an edit there would rewrite the cleared draft, and the snapshot
+  // effect's check is what keeps it out (FE-103-T37). With picks, savePicks
+  // keeps the step busy through that render instead (FE-103-T55).
   const createdTrip = useRef<string | null>(null);
-  // Whether this wizard run is still mounted. savePicks awaits each write, and
-  // the promise outlives the component: leaving /start mid-save by browser
-  // Back, which stays inside the app, unmounts the wizard but not the loop.
+  // Whether this wizard run is still mounted. submit() awaits createTrip and
+  // savePicks awaits each write, and those promises outlive the component:
+  // leaving /start by browser Back, which stays inside the app, unmounts the
+  // wizard but not what it started.
   const mounted = useRef(true);
   useEffect(() => {
     // Set here as well as in the initialiser: StrictMode runs this cleanup
@@ -184,6 +217,50 @@ export function TripWizardScreen() {
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  // A browser Back/Forward remount observes the same command, even if the
+  // original screen has gone. The command and failed pick keys live in tab
+  // storage; this event updates another mounted instance in the same tab.
+  const hadAttempt = useRef(Boolean(restoredAttempt));
+  useEffect(() => {
+    const sync = () => {
+      const next = readAttempt();
+      setAttempt(next);
+      if (next?.tripId && (next.phase === 'saving' || next.phase === 'failed')) {
+        setStep(4);
+        setDraft((current) => ({
+          ...current,
+          planningLevel: 'MUST_VISIT_ONLY',
+          mustVisit: next.picks.map((pick) => pick.place),
+        }));
+        const running = next.phase === 'saving';
+        setSavingPicks(running);
+        setHeldTrip({ id: next.tripId, unsaved: running ? [] : next.pending });
+      } else if (!next && hadAttempt.current && createdTrip.current === null) {
+        // Another instance finished after this one was mounted. Its draft was
+        // spent; never let the old step-4 state issue a new create command.
+        setHeldTrip(null);
+        setSavingPicks(false);
+        setDraft(EMPTY_DRAFT);
+        setStep(1);
+      }
+      hadAttempt.current = Boolean(next);
+    };
+    window.addEventListener(ATTEMPT_CHANGED, sync);
+    // Reconcile an answer that arrived between the first render and effect.
+    sync();
+    // A full page reload ends the old JavaScript promise. Resume the
+    // unconfirmed writes under their original keys before naming failures.
+    const unfinished = readAttempt();
+    if (
+      unfinished?.phase === 'saving' &&
+      unfinished.tripId &&
+      !isSaving(unfinished.tripId)
+    ) {
+      void savePicks(unfinished.tripId, unfinished.pending);
+    }
+    return () => window.removeEventListener(ATTEMPT_CHANGED, sync);
   }, []);
 
   const year = month.getFullYear();
@@ -215,7 +292,7 @@ export function TripWizardScreen() {
   // Only the must-visit step passes them: they ride on the CANDIDATE, never on
   // CreateTripRequest (#180 option B), so a draft still holding picks from a
   // branch the traveller left does not send them from another one.
-  function submit(
+  async function submit(
     using: WizardDraft,
     seedItems?: SeedTripItem[],
     picks: PlaceSummary[] = [],
@@ -223,7 +300,9 @@ export function TripWizardScreen() {
     // This run already made its trip. Another createTrip would be a second
     // trip, and the first one's unsaved picks would be dropped without a word
     // (#185 review, measured: two trips). The held step is what the traveller
-    // should be looking at instead, and `shownStep` puts it there.
+    // should be looking at instead, and `shownStep` puts it there — or, with
+    // no picks to save, the trip, whose route is about to replace this one
+    // (see `createdTrip`).
     if (createdTrip.current !== null) return;
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
@@ -232,34 +311,80 @@ export function TripWizardScreen() {
     if (!baseRequest) return;
     const request = seedItems ? { ...baseRequest, seedItems } : baseRequest;
     const fingerprint = JSON.stringify(request);
-    if (submitKey.current?.for !== fingerprint) {
-      submitKey.current = { for: fingerprint, key: crypto.randomUUID() };
-    }
-    createTrip.mutate(
-      { request, idempotencyKey: submitKey.current.key },
-      {
-        onSuccess: (trip) => {
-          createdTrip.current = trip.id;
-          submitKey.current = null;
-          // The draft became a trip, so it stops being a draft. Without this,
-          // starting a second trip would reopen the finished one and the new
-          // trip would inherit the first one's dates.
-          clearSnapshot();
-          if (picks.length === 0) {
-            enterTrip(trip.id);
-            return;
-          }
-          // One key per (trip, place), minted once here and kept by every
-          // retry of that place: a retry after a lost response must replay
-          // the save the server already made, not make a second one
-          // (invariant 6).
-          void savePicks(
-            trip.id,
-            picks.map((place) => ({ place, key: crypto.randomUUID() })),
-          );
-        },
-      },
+    // The create request has no must-visit picks (#180 option B). Reuse its
+    // key when the request is the same, but take the CURRENT selection and
+    // preserve per-place keys only for picks that are still selected.
+    const existing = readAttempt();
+    if (existing?.tripId) return;
+    const sameRequest = existing?.fingerprint === fingerprint;
+    const key = sameRequest ? existing.key : crypto.randomUUID();
+    const oldKeys = new Map(
+      (sameRequest ? existing.picks : []).map((pick) => [pick.place.id, pick.key]),
     );
+    const pendingPicks = picks.map((place) => ({
+      place,
+      key: oldKeys.get(place.id) ?? crypto.randomUUID(),
+    }));
+    if (!claimCreate(key)) return;
+    writeAttempt({
+      fingerprint,
+      key,
+      phase: 'creating',
+      picks: pendingPicks,
+      pending: pendingPicks,
+      tripId: null,
+    });
+    // Continued from the PROMISE, not from a mutate() callback (#185 review).
+    // TanStack Query drops mutate()'s callbacks once the component's observer
+    // unsubscribes (MutationObserver.onUnsubscribe, read at 5.90.2). So
+    // browser Back while the trip was being created left it made with none of
+    // its picks and the draft still in storage, and coming back to /start
+    // offered 이대로 채우기 on that draft under a fresh key: a second trip.
+    // mutateAsync's promise settles whether or not anything still observes
+    // the mutation.
+    let trip: TripDetail;
+    try {
+      trip = await createTrip.mutateAsync({
+        request,
+        idempotencyKey: key,
+      });
+    } catch {
+      releaseCreate(key);
+      const current = readAttempt();
+      if (current?.key === key) writeAttempt({ ...current, phase: 'create-failed' });
+      // The step shows this from createTrip.isError, which the mutation sets
+      // whether or not its promise is awaited. The key stays, so pressing
+      // again replays this attempt.
+      return;
+    }
+    // A response that arrived after another continuation already handled the
+    // trip must not start the candidate writes again.
+    if (createdTrip.current !== null) {
+      releaseCreate(key);
+      return;
+    }
+    // What follows belongs to the trip, so it happens whether or not the
+    // wizard is still on screen.
+    createdTrip.current = trip.id;
+    // The draft became a trip, so it stops being a draft. Without this,
+    // starting a second trip would reopen the finished one and the new trip
+    // would inherit the first one's dates.
+    clearSnapshot();
+    releaseCreate(key);
+    if (pendingPicks.length === 0) {
+      writeAttempt(null);
+      // Opening the trip belongs to the screen, and a traveller who has left
+      // it is not pulled back — see the end of savePicks.
+      if (mounted.current) {
+        setLeavingTrip(true);
+        enterTrip(trip.id);
+      }
+      return;
+    }
+    // One key per (trip, place), minted once here and kept by every retry of
+    // that place: a retry after a lost response must replay the save the
+    // server already made, not make a second one (invariant 6).
+    void savePicks(trip.id, pendingPicks);
   }
 
   // Saves the picks onto the trip, one request after another.
@@ -275,6 +400,17 @@ export function TripWizardScreen() {
   // all of them at once rather than one per retry. Only those that failed are
   // kept, with their keys, for 다시 시도.
   async function savePicks(tripId: string, picks: PendingPick[]) {
+    if (!claimSave(tripId)) return;
+    const currentAttempt = readAttempt();
+    if (
+      currentAttempt &&
+      (currentAttempt.tripId === null || currentAttempt.tripId === tripId)
+    ) {
+      writeAttempt({ ...currentAttempt, phase: 'saving', tripId, pending: picks });
+    }
+    // Also reached after the wizard has gone, when createTrip answered late
+    // (FE-103-T54). These two updates then do nothing — React drops updates
+    // to an unmounted component — and the writes still go.
     setSavingPicks(true);
     setHeldTrip((current) => current ?? { id: tripId, unsaved: [] });
     const unsaved: PendingPick[] = [];
@@ -289,21 +425,51 @@ export function TripWizardScreen() {
             mustVisit: true,
           },
         });
+        // On reload, only unconfirmed places need an idempotent replay. A
+        // confirmed success must never be named in the failure alert.
+        const progress = readAttempt();
+        if (progress?.tripId === tripId && progress.phase === 'saving') {
+          writeAttempt({
+            ...progress,
+            pending: progress.pending.filter((item) => item.place.id !== pick.place.id),
+          });
+        }
       } catch {
         unsaved.push(pick);
       }
     }
-    // Gone before the writes finished. They were let run: each is idempotent
-    // under its key, so finishing them only saves what it can. But opening the
-    // trip now would pull the traveller back from wherever they went, and the
-    // held state has no screen left to show on — so a pick that failed after
-    // the unmount is NOT announced. It is simply not on the trip.
+    if (unsaved.length === 0 && mounted.current) createdTrip.current = tripId;
+    releaseSave(tripId);
+    const latestAttempt = readAttempt();
+    if (latestAttempt?.tripId === tripId) {
+      writeAttempt(
+        unsaved.length === 0
+          ? null
+          : { ...latestAttempt, phase: 'failed', pending: unsaved },
+      );
+    }
+    // Gone before the writes finished. They were let run under their original
+    // keys; a failed pick stays in the tab's recovery record and is announced
+    // when the traveller returns to /start.
+    //
+    // Nor is the trip made the active one, although it exists and the
+    // traveller did create it. That PATCH is half of opening the trip
+    // (enterTrip), and repointing the 내 여행 tab at a trip they left before
+    // it opened would move it behind their back. submit() decides the same
+    // when createTrip itself answers after they left.
     if (!mounted.current) return;
-    setSavingPicks(false);
     if (unsaved.length === 0) {
+      setLeavingTrip(true);
+      // Leaving, so `savingPicks` stays true. The wizard renders once more
+      // before the trip's route commits (see `createdTrip`), and setting it
+      // false first made that render offer 이대로 채우기, 건너뛰기, 담기 and
+      // 빼기 again — and, after a retry that saved everything, show the
+      // partial failure it had just cleared (#185 review). Held true, every
+      // control on the step reads it as busy and the alert stays hidden.
       enterTrip(tripId);
       return;
     }
+    setSavingPicks(false);
     setHeldTrip({ id: tripId, unsaved });
   }
 
@@ -431,6 +597,8 @@ export function TripWizardScreen() {
   // after clearSnapshot().
   const shownStep = heldTrip ? 4 : step;
   const branch = heldTrip ? 'must-visit' : nextAfterPlanning(draft);
+  const createBusy =
+    createTrip.isPending || (attempt?.phase === 'creating' && isCreating(attempt.key));
 
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
@@ -440,7 +608,7 @@ export function TripWizardScreen() {
         // leaves (#185 review): while createTrip is in flight, then while a
         // trip is held — which starts with the first save. Every step behind
         // this one ends in a createTrip.
-        onBack={createTrip.isPending || heldTrip ? undefined : goBack}
+        onBack={createBusy || heldTrip || leavingTrip || savingPicks ? undefined : goBack}
         actions={
           <span className={styles.navStep}>
             {shownStep === 6 || (shownStep === 4 && branch === 'recommend')
@@ -665,7 +833,7 @@ export function TripWizardScreen() {
               })}
             </ul>
 
-            {createTrip.isError ? (
+            {createTrip.isError || attempt?.phase === 'create-failed' ? (
               <p className={styles.hint} role="alert">
                 {t('wizard.createFailed')}
               </p>
@@ -674,11 +842,11 @@ export function TripWizardScreen() {
 
           <BottomCta
             fixed
-            label={createTrip.isPending ? t('wizard.creating') : t('wizard.next')}
+            label={createBusy ? t('wizard.creating') : t('wizard.next')}
             // Blocked while in flight: a second submit would be a second trip,
             // which the Idempotency-Key guards against but need not be tested by
             // the user (.claude/rules/frontend.md on duplicate submits).
-            disabled={draft.planningLevel === null || createTrip.isPending}
+            disabled={draft.planningLevel === null || createBusy}
             // The answer decides what follows: MUST_VISIT_ONLY opens its
             // picker, MOSTLY_PLANNED opens the input-method choice, and NOTHING
             // requests a recommendation preview. All three used to call
@@ -705,6 +873,7 @@ export function TripWizardScreen() {
               <button
                 type="button"
                 className={styles.later}
+                disabled={createBusy}
                 onClick={() => {
                   void navigate('/start/import', { state: { wizardDraft: draft } });
                 }}
@@ -740,8 +909,8 @@ export function TripWizardScreen() {
           error={previewTripDraft.error}
           loading={previewTripDraft.isPending}
           picked={recommendedPicks}
-          isSubmitting={createTrip.isPending}
-          createFailed={createTrip.isError}
+          isSubmitting={createBusy}
+          createFailed={createTrip.isError || attempt?.phase === 'create-failed'}
           onTogglePick={(key) => {
             setRecommendedPicks((current) => {
               const next = new Set(current);
@@ -752,7 +921,7 @@ export function TripWizardScreen() {
           }}
           onSubmit={() => {
             if (!recommendedDraft || recommendedDraft.state !== 'READY') return;
-            submit(draft, recommendedSeedItems(recommendedDraft, recommendedPicks));
+            void submit(draft, recommendedSeedItems(recommendedDraft, recommendedPicks));
           }}
           onRetry={() => {
             requestRecommendation(draft);
@@ -792,7 +961,7 @@ export function TripWizardScreen() {
             // to confirm and no place to pick, so that case creates the trip
             // from here instead of showing an empty page.
             if (draft.stops.length === 0) {
-              submit(draft);
+              void submit(draft);
               return;
             }
             setStep(6);
@@ -805,9 +974,9 @@ export function TripWizardScreen() {
             // stops it is meant to drop.
             const cleared = { ...draft, stops: [] };
             setDraft(cleared);
-            submit(cleared);
+            void submit(cleared);
           }}
-          isSubmitting={createTrip.isPending}
+          isSubmitting={createBusy}
         />
       ) : null}
 
@@ -821,7 +990,7 @@ export function TripWizardScreen() {
             setDraft((current) => toggleStopMustVisit(current, key));
           }}
           onSubmit={() => {
-            submit(draft);
+            void submit(draft);
           }}
           onEdit={() => {
             // 다시 고칠래요 goes back to the entry step with everything intact,
@@ -829,7 +998,7 @@ export function TripWizardScreen() {
             // step. It is not a cancel and drops nothing.
             setStep(5);
           }}
-          isSubmitting={createTrip.isPending}
+          isSubmitting={createBusy}
         />
       ) : null}
 
@@ -844,7 +1013,7 @@ export function TripWizardScreen() {
             setDraft((current) => removeMustVisit(current, placeId));
           }}
           onSubmit={() => {
-            submit(draft, undefined, draft.mustVisit);
+            void submit(draft, undefined, draft.mustVisit);
           }}
           onSkip={() => {
             // A real answer, not a cancel: the traveller says there are no
@@ -858,9 +1027,16 @@ export function TripWizardScreen() {
             // passed rather than only stored, for the reason submit() states.
             const cleared = { ...draft, mustVisit: [] };
             setDraft(cleared);
-            submit(cleared);
+            void submit(cleared);
           }}
-          isSubmitting={createTrip.isPending || savingPicks}
+          isSubmitting={
+            createBusy ||
+            savingPicks ||
+            leavingTrip ||
+            (attempt?.phase === 'saving' &&
+              attempt.tripId !== null &&
+              isSaving(attempt.tripId))
+          }
           unsaved={heldTrip?.unsaved.map((pick) => pick.place) ?? []}
           onRetryUnsaved={() => {
             // The same trip and the same keys: nothing here can create a
@@ -870,7 +1046,12 @@ export function TripWizardScreen() {
           onOpenTrip={() => {
             // Without the unsaved places, which the traveller was just told
             // about by name.
-            if (heldTrip) enterTrip(heldTrip.id);
+            if (heldTrip) {
+              createdTrip.current = heldTrip.id;
+              writeAttempt(null);
+              setLeavingTrip(true);
+              enterTrip(heldTrip.id);
+            }
           }}
           startDate={draft.startDate}
         />

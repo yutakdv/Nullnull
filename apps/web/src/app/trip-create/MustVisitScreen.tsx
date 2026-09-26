@@ -79,7 +79,8 @@ export interface MustVisitStepProps {
   onSkip: () => void;
   /**
    * True while createTrip or the picks' candidate writes are in flight, so
-   * neither exit fires twice.
+   * neither exit fires twice — and, once every pick has landed, until the
+   * trip's route replaces this step.
    */
   isSubmitting: boolean;
   /**

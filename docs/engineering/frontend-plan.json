@@ -403,11 +403,11 @@
         },
         {
           "id": "FE-103-T30",
-          "assertion": "이대로 채우기는 createTrip 뒤 고른 장소마다 addTripCandidate를 한 번씩, 생성된 tripId로 { placeId, source: SEARCH, mustVisit: true }와 장소별 Idempotency-Key를 실어 보낸다"
+          "assertion": "이대로 채우기는 createTrip 뒤 고른 장소마다 addTripCandidate를 한 번씩, 생성된 tripId로 { placeId, source: SEARCH, mustVisit: true }를 실어 보낸다"
         },
         {
           "id": "FE-103-T31",
-          "assertion": "고른 장소가 모두 저장된 뒤에만 여행을 active trip으로 두고 /trip/{id}로 replace 이동한다"
+          "assertion": "고른 장소가 모두 저장된 뒤에만 만든 여행을 active trip으로 둔다"
         },
         {
           "id": "FE-103-T32",
@@ -415,15 +415,15 @@
         },
         {
           "id": "FE-103-T33",
-          "assertion": "다시 시도는 실패한 장소만 같은 여행에 처음 만든 같은 Idempotency-Key로 다시 보내고 모두 저장되면 여행을 연다"
+          "assertion": "다시 시도는 실패한 장소만 같은 여행에 처음 만든 같은 Idempotency-Key로 다시 보낸다"
         },
         {
           "id": "FE-103-T34",
-          "assertion": "만든 여행을 들고 있는 동안 어떤 조작도 createTrip을 다시 보내지 않는다"
+          "assertion": "이 마법사가 만든 여행이 열리기 전에는(부분 실패로 들고 있거나 여행 경로로 바뀌는 중) 어떤 조작도 createTrip을 다시 보내지 않는다"
         },
         {
           "id": "FE-103-T35",
-          "assertion": "여행으로 가기는 실패한 장소를 다시 보내지 않고 만든 여행을 연다"
+          "assertion": "여행으로 가기는 실패한 장소도 createTrip도 다시 보내지 않는다"
         },
         {
           "id": "FE-103-T36",
@@ -431,7 +431,7 @@
         },
         {
           "id": "FE-103-T37",
-          "assertion": "createTrip이 답한 뒤 새로고침하면 같은 여행을 다시 만들 초안이 복원되지 않는다"
+          "assertion": "createTrip이 답한 뒤에는 /start를 다시 열어도(새로고침, 만드는 중에 떠났다가 돌아오기, 여행이 열리기 전 화면에서 초안을 고친 뒤 새 여행) 그 여행을 다시 만들 초안이 복원되지 않는다"
         },
         {
           "id": "FE-103-T38",
@@ -463,7 +463,7 @@
         },
         {
           "id": "FE-103-T45",
-          "assertion": "이대로 채우기를 누른 뒤 createTrip이 진행 중일 때와 고른 장소를 처음 보내는 동안에는 이전 단계 버튼을 두지 않는다"
+          "assertion": "이대로 채우기를 누른 뒤 createTrip이 진행 중일 때는 이전 단계 버튼을 두지 않는다"
         },
         {
           "id": "FE-103-T46",
@@ -471,7 +471,59 @@
         },
         {
           "id": "FE-103-T47",
-          "assertion": "마법사가 unmount된 뒤에 끝난 저장은 여행을 열지 않는다(이동하지 않고 active trip을 바꾸지 않는다)"
+          "assertion": "마법사가 unmount된 뒤에 끝난 createTrip·저장은 여행으로 이동하지 않는다"
+        },
+        {
+          "id": "FE-103-T48",
+          "assertion": "고른 장소가 모두 저장된 뒤에만 /start를 /trip/{id}로 replace 이동한다"
+        },
+        {
+          "id": "FE-103-T49",
+          "assertion": "다시 시도로 남은 장소가 모두 저장되면 만든 여행을 연다"
+        },
+        {
+          "id": "FE-103-T50",
+          "assertion": "여행으로 가기는 실패한 장소 없이 만든 여행을 연다"
+        },
+        {
+          "id": "FE-103-T51",
+          "assertion": "고른 장소를 처음 보내는 동안에는 이전 단계 버튼을 두지 않는다"
+        },
+        {
+          "id": "FE-103-T52",
+          "assertion": "마법사가 unmount된 뒤에 끝난 createTrip·저장은 active trip을 바꾸지 않는다"
+        },
+        {
+          "id": "FE-103-T53",
+          "assertion": "고른 장소마다 서로 다른 Idempotency-Key를 싣는다"
+        },
+        {
+          "id": "FE-103-T54",
+          "assertion": "createTrip이 진행 중일 때 마법사를 떠나도 답이 오면 고른 장소를 그 여행에 장소별 Idempotency-Key로 보낸다"
+        },
+        {
+          "id": "FE-103-T55",
+          "assertion": "마지막 저장이 끝난 뒤 여행 경로로 바뀌기 전까지 이대로 채우기·건너뛰기·담기·빼기가 막혀 있다"
+        },
+        {
+          "id": "FE-103-T56",
+          "assertion": "다시 시도로 모두 저장되면 여행 경로로 바뀌기 전에도 부분 실패 alert를 다시 보이지 않는다"
+        },
+        {
+          "id": "FE-103-T57",
+          "assertion": "여행 생성 응답 전 브라우저 뒤로·앞으로 돌아와도 같은 요청이 진행 중인 화면을 잠그고 두 번째 여행을 만들지 않는다"
+        },
+        {
+          "id": "FE-103-T58",
+          "assertion": "화면을 떠난 뒤 후보 저장이 실패해도 복귀하면 실패한 장소와 원래 Idempotency-Key를 복구해 같은 여행에 다시 시도한다"
+        },
+        {
+          "id": "FE-103-T59",
+          "assertion": "여행 생성 실패 뒤 장소 선택을 바꾸고 재시도하면 현재 선택만 저장하고 남은 장소의 후보 요청 키는 유지한다"
+        },
+        {
+          "id": "FE-103-T60",
+          "assertion": "후보 저장 중 복구 기록은 이미 성공이 확인된 장소를 대기 목록에서 제외한다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -590,6 +642,10 @@
         {
           "id": "FE-102-T5",
           "assertion": "EMPTY를 빈 일정 성공으로 그리지 않고 SOURCE_UNAVAILABLE과 구분하며 503만 명시적 재시도를 제공한다"
+        },
+        {
+          "id": "FE-102-T6",
+          "assertion": "추천·수동 입력 경로도 생성 응답 전 브라우저 뒤로·앞으로 복귀 시 같은 요청을 잠그고, 추천 경로의 붙여넣기 진입도 막아 새 여행을 중복 생성하지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

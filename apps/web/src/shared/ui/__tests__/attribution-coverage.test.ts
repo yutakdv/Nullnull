@@ -65,6 +65,12 @@ interface Site {
  */
 const EXEMPT: readonly { file: string; expr: string; reason: string }[] = [
   {
+    file: 'app/trip-create/wizard-attempt.ts',
+    expr: '(pickasPendingPick).place',
+    reason:
+      'storage validation only: checks a recovered place name is a string; the recovery screen credits every rendered place',
+  },
+  {
     file: 'app/feed/FeedScreen.tsx',
     expr: 'card.primaryPlace',
     reason:
@@ -154,6 +160,10 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 3, credits: 1 },
   'app/trip-create/MustVisitScreen.tsx :: place': { sites: 5, credits: 2 },
   'app/trip-create/RecommendedDraftStep.tsx :: stop.place': { sites: 2, credits: 1 },
+  'app/trip-create/wizard-attempt.ts :: (pickasPendingPick).place': {
+    sites: 1,
+    credits: 0,
+  },
   'app/trip/AddPlaceScreen.tsx :: place': { sites: 3, credits: 1 },
   'app/trip/CandidatesScreen.tsx :: candidate.place': { sites: 3, credits: 1 },
   'app/trip/ItemMoveControls.tsx :: choice.place': { sites: 1, credits: 0 },

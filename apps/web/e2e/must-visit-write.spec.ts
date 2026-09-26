@@ -173,7 +173,7 @@ async function keepBothAndFill(page: Page, locale: Locale = 'en-US') {
 
 const TRIP_PATH = /\/trip\/([0-9a-f-]{36})$/i;
 
-test('FE-103-T30 FE-303-T4 kept places become must-visit candidates of the new trip', async ({
+test('FE-103-T30 FE-103-T53 FE-303-T4 kept places become must-visit candidates of the new trip', async ({
   page,
 }) => {
   await interceptWrites(page, null);
@@ -207,7 +207,7 @@ test('FE-103-T30 FE-303-T4 kept places become must-visit candidates of the new t
   expect(headings.sort()).toEqual([...(savedNames as string[])].sort());
 });
 
-test('FE-103-T32 FE-103-T42 FE-103-T33 FE-103-T39 a place that fails is named, and the retry re-sends it with its key', async ({
+test('FE-103-T32 FE-103-T42 FE-103-T33 FE-103-T49 FE-103-T39 a place that fails is named, and the retry re-sends it with its key', async ({
   page,
 }) => {
   const copy = COPY['en-US'];
