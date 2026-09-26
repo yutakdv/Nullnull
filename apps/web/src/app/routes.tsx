@@ -73,8 +73,11 @@ export const routes: RouteObject[] = [
       // cancel/save bar, matching the Figma frame and preventing accidental
       // navigation while item controls are active.
       { path: 'trip/:tripId/edit', element: <TripScreen mode="edit" /> },
-      // Metadata editing remains a separate capability while Product assigns
-      // it a visible entry point; it must not be mixed into S07-2 schedule edit.
+      // Metadata editing (FE-306: dates, name, planning level) stays a separate
+      // capability and must not be mixed into S07-2 schedule edit. It is
+      // reached from the trip view's settings control (FE-306-T4). No Figma
+      // node draws that control yet, so where it sits is FE's placeholder
+      // until Product draws one.
       { path: 'trip/:tripId/settings', element: <TripScreen mode="details" /> },
       {
         // S09-0 setup, before a run exists (FE-501).

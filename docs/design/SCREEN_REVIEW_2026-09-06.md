@@ -60,7 +60,7 @@ BA 링크에서 기능 ID→operationId→entity→예정 test ID→담당/검�
 | [415:2268](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=415-2268) | P0 | ITEM 제목, 전체/Day 범위 chip | 실제 targetItemId 선택·P1 OFF | PM-015; [BA-050](../roles/BACKEND_AI_PLAYBOOK.md#ba-050) |
 | [415:2413](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=415-2413) | P0 | 계산·경로 문구·취소하고 복귀 | 돌아가기와 run 취소 구분·polling 복구 | PM-014/015; [BA-050](../roles/BACKEND_AI_PLAYBOOK.md#ba-050) |
 | [439:3104](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=439-3104) | P1 | DAY preview P1 | P0 ITEM READY 증거로 사용 금지 | PM-013/015; [BA-083](../roles/BACKEND_AI_PLAYBOOK.md#ba-083) |
-| [417:2412](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=417-2412) | P0 | 적용 결과·undo toast | 지속 undo·24시간·서버 availability·이력 재진입 | PM-009/015; [BA-053](../roles/BACKEND_AI_PLAYBOOK.md#ba-053) |
+| [417:2412](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=417-2412) | P0 | 적용 결과·undo toast | 이력 재진입(지속 undo·24시간·서버 availability는 A-074로 퇴역) | PM-009/015; [BA-053](../roles/BACKEND_AI_PLAYBOOK.md#ba-053) |
 | [417:2567](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=417-2567) | P0 ref | 오류 6종 개발 참조 | 오류별 미변경·제안 없는 KEEP 분리·최적성 문구 | PM-015/020; [BA-051](../roles/BACKEND_AI_PLAYBOOK.md#ba-051), [BA-052](../roles/BACKEND_AI_PLAYBOOK.md#ba-052) |
 | [485:3517](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=485-3517) | P0 ref | stale 비교·재계산 | stale APPLY0·최신 결과·단계 수치 과장 금지 | PM-013/015; [BA-052](../roles/BACKEND_AI_PLAYBOOK.md#ba-052) |
 | [418:2523](https://www.figma.com/design/C3tTNClo9JH8tb4qpQgP61/Nullnull-UI-Design?node-id=418-2523) | P0 | Live 지도/여행 context/필터/날씨 | 목록 우선·지원 필터만·위치0·coverage | PM-012/013; [BA-091](../roles/BACKEND_AI_PLAYBOOK.md#ba-091) |
@@ -76,7 +76,7 @@ BA 링크에서 기능 ID→operationId→entity→예정 test ID→담당/검�
 
 ## 화면 수에 포함되지 않은 필수 상태
 
-- P0 ITEM READY before/after·APPLY/KEEP, target item 선택, preview 만료, 적용 후24시간 undo/만료/후속 편집 불가.
+- P0 ITEM READY before/after·APPLY/KEEP, target item 선택, preview 만료. 적용 후 24시간 undo/만료/후속 편집 불가 상태는 A-074로 퇴역했다.
 - 시간/duration 편집, 독립 TIME/RESERVATION 입력·해제, 기간 축소 실패, 혼합 편집 저장 실패/충돌.
 - profile 언어 변경, 여행 삭제, 세션 데이터 삭제 확인/접수/진행/부분 실패/완료/receipt 분실/만료.
 - import server 전송 안내, ambiguous 장소 remap/제거, 연도/날짜 보정, draft 만료·stale·뒤로/refresh.

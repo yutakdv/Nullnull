@@ -53,7 +53,7 @@
         "capability": null
       },
       {
-        "featureIds": ["FR-OPT-07", "FR-OPT-08", "FR-OPT-09"],
+        "featureIds": ["FR-OPT-07", "FR-OPT-08"],
         "pdfLabel": "사용자 승인형 변경",
         "capability": "optimization"
       }

@@ -682,6 +682,20 @@
 }
 
 @media (max-width: 240px) {
+  /* 200% zoom: the title row carries two 44px controls (rename, settings)
+     beside the D-day, which leaves the title no width at all on one line.
+     It wraps instead, the title keeping the first line. */
+  .viewHeadRow {
+    flex-wrap: wrap;
+  }
+
+  /* Wrapped, the controls no longer share the title's 27px line, and the
+     negative margin that kept them inside it would pull them up over the
+     title's last line (shell.spec.ts, a 100-character title at 180px). */
+  .viewHeadRow .titleEditButton {
+    margin-block: 0;
+  }
+
   .itemHead {
     flex-wrap: wrap;
   }

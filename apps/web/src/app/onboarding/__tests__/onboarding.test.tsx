@@ -73,10 +73,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderAt(path: string) {
+function renderAt(path: string, client = createQueryClient()) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <I18nProvider>
         <RouterProvider router={router} />
       </I18nProvider>
@@ -313,6 +313,131 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
     // Disabled options are skipped, landing on the CTA.
     await user.tab();
     expect(screen.getByRole('button', { name: copy['language.next'] })).toHaveFocus();
+  });
+
+  // WEB-RT-1: the UI starts in the browser's language, and the owner record in
+  // ko-KR. Place names are projected in the OWNER locale while search follows
+  // the UI, so a traveller who read the screen in English and pressed Next
+  // without touching an option saw English search results beside Korean trip
+  // and place names. Next saves what the screen is showing.
+  it('FE-101-T4 saves the locale on screen when continuing without choosing', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/language');
+    // The screen is in the browser's language before anything is chosen.
+    await screen.findByText(copy['language.description']);
+    expect(localStorage.getItem('nullnull.locale')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: copy['language.next'] }));
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'en-US' }]);
+    });
+  });
+
+  it('FE-101-T4 does not save the same choice twice on Next', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    const client = createQueryClient();
+    renderAt('/language', client);
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    // The tap's save has landed before Next is pressed.
+    await waitFor(() => {
+      expect(client.isMutating()).toBe(0);
+    });
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await screen.findByRole('heading', { level: 1, name: /./ });
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }]);
+    });
+  });
+
+  // Codex on #399: "saved" was written before the PATCH answered, so a tap
+  // whose save FAILED still counted as saved and Next sent nothing - WEB-RT-1
+  // stayed open in exactly that case.
+  // #399 review, third pass: Next used to trust a tap whose save was still in
+  // flight. If that save then failed after the screen had moved on, nothing
+  // sent the locale again. PATCH /me has no If-Match and is idempotent, so a
+  // second identical request is harmless while a skipped one is permanent.
+  it('FE-101-T4 saves on Next even while the tap is still saving, and wins if the tap fails', async () => {
+    const bodies: unknown[] = [];
+    let failTap: (() => void) | undefined;
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        if (bodies.length === 1) {
+          await new Promise<void>((resolve) => {
+            failTap = resolve;
+          });
+          return HttpResponse.json(
+            { type: 'about:blank', title: 'Unavailable', status: 503 },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    const client = createQueryClient();
+    renderAt('/language', client);
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await waitFor(() => {
+      expect(bodies).toHaveLength(1);
+    });
+    // The tap's save is still waiting for the server when Next is pressed.
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'ko-KR' }]);
+    });
+    // The tap fails after the screen has moved on; Next's save already went.
+    failTap?.();
+    await waitFor(() => {
+      expect(client.isMutating()).toBe(0);
+    });
+    expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'ko-KR' }]);
+  });
+
+  it('FE-101-T4 sends the locale again on Next when the tap failed to save it', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${API_BASE}/me`, async ({ request }) => {
+        bodies.push(await request.json());
+        return bodies.length === 1
+          ? HttpResponse.json(
+              { type: 'about:blank', title: 'Unavailable', status: 503 },
+              { status: 503 },
+            )
+          : HttpResponse.json(sessionFixtures.owner);
+      }),
+    );
+    const user = userEvent.setup();
+    const client = createQueryClient();
+    renderAt('/language', client);
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await waitFor(() => {
+      expect(client.isMutating()).toBe(0);
+    });
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await waitFor(() => {
+      expect(bodies).toEqual([{ locale: 'ko-KR' }, { locale: 'ko-KR' }]);
+    });
   });
 
   it('continues to the intro screen', async () => {

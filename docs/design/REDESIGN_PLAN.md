@@ -78,7 +78,7 @@ FE 실행 계획의 구현 승인 대기 상태는 그대로 유지한다.
 | 후보 / FR-CAN-01~07 | S03-C, S06, S07-8 | 여행 picker·없음·저장·중복·실패·후보 dismiss·ACTIVE/SCHEDULED·가능 날짜/slot·checking/unknown |
 | 일정 / FR-TRP, FR-ITM, FR-CON | S07 전체 | 보기/편집·메타 수정·장소 추가·날짜/순서 이동·일정화·삭제·후보 복원·교체 비교·독립 잠금·이탈·stale 충돌 |
 | 시간 편집 / FE-308, FCR-017 | 독립 node 미확정 | 시간/duration·저장·취소·validation·잠금 충돌. 현재 읽기 전용 유지; 승인 대상 시안 분리 |
-| 최적화 / FR-OPT-01~16 | S09 전체·REF | ITEM/DAY/TRIP 선택, 계산·preview·APPLY/KEEP·적용·undo/만료·stale·lock 충돌·경로 없음·개선 없음·실패·OFF |
+| 최적화 / FR-OPT-01~16 | S09 전체·REF | ITEM/DAY/TRIP 선택, 계산·preview·APPLY/KEEP·적용·preview 만료·stale·lock 충돌·경로 없음·개선 없음·실패·OFF (적용 되돌리기와 그 기한 만료는 A-074로 퇴역) |
 | Live·장소·신뢰 / FR-LIV, FR-DAT | S11·S15 | 목록/지도 capability·권역/장소 검색·상세·관계·대안 없음·시계열·출처/시점·6개 source state·비교 불가 |
 | 위치·주변 재계획 / FR-NBY-01, FR-LIV-10 | S10 `804:6249`, `804:6569` | 동의 전·허용·거절·철회·대안 목록·empty·오류·preview·비교 불가·OFF |
 | 검색 / FR-SRC-01, FE-P1-103 | section `889:5420`, 8개 화면 | 최근 개별/전체 삭제·보존 고지·초기/배경 loading·결과 유형·filter draft/apply/reset·pagination·empty·error/offline·OFF·비교 불가 |

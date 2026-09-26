@@ -425,11 +425,10 @@ export const messages = {
       '선호와 이유 설명은 AI가, 운영·혼잡·경로·도착 시간 검증은 출처 있는 데이터와 서버 규칙이 해요.',
     'dataGuide.rule4.title': '승인 전에는 일정을 바꾸지 않아요',
     'dataGuide.rule4.body':
-      '최적화 변경안은 미리보기일 뿐이에요. 적용을 누르기 전까지 일정은 그대로예요. 적용 후에도 되돌릴 수 있어요.',
+      '최적화 변경안은 미리보기일 뿐이에요. 적용을 누르기 전까지 일정은 그대로예요.',
     'dataGuide.rule5.title': '모든 혼잡 표시에는 출처가 있어요',
     'dataGuide.rule5.body':
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
-    'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
 
     // S02-4B must-visit places (438:3158).
     'mustVisit.step': 'STEP 4',
@@ -789,7 +788,8 @@ export const messages = {
     'run.failure.DATA_CHANGED': '기준 데이터가 바뀌었어요',
     'run.failure.LOCK_CONFLICT': '고정한 조건과 맞지 않아요',
     'run.failure.ROUTE_UNAVAILABLE': '경로 정보를 확인할 수 없어요',
-    'run.failure.NO_IMPROVEMENT': '지금 일정보다 나은 대안을 찾지 못했어요',
+    'run.failure.NO_IMPROVEMENT':
+      '확인한 후보에서는 지금 일정보다 나은 대안을 찾지 못했어요',
     'run.failure.APPLY_FAILED': '적용하지 못했어요',
     // AHEAD OF THE CONTRACT ON PURPOSE (#225). OptimizationFailure.code does not
     // list DATA_INSUFFICIENT yet — BA-051 is adding it, and apps/ai already
@@ -969,6 +969,9 @@ export const messages = {
     'trip.item.actions': '{name} 항목 메뉴',
     'trip.editStart': '일정 편집',
     'trip.titleEdit': '여행 이름 수정',
+    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
+    // node draws it; named for the dates because that edit is reached only here.
+    'trip.settingsOpen': '여행 기간·정보 수정',
     'trip.titleSaveFailed': '여행 이름을 저장하지 못했어요. 다시 시도해 주세요',
     'trip.editSave': '변경사항 저장',
     'trip.editSaving': '저장하는 중이에요',
@@ -1491,11 +1494,10 @@ export const messages = {
       'AI reads preferences and explains reasons; opening hours, crowding, routes and arrival times are verified by sourced data and server rules.',
     'dataGuide.rule4.title': 'Nothing changes before you approve',
     'dataGuide.rule4.body':
-      'An optimization is a preview only. Your itinerary stays as it is until you apply, and you can revert afterwards.',
+      'An optimization is a preview only. Your itinerary stays as it is until you apply.',
     'dataGuide.rule5.title': 'Every crowd figure has a source',
     'dataGuide.rule5.body':
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
-    'dataGuide.attribution': '출처: ⓒ한국관광공사 · 서울 열린데이터광장',
 
     // S02-4B must-visit places (438:3158). Figma has no EN frame.
     'mustVisit.step': 'STEP 4',
@@ -1785,7 +1787,8 @@ export const messages = {
     'run.failure.DATA_CHANGED': 'The underlying data changed',
     'run.failure.LOCK_CONFLICT': 'It conflicts with a condition you locked',
     'run.failure.ROUTE_UNAVAILABLE': "We can't check route information",
-    'run.failure.NO_IMPROVEMENT': 'We found nothing better than your current plan',
+    'run.failure.NO_IMPROVEMENT':
+      'Nothing better than your current plan among the options checked',
     'run.failure.APPLY_FAILED': "We couldn't apply it",
     // Ahead of the contract on purpose; see the ko-KR entry and #225.
     'run.failure.DATA_INSUFFICIENT': "We don't have enough information yet",
@@ -1912,6 +1915,9 @@ export const messages = {
     'trip.item.actions': '{name} item actions',
     'trip.editStart': 'Edit itinerary',
     'trip.titleEdit': 'Edit trip name',
+    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
+    // node draws it; named for the dates because that edit is reached only here.
+    'trip.settingsOpen': 'Edit trip dates and details',
     'trip.titleSaveFailed': "We couldn't save the trip name. Try again",
     'trip.editSave': 'Save changes',
     'trip.editSaving': 'Saving',

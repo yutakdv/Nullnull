@@ -116,6 +116,19 @@ describe('FE-502-T1 polling follows the run and then stops', () => {
     expect(polls).toBe(settled);
   });
 
+  // FCR-028: the optimizer searched a candidate set, not every possible plan.
+  // "No better plan than yours" claims a global optimum it never checked; the
+  // error copy for the same code already says "among the options checked".
+  it('FE-502-T4 says nothing better was found among the options checked, not that none exists', async () => {
+    runIs('FAILED', {
+      failure: { code: 'NO_IMPROVEMENT', message: 'nothing better', retryable: false },
+    });
+    renderRun();
+    const line = await screen.findByText(copy['run.failure.NO_IMPROVEMENT']);
+    expect(line).toHaveTextContent(/among the options checked/i);
+    expect(messages['ko-KR']['run.failure.NO_IMPROVEMENT']).toContain('확인한 후보');
+  });
+
   it('stops asking once the run has failed', { timeout: 10000 }, async () => {
     runIs('FAILED', {
       failure: { code: 'NO_IMPROVEMENT', message: 'nothing better', retryable: false },
