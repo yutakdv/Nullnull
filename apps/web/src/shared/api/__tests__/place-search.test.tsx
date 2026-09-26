@@ -137,7 +137,7 @@ describe('FE-103-T6 a continuation adds to the results rather than replacing the
   });
 });
 
-describe('FE-103-T7 no continuation is offered once the server says there is none', () => {
+describe('FE-103-T7 no next page is asked for once the server says there is none', () => {
   it('FE-103-T7 reads hasMore, not the presence of a cursor', async () => {
     // hasMore is the contract's own flag. A cursor that arrives with it false
     // is not an invitation to ask again.

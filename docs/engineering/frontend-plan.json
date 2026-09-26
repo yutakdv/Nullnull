@@ -445,7 +445,7 @@
         },
         {
           "id": "FE-103-T7",
-          "assertion": "page가 hasMore=false로 답하면 cursor가 함께 와도 다음 page 요청·계속하기 control을 제공하지 않는다"
+          "assertion": "page가 hasMore=false로 답하면 cursor가 함께 와도 다음 page를 요청하지 않는다"
         },
         {
           "id": "FE-103-T8",
@@ -453,7 +453,7 @@
         },
         {
           "id": "FE-103-T9",
-          "assertion": "다음 page 실패는 계속하기 control 옆에서 알리고 같은 control이 재시도한다"
+          "assertion": "다음 page 요청이 실패하면 계속하기의 실패 문구로 알린다"
         },
         {
           "id": "FE-103-T10",
@@ -482,6 +482,14 @@
         {
           "id": "FE-103-T16",
           "assertion": "다음 page가 와도 이미 받은 page의 혼잡 예보 batch를 다시 요청하지 않는다"
+        },
+        {
+          "id": "FE-103-T17",
+          "assertion": "마지막 page(hasMore=false)를 받으면 계속하기 control을 더 보이지 않는다"
+        },
+        {
+          "id": "FE-103-T18",
+          "assertion": "실패한 다음 page는 같은 계속하기 control을 다시 눌러 요청하고 그 page를 받는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

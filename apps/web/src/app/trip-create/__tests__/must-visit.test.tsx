@@ -485,8 +485,10 @@ describe('FE-103 a place shows an image only when it can be credited', () => {
 // 20th could not be kept here. The two pages are the fixture's own places
 // (servePlaceSearchPages); the crowd handler at the top of this file answers
 // each batch in its own order.
-describe('FE-103-T7 the continuation goes once the last page is in', () => {
-  it('FE-103-T7 offers no control after a page that says there is no more', async () => {
+describe('FE-103-T17 the continuation goes once the last page is in', () => {
+  // The hook half (no request after hasMore=false) is FE-103-T7 in
+  // place-search.test.tsx; this is the control on screen.
+  it('FE-103-T17 offers no control after a page that says there is no more', async () => {
     servePlaceSearchPages();
     const user = await searchFor('서울');
     await addButton(searchPages.first[0].name);
@@ -516,11 +518,10 @@ describe('FE-103-T8 a continuation that fails keeps what was already received', 
   });
 });
 
-describe('FE-103-T9 a failed continuation says so beside its control and retries there', () => {
-  it('FE-103-T9 announces the failure and the same control brings the page', async () => {
+describe('FE-103-T9 a failed continuation says so', () => {
+  it('FE-103-T9 announces that the next page failed', async () => {
     servePlaceSearchPages({ failNext: 1 });
     const user = await searchFor('서울');
-    const [c] = searchPages.next;
     await addButton(searchPages.first[0].name);
 
     await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
@@ -528,8 +529,21 @@ describe('FE-103-T9 a failed continuation says so beside its control and retries
     expect(await screen.findByRole('alert')).toHaveTextContent(
       copy['placeSearch.moreFailed'],
     );
+  });
+});
+
+describe('FE-103-T18 the same control retries a failed continuation', () => {
+  it('FE-103-T18 brings the page when the control is pressed again', async () => {
+    servePlaceSearchPages({ failNext: 1 });
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+
     // The same control is the retry, and the retry is what brings the page.
-    await user.click(screen.getByRole('button', { name: copy['placeSearch.retryMore'] }));
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.retryMore'] }),
+    );
     expect(await addButton(c.name)).toBeInTheDocument();
     expect(screen.queryByText(copy['placeSearch.moreFailed'])).not.toBeInTheDocument();
   });
