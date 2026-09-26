@@ -410,7 +410,8 @@
         "438:3199"
       ],
       "designRequests": [
-        "FCR-029"
+        "FCR-029",
+        "FCR-038"
       ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -434,6 +435,82 @@
         {
           "id": "FE-103-T4",
           "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
+        },
+        {
+          "id": "FE-103-T5",
+          "assertion": "장소 검색의 다음 page 요청은 직전 page가 준 cursor를 같은 query·locale과 함께 보낸다"
+        },
+        {
+          "id": "FE-103-T6",
+          "assertion": "다음 page의 결과는 이미 받은 결과를 대체하지 않고 그 뒤에 이어 붙는다"
+        },
+        {
+          "id": "FE-103-T7",
+          "assertion": "page가 hasMore=false로 답하면 cursor가 함께 와도 다음 page를 요청하지 않는다"
+        },
+        {
+          "id": "FE-103-T8",
+          "assertion": "다음 page 요청이 실패해도 이미 받은 결과를 지우지 않는다"
+        },
+        {
+          "id": "FE-103-T9",
+          "assertion": "다음 page 요청이 실패하면 계속하기의 실패 문구로 알린다"
+        },
+        {
+          "id": "FE-103-T10",
+          "assertion": "키보드로 누른 계속하기는 새로 추가된 첫 결과로 focus를 옮긴다"
+        },
+        {
+          "id": "FE-103-T11",
+          "assertion": "검색 결과의 혼잡 예보는 page마다 따로 batch로 요청한다"
+        },
+        {
+          "id": "FE-103-T12",
+          "assertion": "page별 혼잡 예보 응답은 그 page 안의 index로 결과 카드에 붙는다"
+        },
+        {
+          "id": "FE-103-T13",
+          "assertion": "다음 page를 받는 동안 계속하기 control은 이름과 aria-busy로 불러오는 중임을 알린다"
+        },
+        {
+          "id": "FE-103-T14",
+          "assertion": "다음 page를 받는 동안 다시 눌러도 다음 page 요청은 한 번만 간다"
+        },
+        {
+          "id": "FE-103-T15",
+          "assertion": "다음 page를 받는 사이 검색어가 바뀌면 그 요청이 끝나도 focus를 옮기지 않는다"
+        },
+        {
+          "id": "FE-103-T16",
+          "assertion": "다음 page가 와도 이미 받은 page의 혼잡 예보 batch를 다시 요청하지 않는다"
+        },
+        {
+          "id": "FE-103-T17",
+          "assertion": "마지막 page(hasMore=false)를 받으면 계속하기 control을 더 보이지 않는다"
+        },
+        {
+          "id": "FE-103-T18",
+          "assertion": "실패한 다음 page는 같은 계속하기 control을 다시 눌러 요청하고 그 page를 받는다"
+        },
+        {
+          "id": "FE-103-T19",
+          "assertion": "다음 page 요청이 실패해도 화면의 첫 page 검색 실패 알림을 띄우지 않는다"
+        },
+        {
+          "id": "FE-103-T20",
+          "assertion": "다음 page 요청이 CURSOR_EXPIRED·CURSOR_INVALID로 거절되면 계속하기 control은 거절된 cursor를 다시 보내지 않고 cursor 없이 첫 page부터 다시 조회한다"
+        },
+        {
+          "id": "FE-103-T21",
+          "assertion": "거절된 cursor 뒤 첫 page부터 다시 조회하는 동안 화면의 첫 page 검색 실패 알림을 띄우지 않는다"
+        },
+        {
+          "id": "FE-103-T22",
+          "assertion": "다음 page를 받는 사이 focus가 계속하기 control을 떠나 다른 요소로 가면 검색어가 같아도 그 page가 도착해 focus를 옮기지 않는다"
+        },
+        {
+          "id": "FE-103-T23",
+          "assertion": "거절된 cursor 뒤 첫 page부터 다시 조회하는 동안 계속하기를 다시 눌러도 거절된 cursor로 요청을 보내지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

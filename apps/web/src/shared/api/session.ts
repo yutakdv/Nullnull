@@ -11,8 +11,11 @@
 import {
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import type { SupportedLocale } from '../../i18n/locales.js';
@@ -554,6 +557,7 @@ export function useFeed(tripId: string | null = null, enabled = true) {
 }
 
 type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
+type PlaceSummary = components['schemas']['PlaceSummary'];
 type PlaceSearchRequest = components['schemas']['PlaceSearchRequest'];
 type PlaceDetail = components['schemas']['PlaceDetail'];
 type CrowdSeries = components['schemas']['CrowdSeries'];
@@ -607,50 +611,107 @@ export function usePlaceCrowdForecast(
   });
 }
 
+/** What {@link usePlaceCrowdForecasts} answers for a list of search pages. */
+export interface PlaceCrowdForecastPages {
+  /** The series for each place, in the order the pages list them. */
+  items: (CrowdSeries | undefined)[];
+  isError: boolean;
+  isFetching: boolean;
+}
+
 /**
- * Dated crowd series for a visible list of place cards.
+ * Dated crowd series for a visible list of place cards, one batch per page.
  *
  * The contract defines `items[i]` as the answer for `placeIds[i]`, including
  * when a deprecated id resolves to a different canonical id. Callers must keep
  * this array order and join by index; they must never sort by the relative
  * values, which are normalized independently for each place.
+ *
+ * One request per search page rather than one for the whole list, for two
+ * reasons (FE-103-T11, T16). The batch takes at most 50 ids, and a search that
+ * keeps going (#54) passes that on its third page of 20 — this used to be one
+ * batch that disabled itself above 50, so every card would have lost its
+ * reading at once, with no error to say why. And a page's batch keeps its own cache entry,
+ * so fetching page two does not ask for page one's forecasts again. A page is
+ * never more than 50: `PlaceSearchRequest.limit` is capped there.
  */
 export function usePlaceCrowdForecasts(
-  placeIds: readonly string[],
+  pages: readonly (readonly string[])[],
   startDate: string | null,
   endDate: string | null,
   enabled = true,
-): UseQueryResult<PlaceCrowdForecastQueryResult, Problem | Error> {
+): PlaceCrowdForecastPages {
   const window =
     startDate === null || endDate === null ? null : crowdWindow(startDate, endDate);
-  const ids = [...placeIds];
 
-  return useQuery({
-    queryKey: ['places', 'crowd-forecasts', ids, window?.from ?? '', window?.to ?? ''],
-    enabled: enabled && ids.length > 0 && ids.length <= 50 && window !== null,
-    queryFn: async () => {
-      if (ids.length === 0 || ids.length > 50 || window === null) {
-        throw new Error('Crowd forecast batch is missing a valid place or date window');
-      }
-      const { data, error, response } = await getApiClient().POST(
-        '/places/crowd-forecasts/query',
-        { body: { placeIds: ids, ...window } },
-      );
-      if (!data) fail(error, response);
-      return data;
-    },
-    staleTime: 0,
+  return useQueries({
+    queries: pages.map((placeIds) => {
+      const ids = [...placeIds];
+      return {
+        queryKey: [
+          'places',
+          'crowd-forecasts',
+          ids,
+          window?.from ?? '',
+          window?.to ?? '',
+        ],
+        enabled: enabled && ids.length > 0 && ids.length <= 50 && window !== null,
+        queryFn: async (): Promise<PlaceCrowdForecastQueryResult> => {
+          if (ids.length === 0 || ids.length > 50 || window === null) {
+            throw new Error(
+              'Crowd forecast batch is missing a valid place or date window',
+            );
+          }
+          const { data, error, response } = await getApiClient().POST(
+            '/places/crowd-forecasts/query',
+            { body: { placeIds: ids, ...window } },
+          );
+          if (!data) fail(error, response);
+          return data;
+        },
+        staleTime: 0,
+      };
+    }),
+    combine: (results) => ({
+      // Joined per page, by the index within that page: `items[i]` answers the
+      // i-th id of the request it came back from, not of the whole list.
+      items: pages.flatMap((placeIds, page) =>
+        placeIds.map((_, index) => results[page]?.data?.items[index]),
+      ),
+      isError: results.some((result) => result.isError),
+      isFetching: results.some((result) => result.isFetching),
+    }),
   });
 }
 
+/** Every search page received so far, and the same places in one list. */
+export interface PlaceSearchResults {
+  /** All places, in the order the pages returned them. */
+  items: PlaceSummary[];
+  /** The same places split at page boundaries, for per-page batches. */
+  pages: PlaceSummary[][];
+}
+
+function joinSearchPages(data: InfiniteData<PlaceSearchPage>): PlaceSearchResults {
+  const pages = data.pages.map((page) => page.items);
+  return { items: pages.flat(), pages };
+}
+
 /**
- * Canonical place search.
+ * Canonical place search, one cursor page at a time.
  *
  * A read-only POST by contract: the query is free-form text, and putting it in
  * a URL would leak it into CDN, proxy and browser history logs. The response is
  * `no-store` for the same reason, so this is not cached across sessions either.
  *
- * MOCK DATA today; replaced when BA-022 lands.
+ * useInfiniteQuery for the reason useFeed gives: the next page is reachable
+ * only through the `nextCursor` the previous one returned, so the pages have
+ * to accumulate in one cache entry. It used to ask for page one only, which
+ * made a match past the 20th unreachable from every search box (#54 §4).
+ *
+ * The hook calls the real generated client. Tests and the mock dev server
+ * answer from the BE-authored `places` fixture set, which is not yet a captured
+ * server response (packages/contracts/fixtures/manifest.json).
  */
 export function usePlaceSearch(
   query: string,
@@ -660,22 +721,35 @@ export function usePlaceSearch(
    * contract's ko-KR default under an English UI.
    */
   locale: SupportedLocale,
-): UseQueryResult<PlaceSearchPage, Problem | Error> {
+): UseInfiniteQueryResult<PlaceSearchResults, Problem | Error> {
   const trimmed = query.trim();
-  return useQuery({
+  return useInfiniteQuery({
     // The query text is part of the cache key but never leaves the client in a
     // URL; the request carries it in the body. The locale is part of the key
     // too: the same words in another language are another answer.
     queryKey: ['places', 'search', locale, trimmed],
     enabled: trimmed.length > 0,
-    queryFn: async () => {
-      const body: PlaceSearchRequest = { query: trimmed, locale };
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      // The cursor rides with the query and locale that minted it: the server
+      // binds it to the query (BA-022-T2) and to the locale (BA-022-T11), and
+      // rejects it under any other.
+      const body: PlaceSearchRequest = {
+        query: trimmed,
+        locale,
+        ...(pageParam === null ? {} : { cursor: pageParam }),
+      };
       const { data, error, response } = await getApiClient().POST('/places/search', {
         body,
       });
       if (!data) fail(error, response);
       return data;
     },
+    // hasMore is the contract's own flag, as in useFeed: a cursor that comes
+    // back with hasMore false is not an invitation to ask again.
+    getNextPageParam: (last) =>
+      last.page.hasMore ? (last.page.nextCursor ?? null) : null,
+    select: joinSearchPages,
   });
 }
 

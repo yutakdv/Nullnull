@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -9,6 +9,7 @@ import {
   PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ManualStopsStep.module.css';
 import {
@@ -77,6 +78,8 @@ export function ManualStopsStep({
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const search = usePlaceSearch(addingTo === null ? '' : query, locale);
+  const results = search.data?.items ?? [];
+  const resultList = useRef<HTMLUListElement>(null);
 
   const days = tripDays(draft);
 
@@ -202,17 +205,20 @@ export function ManualStopsStep({
                           {t('manual.searching')}
                         </p>
                       ) : null}
-                      {search.isError ? (
+                      {/* A failed search. A failed later page leaves the results
+                          standing and reports beside its own control
+                          (searchFailed). */}
+                      {searchFailed(search) ? (
                         <p className={styles.state} role="alert">
                           {t('manual.searchError')}
                         </p>
                       ) : null}
-                      {search.isSuccess && search.data.items.length === 0 ? (
+                      {search.isSuccess && results.length === 0 ? (
                         <p className={styles.state}>{t('manual.noResults')}</p>
                       ) : null}
-                      {search.isSuccess && search.data.items.length > 0 ? (
-                        <ul className={styles.results}>
-                          {search.data.items.map((place) => (
+                      {results.length > 0 ? (
+                        <ul className={styles.results} ref={resultList}>
+                          {results.map((place) => (
                             <li className={styles.result} key={place.id}>
                               {place.thumbnailUrl && place.thumbnailAttribution ? (
                                 <PlaceThumbnail place={place} size={44} />
@@ -241,6 +247,7 @@ export function ManualStopsStep({
                           ))}
                         </ul>
                       ) : null}
+                      <PlaceSearchMore list={resultList} search={search} />
                     </>
                   ) : null}
                   <button type="button" className={styles.cancel} onClick={closeSearch}>

@@ -11,6 +11,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 import { imageChecksum, uploadPostImage } from '../authoring.js';
 
@@ -85,6 +90,78 @@ describe('FE-603-T5 a chosen place keeps its credit', () => {
       'href',
       credit.officialUrl ?? '',
     );
+  });
+});
+
+describe('#54 the place checklist continues past the first page', () => {
+  it('offers a place from the next page to link', async () => {
+    // The continuation itself is proven by FE-103-T5..T23 (place-search.test.tsx,
+    // must-visit.test.tsx); this is the wiring of this screen's own checklist.
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    const user = userEvent.setup();
+    mount();
+    await user.type(await screen.findByLabelText(copy['author.search']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    expect(await screen.findByRole('checkbox', { name: next.name })).toBeInTheDocument();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
+  });
+});
+
+describe('FE-103-T19 a failed next page is not a failed search here', () => {
+  it('FE-103-T8 FE-103-T19 keeps the checklist and adds no search failure', async () => {
+    // The screen's own alert is for a search that failed outright; a failed
+    // page two is the continuation's to report.
+    servePlaceSearchPages({ failNext: 1 });
+    const [a, b] = searchPages.first;
+    const user = userEvent.setup();
+    mount();
+    await user.type(await screen.findByLabelText(copy['author.search']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    for (const place of [a, b]) {
+      expect(screen.getByRole('checkbox', { name: place.name })).toBeInTheDocument();
+    }
+    expect(screen.queryByText(copy['author.searchFailed'])).toBeNull();
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter((alert) => alert.textContent !== copy['placeSearch.moreFailed']),
+    ).toEqual([]);
+  });
+});
+
+describe('FE-103-T21 restarting after a refused cursor is not a failed search here', () => {
+  it('FE-103-T21 adds no search failure while page one is asked for again', async () => {
+    // The query still holds the cursor error while the restart runs, no
+    // longer as a next-page error; the search itself has not failed.
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    const user = userEvent.setup();
+    mount();
+    await user.type(await screen.findByLabelText(copy['author.search']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(copy['author.searchFailed'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
   });
 });
 
