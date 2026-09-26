@@ -25,8 +25,10 @@ import { PARTICLES } from './particles.js';
 // to say getCurrentOwner did, and no code does. The record starts at ko-KR, so
 // it cannot tell a choice from the default: applying it at bootstrap would
 // turn an English browser Korean on its first visit. It starts there only
-// because the bootstrap names no locale — session.ts posts an empty body and
-// ko-KR is the server's default for that — not because the contract forces it.
+// because the bootstrap names no locale — session.ts posts no body (the `{}`
+// there is openapi-fetch's request init, not a body, so neither a body nor a
+// Content-Type goes out) and ko-KR is the server's default for that — not
+// because the contract forces it.
 //
 // When to trust it is not decided yet. The options: (a) apply it only once
 // onboarding is complete and nothing is stored locally, (b) have the contract
