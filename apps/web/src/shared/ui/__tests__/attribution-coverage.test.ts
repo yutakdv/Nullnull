@@ -152,7 +152,7 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip-create/ImportPasteScreen.tsx :: place': { sites: 1, credits: 1 },
   'app/trip-create/ManualStopsStep.tsx :: place': { sites: 2, credits: 1 },
   'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 3, credits: 1 },
-  'app/trip-create/MustVisitScreen.tsx :: place': { sites: 4, credits: 2 },
+  'app/trip-create/MustVisitScreen.tsx :: place': { sites: 5, credits: 2 },
   'app/trip-create/RecommendedDraftStep.tsx :: stop.place': { sites: 2, credits: 1 },
   'app/trip/AddPlaceScreen.tsx :: place': { sites: 3, credits: 1 },
   'app/trip/CandidatesScreen.tsx :: candidate.place': { sites: 3, credits: 1 },
