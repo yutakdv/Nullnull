@@ -361,7 +361,8 @@
         "BA-022"
       ],
       "operations": [
-        "searchPlaces"
+        "searchPlaces",
+        "addTripCandidate"
       ],
       "featureIds": [
         "FR-TRC-04",
@@ -374,7 +375,8 @@
         "438:3199"
       ],
       "designRequests": [
-        "FCR-029"
+        "FCR-029",
+        "FCR-039"
       ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -398,6 +400,54 @@
         {
           "id": "FE-103-T4",
           "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
+        },
+        {
+          "id": "FE-103-T30",
+          "assertion": "이대로 채우기는 createTrip 뒤 고른 장소마다 addTripCandidate를 한 번씩, 생성된 tripId로 { placeId, source: SEARCH, mustVisit: true }와 장소별 Idempotency-Key를 실어 보낸다"
+        },
+        {
+          "id": "FE-103-T31",
+          "assertion": "고른 장소가 모두 저장된 뒤에만 여행을 active trip으로 두고 /trip/{id}로 replace 이동한다"
+        },
+        {
+          "id": "FE-103-T32",
+          "assertion": "일부 장소 저장이 실패하면 마법사에 남아 여행은 만들어졌고 저장하지 못한 장소를 이름으로 알리는 alert를 보인다"
+        },
+        {
+          "id": "FE-103-T33",
+          "assertion": "다시 시도는 실패한 장소만 같은 여행에 처음 만든 같은 Idempotency-Key로 다시 보내고 모두 저장되면 여행을 연다"
+        },
+        {
+          "id": "FE-103-T34",
+          "assertion": "만든 여행을 들고 있는 동안 어떤 조작도 createTrip을 다시 보내지 않는다(이대로 채우기·건너뛰기·이전 단계를 두지 않는다)"
+        },
+        {
+          "id": "FE-103-T35",
+          "assertion": "여행으로 가기는 실패한 장소를 다시 보내지 않고 만든 여행을 연다"
+        },
+        {
+          "id": "FE-103-T36",
+          "assertion": "건너뛰기는 담아 둔 장소가 있어도 후보를 하나도 쓰지 않는다"
+        },
+        {
+          "id": "FE-103-T37",
+          "assertion": "createTrip이 답한 뒤 새로고침하면 같은 여행을 다시 만들 초안이 복원되지 않는다"
+        },
+        {
+          "id": "FE-103-T38",
+          "assertion": "보내기가 시작된 뒤에는 담기·빼기가 막혀 보낸 목록과 화면의 목록이 같다"
+        },
+        {
+          "id": "FE-103-T39",
+          "assertion": "부분 실패 상태가 나타나면 focus가 다시 시도 버튼으로 돌아온다"
+        },
+        {
+          "id": "FE-103-T40",
+          "assertion": "부분 실패 상태는 360px·200% zoom과 ko/en에서 가로로 넘치거나 잘리지 않고 고정 bar에 가리지 않게 보인다"
+        },
+        {
+          "id": "FE-103-T41",
+          "assertion": "부분 실패 상태의 다시 시도·여행으로 가기는 360px·200% zoom과 ko/en에서 44px 이상 터치 타깃이다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -866,6 +916,10 @@
         {
           "id": "FE-303-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-303-T4",
+          "assertion": "mustVisit이 true인 후보 카드에만 현재 locale의 꼭 가요 badge를 보인다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

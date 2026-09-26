@@ -246,7 +246,7 @@ for (const [locale, width] of [
   ['ko-KR', 180],
   ['en-US', 360],
 ] as const) {
-  test(`FE-103-T40 the partial-failure state holds at ${String(width)}px in ${locale}`, async ({
+  test(`FE-103-T40 FE-103-T41 the partial-failure state holds at ${String(width)}px in ${locale}`, async ({
     page,
   }) => {
     // 180px is 360px at 200% zoom, the way the other reflow checks emulate it.
