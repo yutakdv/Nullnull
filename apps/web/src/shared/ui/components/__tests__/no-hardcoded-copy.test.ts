@@ -13,12 +13,13 @@
 // defaults takes a caller's words through a prop, and with none it reads the
 // selected locale (useOptionalI18n) before it ever reaches its defaults.
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // vitest runs with apps/web as the root, the same base the fixture test uses.
 const COMPONENTS = resolve(process.cwd(), 'src/shared/ui/components');
-const APP = resolve(process.cwd(), 'src/app');
+const SRC = resolve(process.cwd(), 'src');
 const HANGUL = /[가-힣]/;
 
 /** Strips comments and import lines so only real code is scanned. */
@@ -66,20 +67,62 @@ function componentFiles(): string[] {
   );
 }
 
+/** The roots walked for Korean literals, relative to src. */
+const ROOTS = ['app', 'shared'];
+
 /**
- * Every screen under src/app, walked recursively.
- *
- * The guard above reads ONE flat directory, so 23 shared components were
- * checked while 28 screens were not — and that is how the trip wizard shipped
- * `['일','월','화','수','목','금','토']` as its calendar headers, giving an
- * English reader a Korean calendar. Screens are where user-visible copy
- * actually lives, so scanning components alone checks the smaller half.
- *
- * Screens take no label props, so there is no override list here: a screen
- * reads the active locale through useI18n. Any Korean literal in one is a
- * string an English reader would be shown.
+ * Directories under the roots whose Korean is data, not copy: the MSW mock
+ * server answers with server-shaped records (a place called 한옥마을, a
+ * server-written summary). It runs only with VITE_API_MOCKING and says what the
+ * server would say, which is never the client's to translate.
  */
-function screenFiles(): { name: string; path: string }[] {
+const DATA_DIRS = ['shared/testing/'];
+
+/**
+ * Files that may hold Korean outside the locale, each with its reason and the
+ * EXACT literals it holds. Exact, so a new Korean string added to an excepted
+ * file still fails here - an exception is for these strings, not the file.
+ */
+const EXCEPTIONS: Record<string, { reason: string; literals: readonly string[] }> = {
+  'app/App.tsx': {
+    reason:
+      'RootErrorBoundary renders outside I18nProvider, so it says Korean and ' +
+      'English side by side, each line marked with its own lang (FE-001-T5).',
+    literals: ['널널', '앱을 시작하지 못했어요. 새로고침해주세요.'],
+  },
+  'app/data-guide/guide-sources.ts': {
+    reason:
+      "The server's approved credit wording and source names, written out " +
+      'verbatim and checked against the server by data-guide.test.tsx. A credit ' +
+      'is never translated (CMP-ATT-003).',
+    literals: [
+      '한국관광공사 국문 관광정보',
+      '출처: ⓒ한국관광공사',
+      '한국관광공사 영문 관광정보',
+      '출처: ⓒ한국관광공사',
+      '한국관광공사 관광지 집중률 예측',
+      '출처: ⓒ한국관광공사',
+      '서울 실시간 도시데이터',
+      '출처: 서울특별시 「서울시 실시간 도시데이터」(2022년 공개, 공공누리 제1유형)',
+    ],
+  },
+};
+
+/**
+ * Every .ts/.tsx file under src/app and src/shared, walked recursively.
+ *
+ * This walk has been too narrow twice. It first read ONE flat directory, so 23
+ * shared components were checked while 28 screens were not - that is how the
+ * trip wizard shipped `['일','월','화','수','목','금','토']` as its calendar
+ * headers. Then it read screens, but only `.tsx` under src/app and only quoted
+ * strings: a `.ts` file there (guide-sources.ts) and all of src/shared outside
+ * the components folder went unread.
+ *
+ * The components that keep Korean defaults (DEFAULTS_WITH_OVERRIDE) are left
+ * out: the describe above holds them to their own rule (a prop, and the locale
+ * before the default).
+ */
+function codeFiles(): { name: string; path: string }[] {
   const found: { name: string; path: string }[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -87,15 +130,55 @@ function screenFiles(): { name: string; path: string }[] {
       if (entry.isDirectory()) {
         if (entry.name !== '__tests__') walk(full);
       } else if (
-        entry.name.endsWith('.tsx') &&
+        /\.tsx?$/.test(entry.name) &&
+        !entry.name.endsWith('.d.ts') &&
         !entry.name.endsWith('.stories.tsx') &&
         !entry.name.includes('.test.')
       ) {
-        found.push({ name: relative(APP, full), path: full });
+        found.push({ name: relative(SRC, full), path: full });
       }
     }
   };
-  walk(APP);
+  for (const root of ROOTS) walk(join(SRC, root));
+  return found.filter(
+    ({ name, path }) =>
+      !DATA_DIRS.some((dir) => name.startsWith(dir)) &&
+      !(path.startsWith(COMPONENTS) && basename(path) in DEFAULTS_WITH_OVERRIDE),
+  );
+}
+
+/**
+ * The Korean-bearing literals in a file, read by the TypeScript parser: JSX
+ * text, string literals, and every chunk of a template literal.
+ *
+ * Not a regex over quotes. That regex could not see JSX text at all - `<p>안녕</p>`
+ * has no quote around it - which is how App.tsx's Korean line sat unnoticed.
+ * Comments are not nodes, so Figma wording quoted in a comment is not copy.
+ */
+function koreanLiterals(path: string): string[] {
+  const file = ts.createSourceFile(
+    path,
+    readFileSync(path, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isJsxText(node) ||
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
+      const text = node.text.trim();
+      if (HANGUL.test(text)) found.push(text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
   return found;
 }
 
@@ -136,24 +219,43 @@ describe('shared components do not lock the user into one language', () => {
   });
 });
 
-describe('screens do not lock the user into one language', () => {
-  const screens = screenFiles();
+describe('FE-001-T6 app and shared code keep their Korean in the locale', () => {
+  const files = codeFiles();
 
-  it('finds the screens to scan at all', () => {
-    // Without this the suite below would silently pass if the walk broke or the
-    // directory moved — zero cases is not zero violations. The repository has
-    // well over twenty screens; the floor only has to be high enough that an
-    // empty or one-file result fails.
-    expect(screens.length).toBeGreaterThan(20);
+  it('finds the files to scan at all, under every directory it walks', () => {
+    // Without this the suite below would silently pass if the walk broke or a
+    // directory moved - zero cases is not zero violations. Each directory
+    // directly under the roots must contribute, so a walk that stopped at one
+    // root, or skipped `.ts`, fails here rather than passing on fewer files.
+    expect(files.length).toBeGreaterThan(80);
+    for (const root of ROOTS) {
+      for (const entry of readdirSync(join(SRC, root), { withFileTypes: true })) {
+        const dir = `${root}/${entry.name}/`;
+        if (!entry.isDirectory() || entry.name === '__tests__') continue;
+        if (DATA_DIRS.includes(dir)) continue;
+        expect(
+          files.some(({ name }) => name.startsWith(dir)),
+          `${dir} contributed no file`,
+        ).toBe(true);
+      }
+    }
+    expect(files.some(({ name }) => name.endsWith('.ts'))).toBe(true);
   });
 
-  it.each(screens)('$name has no hardcoded Korean string', ({ path }) => {
-    const body = code(readFileSync(path, 'utf8'));
-    const literals = [...body.matchAll(/['"`]([^'"`\n]*[가-힣][^'"`\n]*)['"`]/g)].map(
-      (match) => match[1],
-    );
-    // A screen renders copy through useI18n, so a Korean literal here is text
-    // an English reader would be shown.
-    expect(literals, `${path} hardcodes Korean copy`).toEqual([]);
+  it('keeps every exception pointed at a file it scans', () => {
+    // An exception for a file that moved or was deleted is stale, and would
+    // quietly excuse the next file given its name.
+    for (const name of Object.keys(EXCEPTIONS)) {
+      expect(files.map((file) => file.name)).toContain(name);
+    }
+  });
+
+  it.each(files)('$name has no Korean literal outside the locale', ({ name, path }) => {
+    // Screens and shared code read copy through the locale (useI18n,
+    // useOptionalI18n), so a Korean literal here is text an English reader
+    // would be shown - unless the file is an exception, for exactly its
+    // listed strings.
+    const expected = [...(EXCEPTIONS[name]?.literals ?? [])].sort();
+    expect(koreanLiterals(path).sort(), `${name} holds Korean copy`).toEqual(expected);
   });
 });

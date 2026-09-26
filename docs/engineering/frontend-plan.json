@@ -102,6 +102,14 @@
         {
           "id": "FE-001-T4",
           "assertion": "한국어 기본값을 가진 공유 컴포넌트는 앱 안에서 caller가 문구를 넘기지 않아도 선택한 locale의 문구를 쓴다(한국어 기본값은 I18nProvider 없는 렌더에서만 쓰인다)"
+        },
+        {
+          "id": "FE-001-T5",
+          "assertion": "root 오류 경계는 한국어 줄과 영어 줄에 각자의 lang을 달아, 영어 세션 뒤(html lang이 en-US)에도 한국어 줄을 한국어로 읽게 한다"
+        },
+        {
+          "id": "FE-001-T6",
+          "assertion": "src/app·src/shared 코드의 JSX 텍스트·문자열·template literal에 locale을 거치지 않는 한국어가 없다(명시한 예외 파일의 정확한 문자열, 한국어 기본값 컴포넌트, mock 데이터 디렉터리 제외)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
