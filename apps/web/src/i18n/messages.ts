@@ -969,6 +969,9 @@ export const messages = {
     'trip.item.actions': '{name} 항목 메뉴',
     'trip.editStart': '일정 편집',
     'trip.titleEdit': '여행 이름 수정',
+    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
+    // node draws it; named for the dates because that edit is reached only here.
+    'trip.settingsOpen': '여행 기간·정보 수정',
     'trip.titleSaveFailed': '여행 이름을 저장하지 못했어요. 다시 시도해 주세요',
     'trip.editSave': '변경사항 저장',
     'trip.editSaving': '저장하는 중이에요',
@@ -1912,6 +1915,9 @@ export const messages = {
     'trip.item.actions': '{name} item actions',
     'trip.editStart': 'Edit itinerary',
     'trip.titleEdit': 'Edit trip name',
+    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
+    // node draws it; named for the dates because that edit is reached only here.
+    'trip.settingsOpen': 'Edit trip dates and details',
     'trip.titleSaveFailed': "We couldn't save the trip name. Try again",
     'trip.editSave': 'Save changes',
     'trip.editSaving': 'Saving',
