@@ -1,18 +1,26 @@
 import { expect, test, type Page } from '@playwright/test';
+import { composedStack, openScreen } from './open-screen.js';
 import { overflow } from './overflow.js';
-import { SCREENS } from './screens.js';
+import { SCREENS, type Screen } from './screens.js';
 
-const composedStack = Boolean(
-  process.env.PLAYWRIGHT_BASE_URL ?? process.env.WEB_BASE_URL,
-);
+// page.route does not see a request a service worker handled. In the gate the
+// production build registers public/sw.js, and openScreen serves the approved
+// READY run with page.route there, so the worker is blocked in that mode. The
+// mock run keeps it: MSW is itself a service worker, and blocking it would
+// leave every screen with no API at all. The splash cases override this with
+// their own block in both modes (openHeldSplash below).
+test.use({ serviceWorkers: composedStack ? 'block' : 'allow' });
 
-// The composed stack keeps optimization off, so its optimization route cannot
-// prove FE-503-T3. Keep running the general responsive cases there, but attach
-// the acceptance ID and READY-content guard only to the local MSW run that can
-// render the real proposal and decision bar. Do not skip: the report gate
-// rejects any skipped E2E testcase and would discard the whole suite.
+// FE-503-T3 rides on the optimization-run case of the three describes that
+// measure its clause. It used to be attached to the mock run only, because the
+// gate kept optimization off and its copy of this route drew another screen.
+// Both runs now reach the READY preview — the mock through MSW, the gate
+// through the approved example (screens.ts, GateReach) — and openScreen fails
+// the case before anything is measured when the READY heading is not there,
+// so the ID is earned in both. Do not skip instead: the report gate rejects
+// any skipped E2E testcase and would discard the whole suite.
 function fe503T3AcceptanceId(screenName: string) {
-  return !composedStack && screenName === 'optimization run' ? 'FE-503-T3 ' : '';
+  return screenName === 'optimization run' ? 'FE-503-T3 ' : '';
 }
 
 // FE-101 (A-1/A-2/A-3) and FE-105 (S14) own a screen each, so their layout and
@@ -86,15 +94,24 @@ async function openHeldSplash(page: Page) {
   });
 }
 
-async function expectOptimizationRunContent(page: Page, screenName: string) {
-  if (composedStack || screenName !== 'optimization run') return;
+/**
+ * Opens a SCREENS entry for measuring: the splash held in flight (above), every
+ * other entry through openScreen, which proves the entry reached its own screen
+ * — for a `/trip/…` entry, in the gate too — before anything is measured. The
+ * splash has no `shows` for openScreen to wait on and leaves on its own, so
+ * openScreen alone would measure whatever it redirected to.
+ */
+async function openMeasured(page: Page, screen: Screen) {
+  if (screen.name === SPLASH) {
+    await openHeldSplash(page);
+  } else {
+    await openScreen(page, screen);
+  }
+}
 
-  await expect(
-    page.getByRole('heading', {
-      level: 1,
-      name: /대안을 확인해 주세요|Review the alternatives/,
-    }),
-  ).toBeVisible({ timeout: 10_000 });
+/** FE-503's READY preview past its heading (which openScreen checks): the decision bar. */
+async function expectDecisionBar(page: Page, screenName: string) {
+  if (screenName !== 'optimization run') return;
   await expect(
     page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
   ).toBeVisible();
@@ -134,13 +151,8 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
     test.describe(() => {
       if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
       test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
-        await expectOptimizationRunContent(page, screen.name);
+        await openMeasured(page, screen);
+        await expectDecisionBar(page, screen.name);
         const result = await overflow(page);
         expect(result.spilling, `${screen.name} has content past the viewport`).toEqual(
           [],
@@ -164,13 +176,8 @@ test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () 
       test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
         page,
       }) => {
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
-        await expectOptimizationRunContent(page, screen.name);
+        await openMeasured(page, screen);
+        await expectDecisionBar(page, screen.name);
         const result = await overflow(page);
         // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
         //
@@ -203,12 +210,7 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
     test.describe(() => {
       if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
       test(`${screen.name} holds the longer strings`, async ({ page }) => {
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
+        await openMeasured(page, screen);
         await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
         const result = await overflow(page);
         expect(result.spilling).toEqual([]);
@@ -256,13 +258,8 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-10
       test(`${acceptanceId}${screen.name} puts focus on something visible`, async ({
         page,
       }) => {
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
-        await expectOptimizationRunContent(page, screen.name);
+        await openMeasured(page, screen);
+        await expectDecisionBar(page, screen.name);
 
         // EIGHT presses, not one. One press only ever measured each screen's
         // first stop, and the defect this exists to catch was on the SECOND:
@@ -442,12 +439,13 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 // paste-screen motion; FE-203-T4 owns the sheet focus restore; FE-203-T5 owns
 // the saved-place screen's reduced motion.
 //
-// FE-503's READY preview is now implemented and SCREENS uses MOCK_RUN_ID, so
-// the local MSW run reaches the real proposal and decision bar. The screen has
-// no dialog or sheet, making the focus-return half of T4 inapplicable; this
-// case proves its remaining reduced-motion half. The former FE-505 applied
-// panel is no longer mounted on trip detail by product decision, so its route
-// boundary is covered by applied-panel.spec.ts instead.
+// FE-503's READY preview is reached in both runs: the mock through MSW's
+// MOCK_RUN_ID, the gate through the approved example served with page.route
+// (screens.ts, GateReach). The screen has no dialog or sheet, making the
+// focus-return half of T4 inapplicable; this case proves its remaining
+// reduced-motion half. The former FE-505 applied panel is no longer mounted on
+// trip detail by product decision, so its route boundary is covered by
+// applied-panel.spec.ts instead.
 //
 // It does NOT reuse the assertion above, because that assertion cannot fail.
 // Measured: delete the `prefers-reduced-motion` block from styles.css and
@@ -479,28 +477,18 @@ test.describe('FE-104-T4 FE-203-T5 reduced motion, per screen', () => {
         page,
       }) => {
         await page.emulateMedia({ reducedMotion: 'reduce' });
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
+        // openScreen waits for the READY heading on the optimization-run entry,
+        // in both runs. That guard is what FE-503-T4's ID stands on: without it
+        // this case passes on whatever the route drew while measuring only the
+        // global stylesheet. Until this change the guard ran in the mock run
+        // alone and the ID was attached in both, so the gate credited T4 on a
+        // route that could not draw a proposal there (read from the code; the
+        // gate's own report was not opened for this).
+        await openMeasured(page, screen);
 
-        if (screen.name === 'optimization run' && !composedStack) {
-          // The local MSW state machine reaches READY on its third read. Guard
-          // the real FE-503 content before crediting its ID: otherwise this case
-          // could pass on the route's not-found screen while measuring only the
-          // global stylesheet. The composed gate keeps the optimization
-          // capability off, so there the probe below is the honest boundary.
-          await expect(
-            page.getByRole('heading', {
-              level: 1,
-              name: /대안을 확인해 주세요|Review the alternatives/,
-            }),
-          ).toBeVisible({ timeout: 10_000 });
-          await expect(
-            page.getByRole('group', { name: /최적화 결정|Optimization decision/ }),
-          ).toBeVisible();
+        if (screen.name === 'optimization run') {
+          await expectDecisionBar(page, screen.name);
+          // T4's "dialog·sheet가 없는 READY 화면" half: none mounted at all.
           await expect(page.locator('dialog')).toHaveCount(0);
         }
 
@@ -585,12 +573,7 @@ test.describe('touch targets', () => {
     test.describe(() => {
       if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
       test(`${screen.name} keeps every control tappable`, async ({ page }) => {
-        if (screen.name === SPLASH) {
-          await openHeldSplash(page);
-        } else {
-          await page.goto(screen.path);
-          await page.waitForLoadState('networkidle');
-        }
+        await openMeasured(page, screen);
 
         const undersized = await page.evaluate((min) => {
           const found: string[] = [];
@@ -644,15 +627,15 @@ test.describe('the app shell fits the screen', () => {
   // shell came to twice that and the bar sat ~750px below the fold. Desktop
   // Chrome hid it — `position: sticky` still clamped the bar into view — which
   // is why this measures the document rather than the bar's own rectangle.
-  for (const path of [
-    '/profile',
-    '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01',
-    '/live',
-    '/feed',
-  ]) {
-    test(`${path} does not scroll the page itself`, async ({ page }) => {
-      await page.goto(path);
-      await page.waitForLoadState('networkidle');
+  //
+  // Opened through openScreen for the trip, which in the gate would otherwise
+  // be the not-found screen — a heading and one line, too short to push the
+  // bar anywhere, so the check could not have failed there.
+  for (const name of ['profile', 'trip', 'live', 'feed']) {
+    const screen = SCREENS.find((entry) => entry.name === name);
+    if (!screen) throw new Error(`SCREENS has no entry named ${name}`);
+    test(`${screen.path} does not scroll the page itself`, async ({ page }) => {
+      await openScreen(page, screen);
       const { docHeight, viewportHeight } = await page.evaluate(() => ({
         docHeight: document.documentElement.scrollHeight,
         viewportHeight: window.innerHeight,

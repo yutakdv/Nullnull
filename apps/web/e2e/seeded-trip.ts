@@ -30,6 +30,18 @@ const GYEONGBOKGUNG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01';
 const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
 
 /**
+ * Opens `/` and waits for the session bootstrap, the way a person arrives.
+ *
+ * The splash is the only screen that bootstraps (keyboard-flow.spec.ts has why), so a test
+ * that needs the real API to know who it is goes through it first.
+ */
+export async function startSession(page: Page): Promise<void> {
+  await page.goto('/');
+  // Splash redirects to /language (first visit) or /feed (returning) once bootstrap resolves.
+  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+}
+
+/**
  * Opens `/`, waits for the session bootstrap, then creates a trip from inside the page.
  *
  * From inside the page because that is where the session lives: the browser holds the
@@ -37,9 +49,7 @@ const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
  * path. Navigating afterwards reloads the app, which mints its own CSRF token again.
  */
 export async function createSeededTrip(page: Page): Promise<string> {
-  await page.goto('/');
-  // Splash redirects to /language (first visit) or /feed (returning) once bootstrap resolves.
-  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+  await startSession(page);
 
   // Dates relative to today, so the trip never falls into the past as the calendar moves.
   const day = (offset: number) => {

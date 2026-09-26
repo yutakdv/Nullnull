@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { watchLocation } from './location-watch.js';
+import { composedStack, openScreen } from './open-screen.js';
 import { SCREENS } from './screens.js';
 
 // CMP-LOC-002: the submission build asks for no location, anywhere.
@@ -39,6 +40,10 @@ import { SCREENS } from './screens.js';
 // COORDINATE_PARAM in location-watch.ts for what it excludes and why the
 // precision floor sits where it does.
 
+// Service workers are blocked in the gate only, for openScreen's page.route
+// (responsive.spec.ts has the same line and the reason).
+test.use({ serviceWorkers: composedStack ? 'block' : 'allow' });
+
 for (const screen of SCREENS) {
   test(`FE-603-T1 BA-073-T5 BA-092-T18 ${screen.name} asks for no location`, async ({
     page,
@@ -47,8 +52,10 @@ for (const screen of SCREENS) {
     // is caught too.
     const watch = await watchLocation(page);
 
-    await page.goto(screen.path);
-    await page.waitForLoadState('networkidle');
+    // The path this run can reach the screen at: in the gate a trip screen
+    // opens on a trip the test created, not on the fixture id (screens.ts).
+    const path = await openScreen(page, screen);
+    const here = path.split('?')[0] ?? path;
 
     // Then USE the screen. Loading it only proves nothing asks for location
     // during module evaluation, and the rule is about the whole visit: a call
@@ -79,11 +86,11 @@ for (const screen of SCREENS) {
       // the FIRST control of most screens (a feed card is a link to a post), so
       // everything below it would go untouched. Come back and carry on, which
       // is also what a user does.
-      if (!page.url().includes(screen.path.split('?')[0] ?? screen.path)) {
+      if (!page.url().includes(here)) {
         await page.goBack().catch(() => undefined);
         await page.waitForLoadState('networkidle').catch(() => undefined);
-        if (!page.url().includes(screen.path.split('?')[0] ?? screen.path)) {
-          await page.goto(screen.path).catch(() => undefined);
+        if (!page.url().includes(here)) {
+          await page.goto(path).catch(() => undefined);
           await page.waitForLoadState('networkidle').catch(() => undefined);
         }
       }

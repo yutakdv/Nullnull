@@ -37,11 +37,12 @@ import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
  * ended" — which is what these tests were reading as a keyboard failure.
  *
  * Going through `/` is not a workaround; it is the route a person takes.
- * shell.spec.ts already does the same thing. The other specs that visit these
- * screens directly are fine because they measure what survives ANY state:
- * responsive.spec checks reflow and screens.ts says so in as many words ("the
- * error state has to survive 360px"), and location-off.spec checks that nothing
- * asks for a location, which an error screen also satisfies.
+ * shell.spec.ts already does the same thing. The walks over SCREENS
+ * (responsive.spec, location-off.spec) used to visit these screens directly,
+ * on the grounds that an error screen also reflows and asks for no location -
+ * which is why, in the gate, they only ever measured the error screen. They
+ * now go through open-screen.ts, which reaches a trip screen the same way and
+ * then waits for something only that screen draws.
  */
 async function openWithSession(page: import('@playwright/test').Page, path: string) {
   await page.goto('/');
