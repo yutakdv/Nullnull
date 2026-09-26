@@ -33,24 +33,46 @@ function code(source: string): string {
 }
 
 /**
- * Components allowed to hold Korean defaults, and the prop that overrides each.
+ * Components allowed to hold Korean defaults, the prop that overrides each,
+ * and the module-level declarations its Korean may live in.
  *
  * Being on this list is a promise: the component takes a prop that replaces
  * every user-visible string it owns, and reads the locale when that prop is
  * not given. The test below checks both rather than trusting them, so adding a
  * name here without the prop or the locale fallback still fails.
+ *
+ * `defaults` names where the Korean is, not just that there is some. Without
+ * it the list excused the whole file: a `<span>뒤로 가기</span>` rendered in
+ * every locale passed, because the file had the prop and the hook somewhere
+ * (FE-001-T6 below now reads these files too).
  */
-const DEFAULTS_WITH_OVERRIDE: Record<string, string> = {
-  'StateLabel.tsx': 'labels',
-  'TripAddButton.tsx': 'labels',
-  'DataAttribution.tsx': 'termsLabel',
-  'CrowdLevel.tsx': 'levelLabel',
-  'NavBar.tsx': 'backLabel',
-  'MustVisitBadge.tsx': 'label',
-  'DecisionBar.tsx': 'labels',
-  'CandidateCard.tsx': 'labels',
-  'TripItemCard.tsx': 'labels',
+const DEFAULTS_WITH_OVERRIDE: Record<
+  string,
+  { prop: string; defaults: readonly string[] }
+> = {
+  'StateLabel.tsx': { prop: 'labels', defaults: ['LABELS', 'INCIDENT_LABEL'] },
+  'TripAddButton.tsx': { prop: 'labels', defaults: ['DEFAULT_LABELS'] },
+  'DataAttribution.tsx': { prop: 'termsLabel', defaults: ['DEFAULT_TERMS_LABEL'] },
+  'CrowdLevel.tsx': {
+    prop: 'levelLabel',
+    defaults: ['LEVEL_LABELS', 'SEOUL_LEVEL_LABELS', 'DEFAULT_LEVEL_NAME'],
+  },
+  'NavBar.tsx': { prop: 'backLabel', defaults: ['DEFAULT_BACK_LABEL'] },
+  'MustVisitBadge.tsx': { prop: 'label', defaults: ['DEFAULT_LABEL'] },
+  'DecisionBar.tsx': { prop: 'labels', defaults: ['DEFAULT_LABELS'] },
+  'CandidateCard.tsx': { prop: 'labels', defaults: ['DEFAULT_LABELS'] },
+  'TripItemCard.tsx': {
+    prop: 'labels',
+    defaults: ['DEFAULT_WORDS', 'DEFAULT_MENU_NAME'],
+  },
 };
+
+/** The listed components by their path relative to src, as the walk names files. */
+const COMPONENT_DIR = relative(SRC, COMPONENTS);
+function defaultsOf(name: string): readonly string[] {
+  if (!name.startsWith(`${COMPONENT_DIR}/`)) return [];
+  return DEFAULTS_WITH_OVERRIDE[basename(name)]?.defaults ?? [];
+}
 
 // There was a KNOWN_UNFIXED list here - components that hardcoded Korean with
 // no override, allowed to shrink but never grow. Its last three left it
@@ -116,11 +138,9 @@ const EXCEPTIONS: Record<string, { reason: string; literals: readonly string[] }
  * trip wizard shipped `['일','월','화','수','목','금','토']` as its calendar
  * headers. Then it read screens, but only `.tsx` under src/app and only quoted
  * strings: a `.ts` file there (guide-sources.ts) and all of src/shared outside
- * the components folder went unread.
- *
- * The components that keep Korean defaults (DEFAULTS_WITH_OVERRIDE) are left
- * out: the describe above holds them to their own rule (a prop, and the locale
- * before the default).
+ * the components folder went unread. And the components that keep Korean
+ * defaults were left out whole, so Korean anywhere in those nine files passed;
+ * they are read like any other file now, their named defaults excepted.
  */
 function codeFiles(): { name: string; path: string }[] {
   const found: { name: string; path: string }[] = [];
@@ -140,11 +160,7 @@ function codeFiles(): { name: string; path: string }[] {
     }
   };
   for (const root of ROOTS) walk(join(SRC, root));
-  return found.filter(
-    ({ name, path }) =>
-      !DATA_DIRS.some((dir) => name.startsWith(dir)) &&
-      !(path.startsWith(COMPONENTS) && basename(path) in DEFAULTS_WITH_OVERRIDE),
-  );
+  return found.filter(({ name }) => !DATA_DIRS.some((dir) => name.startsWith(dir)));
 }
 
 /**
@@ -154,8 +170,12 @@ function codeFiles(): { name: string; path: string }[] {
  * Not a regex over quotes. That regex could not see JSX text at all - `<p>안녕</p>`
  * has no quote around it - which is how App.tsx's Korean line sat unnoticed.
  * Comments are not nodes, so Figma wording quoted in a comment is not copy.
+ *
+ * `owner` is the module-level `const` the literal sits in, or null. Only a
+ * top-level declaration counts: a `DEFAULT_*` declared inside a component
+ * body is code on the render path, not a default the file declares.
  */
-function koreanLiterals(path: string): string[] {
+function koreanLiterals(path: string): { text: string; owner: string | null }[] {
   const file = ts.createSourceFile(
     path,
     readFileSync(path, 'utf8'),
@@ -163,7 +183,20 @@ function koreanLiterals(path: string): string[] {
     true,
     path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const found: string[] = [];
+  const ownerOf = (node: ts.Node): string | null => {
+    for (let at: ts.Node | undefined = node.parent; at; at = at.parent) {
+      if (
+        ts.isVariableDeclaration(at) &&
+        ts.isIdentifier(at.name) &&
+        ts.isVariableStatement(at.parent.parent) &&
+        ts.isSourceFile(at.parent.parent.parent)
+      ) {
+        return at.name.text;
+      }
+    }
+    return null;
+  };
+  const found: { text: string; owner: string | null }[] = [];
   const visit = (node: ts.Node) => {
     if (
       ts.isJsxText(node) ||
@@ -174,7 +207,7 @@ function koreanLiterals(path: string): string[] {
       ts.isTemplateTail(node)
     ) {
       const text = node.text.trim();
-      if (HANGUL.test(text)) found.push(text);
+      if (HANGUL.test(text)) found.push({ text, owner: ownerOf(node) });
     }
     ts.forEachChild(node, visit);
   };
@@ -187,7 +220,7 @@ describe('shared components do not lock the user into one language', () => {
     const body = code(readFileSync(join(COMPONENTS, name), 'utf8'));
     if (!HANGUL.test(body)) return;
     // It has Korean, so it must be a default with a documented override.
-    const prop = DEFAULTS_WITH_OVERRIDE[name];
+    const prop = DEFAULTS_WITH_OVERRIDE[name]?.prop;
     expect(
       prop,
       `${name} contains Korean but is not listed in DEFAULTS_WITH_OVERRIDE. ` +
@@ -206,7 +239,7 @@ describe('shared components do not lock the user into one language', () => {
     // (FE-001-T4, measured by render in locale-fallback.test.tsx); this pins
     // that each listed component has it, so a new one cannot join the list
     // with the prop alone.
-    for (const [name, prop] of Object.entries(DEFAULTS_WITH_OVERRIDE)) {
+    for (const [name, { prop }] of Object.entries(DEFAULTS_WITH_OVERRIDE)) {
       const source = readFileSync(join(COMPONENTS, name), 'utf8');
       expect(source, `${name} must declare the ${prop} prop`).toMatch(
         new RegExp(`${prop}\\??:`),
@@ -250,12 +283,31 @@ describe('FE-001-T6 app and shared code keep their Korean in the locale', () => 
     }
   });
 
+  it('keeps every named default pointed at a declaration that holds Korean', () => {
+    // A name that no longer holds Korean - renamed, moved into the component -
+    // is stale, and would quietly excuse the next declaration given its name.
+    // It also shows the scan reads these files at all: each must yield Korean
+    // from each of its named defaults.
+    for (const [name, { defaults }] of Object.entries(DEFAULTS_WITH_OVERRIDE)) {
+      const owners = new Set(
+        koreanLiterals(join(COMPONENTS, name)).map(({ owner }) => owner),
+      );
+      for (const declared of defaults) {
+        expect(owners.has(declared), `${name}: ${declared} holds no Korean`).toBe(true);
+      }
+    }
+  });
+
   it.each(files)('$name has no Korean literal outside the locale', ({ name, path }) => {
     // Screens and shared code read copy through the locale (useI18n,
     // useOptionalI18n), so a Korean literal here is text an English reader
     // would be shown - unless the file is an exception, for exactly its
-    // listed strings.
+    // listed strings, or a listed component, inside its named defaults.
+    const defaults = defaultsOf(name);
+    const outside = koreanLiterals(path)
+      .filter(({ owner }) => owner === null || !defaults.includes(owner))
+      .map(({ text }) => text);
     const expected = [...(EXCEPTIONS[name]?.literals ?? [])].sort();
-    expect(koreanLiterals(path).sort(), `${name} holds Korean copy`).toEqual(expected);
+    expect(outside.sort(), `${name} holds Korean copy`).toEqual(expected);
   });
 });

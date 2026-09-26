@@ -26,6 +26,10 @@ const SEOUL_LEVEL_LABELS: Partial<Record<CrowdOrdinal, string>> = {
   4: '붐빔',
 };
 
+/** The bar's name with no provider; the app takes `crowd.level` or Seoul's own. */
+const DEFAULT_LEVEL_NAME = (level: CrowdOrdinal, steps: number) =>
+  `${String(steps)}단계 중 ${String(level)}번째`;
+
 export interface CrowdLevelProps {
   crowd: CrowdMetric | null;
   /** Unavailable data must say so rather than rendering an empty bar. */
@@ -110,7 +114,7 @@ export function CrowdLevel({
           level: n,
           steps: publishedSteps,
         })
-      : `${String(publishedSteps)}단계 중 ${String(n)}번째`);
+      : DEFAULT_LEVEL_NAME(n, publishedSteps));
 
   return (
     <span className={styles.row}>

@@ -53,6 +53,9 @@ const DEFAULT_WORDS: TripItemCardWords = {
   optimized: '최적화 반영',
 };
 
+/** The row menu's name with no provider; the app takes `trip.item.actions`. */
+const DEFAULT_MENU_NAME = (place: string) => `${place} 항목 메뉴`;
+
 const MESSAGE_KEYS: Record<keyof TripItemCardWords, MessageKey> = {
   DATE: 'trip.lock.DATE',
   TIME: 'trip.lock.TIME',
@@ -106,7 +109,7 @@ export function TripItemCard({
   const menuLabel =
     labels?.menu ??
     i18n?.t('trip.item.actions', { name: item.place.name }) ??
-    `${item.place.name} 항목 메뉴`;
+    DEFAULT_MENU_NAME(item.place.name);
 
   return (
     <article className={styles.card} data-state={state}>
