@@ -18,7 +18,7 @@
 //            e2e/responsive.spec.ts.
 // FE-101-T4: Next saves the locale the screen shows.
 // FE-101-T5: reduced motion — the skipped splash hold here, the collapse of
-//            motion on /language and /intro in e2e/responsive.spec.ts.
+//            motion on /, /language and /intro in e2e/responsive.spec.ts.
 // FE-101-T6: opened from the profile, the language screen returns there.
 // FE-101-T7: opened with any other `from`, it continues to the intro.
 //
