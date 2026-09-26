@@ -127,6 +127,14 @@
   cursor: pointer;
 }
 
+/* 담기 on a place already kept, and 담기·빼기 once the picks are being sent or
+   a created trip holds some unsaved (#185): the same disabled look the other
+   wizard steps give their row actions (ManualStopsStep `.add`). */
+.action:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
 .state {
   margin: var(--space-3) 0 0;
   color: var(--color-text-secondary);
@@ -146,4 +154,22 @@
      language is loaded is not a target. */
   min-width: 44px;
   cursor: pointer;
+}
+
+/* 건너뛰기 while the trip is being created, and 여행으로 가기 while a retry is
+   in flight (#185): disabled, so it takes the same disabled look as `.action`
+   rather than reading as live. */
+.skip:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* #185 partial failure (FCR-039 placeholder). It names places the server
+   supplied, which can be long and unbroken, so it wraps anywhere rather than
+   pushing the step past 360px or 200% zoom. */
+.unsaved {
+  overflow-wrap: anywhere;
+  /* Scrolled to above the fixed bar, not under it: the same reservation the
+     wizard's padding makes for a bar with a secondary action. */
+  scroll-margin-bottom: calc(var(--layout-bottom-action) + env(safe-area-inset-bottom));
 }

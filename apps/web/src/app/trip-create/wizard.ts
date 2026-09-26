@@ -23,12 +23,11 @@ export const MAX_INTERESTS = 20;
 /**
  * Upper bound on must-visit picks (step 4, S02-4B).
  *
- * PROVISIONAL, and the only number here the contract does not yet own.
- * CreateTripRequest has no field for a place without a date, so #180 is still
- * shaping one; this borrows `seedItems`' own `maxItems: 100` because that is
- * the cap the contract already puts on places carried into a new trip. When the
- * field lands, take its `maxItems` and delete this constant rather than keeping
- * a second answer to the same question.
+ * PROVISIONAL, and the only number here the contract does not own. #180
+ * settled the picks onto the candidate: each one is its own `addTripCandidate`
+ * after createTrip (#185), and a request that carries one place has no count to
+ * cap. This borrows `seedItems`' own `maxItems: 100` because that is the cap
+ * the contract already puts on places carried into a new trip.
  */
 export const MAX_MUST_VISIT = 100;
 
@@ -105,7 +104,7 @@ export interface WizardDraft {
    *
    * The step renders each pick's name, thumbnail and attribution, so holding
    * ids would mean re-fetching what the search already returned. Only the ids
-   * will go to the server once #180 gives them a field.
+   * go to the server, one `addTripCandidate` each once the trip exists (#185).
    */
   mustVisit: PlaceSummary[];
 }
@@ -384,15 +383,11 @@ export function dateError(draft: WizardDraft): 'incomplete' | 'tooLong' | null {
  * lock (`trip_constraints.trip_item_id` is NOT NULL), so the contract keeps it
  * an intention until scheduling turns it into a `MUST_VISIT` constraint.
  *
- * So the remaining work is NOT "one line here". It is: after `createTrip`
- * returns, POST each pick to `/trips/{tripId}/candidates` with
- * `mustVisit: true` — `useAddTripCandidate` already takes a per-call `tripId`
- * for exactly this caller. That wiring is still open because N+1 requests are
- * not one transaction (invariant 5): #185 asks what the screen should do when
- * the trip is created and only some of the candidates land, and that question
- * has no answer yet. Until it does, the picks stay in the draft so the step can
- * show them and so going back keeps them, and the two exits say which one the
- * traveller took (#185).
+ * They are sent AFTER `createTrip` returns instead: TripWizardScreen POSTs each
+ * pick to `/trips/{tripId}/candidates` with `mustVisit: true`, naming the new
+ * trip per call (#185). Those N+1 requests are not one transaction (invariant
+ * 5), so when the trip is created and only some picks land, the must-visit step
+ * names the ones that did not and retries exactly those.
  *
  * `draft.stops` IS sent, and the difference from `mustVisit` is the date. The
  * paragraph above turns on one fact — a place with no date cannot be a
