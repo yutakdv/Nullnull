@@ -5,14 +5,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.nullnull.identity.application.SessionService;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +44,7 @@ import org.springframework.test.web.servlet.MvcResult;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 @Import({TestcontainersConfiguration.class, ServletPathMockMvcConfiguration.class})
 @DisplayName("BA-091 queryLiveAreas over HTTP")
 class LiveAreaApiIT {
@@ -89,6 +97,53 @@ class LiveAreaApiIT {
         // into a bug report and stored somewhere nobody is thinking about invariant 10.
         assertThat(body).doesNotContain(PRECISE_WEST, PRECISE_SOUTH, PRECISE_EAST, PRECISE_NORTH);
         assertThat(body).doesNotContain("126.977", "37.579", "126.988", "37.589");
+    }
+
+    /**
+     * The log half of the refusal. CoarseViewportTest holds the exception's own text; this holds what
+     * a refused request actually writes, at the configured levels, to every appender the root has -
+     * which is where a later "log the rejected box for debugging" line, or a handler that logs the
+     * cause it was handed, would show up. The viewport travels in the body, so the access log's
+     * query switch is not the channel here; what is, is any line written while the request ran.
+     * Logback is one writer and not the only one: a System.out or System.err print never reaches an
+     * appender, so the process's own standard streams are searched too.
+     */
+    @Test
+    @DisplayName("BA-091-T4 viewport 거절이 좌표를 로그에 남기지 않는다")
+    void aRefusedViewportLeavesItsCoordinatesInNoLogLine(CapturedOutput console) throws Exception {
+        String cookie = sessions.bootstrap(null, "ko-KR", "Asia/Seoul").cookie;
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        root.addAppender(logs);
+        try {
+            mvc.perform(post("/api/v1/live/areas")
+                            .cookie(new Cookie("__Host-nullnull_session", cookie))
+                            .header("Origin", ORIGIN)
+                            .contentType("application/json")
+                            .content("{\"mode\":\"AUTO\",\"viewport\":{\"west\":" + PRECISE_WEST
+                                    + ",\"south\":" + PRECISE_SOUTH + ",\"east\":" + PRECISE_EAST
+                                    + ",\"north\":" + PRECISE_NORTH + "}}"))
+                    .andExpect(status().isUnprocessableEntity());
+        } finally {
+            root.detachAppender(logs);
+        }
+
+        // The capture saw this request's own line, or the sweep below proves nothing: an appender that
+        // caught nothing satisfies "no line holds a coordinate" as well as a clean server does.
+        assertThat(logs.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains("method=POST route=/live/areas status=422"));
+        assertThat(logs.list).allSatisfy(event -> {
+            String written = event.getFormattedMessage() + " " + event.getThrowableProxy()
+                    + " " + event.getMDCPropertyMap();
+            assertThat(written).doesNotContain(PRECISE_WEST, PRECISE_SOUTH, PRECISE_EAST, PRECISE_NORTH);
+            assertThat(written).doesNotContain("126.977", "37.579", "126.988", "37.589");
+        });
+        // The streams: the console appender writes the same access line there, which is what shows this
+        // capture saw the request too.
+        assertThat(console.getAll()).contains("method=POST route=/live/areas status=422");
+        assertThat(console.getAll()).doesNotContain(PRECISE_WEST, PRECISE_SOUTH, PRECISE_EAST, PRECISE_NORTH);
+        assertThat(console.getAll()).doesNotContain("126.977", "37.579", "126.988", "37.589");
     }
 
     @Test

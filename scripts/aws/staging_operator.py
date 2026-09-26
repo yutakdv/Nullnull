@@ -28,7 +28,7 @@ PREFIX = 'NullnullStg'
 TOOLKIT_STACK = 'NullnullStgCDKToolkit'
 LOCK_TABLE = 'nullnull-stg-deployment-lock'
 KTO_SECRET = 'nullnull-stg/kto-service-key'
-EXPIRY = dt.datetime(2026, 10, 25, 14, 59, 59, tzinfo=dt.timezone.utc)
+EXPIRY = dt.datetime(2026, 10, 31, 14, 59, 59, tzinfo=dt.timezone.utc)  # A-069: judging plus the 10-28 final presentation
 PROTECTED = ['Foundation', 'Network', 'Data', 'Platform', 'GlobalWaf', 'Observability']
 # Foundation leads: only the runtime-phase Foundation template carries the exports Migration/Services
 # import (the bootstrap-phase one has no consumers, so no exports).
@@ -1313,7 +1313,10 @@ def ops_task(args):
         if attribute == 'area_name':
             require(value.strip() == value and '..' not in value, 'invalid-area-name')
         if attribute == 'places':
-            require(len(set(value.split(','))) == len(value.split(',')), 'duplicate-places')
+            # By contentId, as KtoDemoRefresh.places refuses the whole list: `126508:12,126508:14` is one place
+            # named twice, and a schedule carrying it would fail every tick, INT-04 included.
+            content_ids = [entry.split(':')[0] for entry in value.split(',')]
+            require(len(set(content_ids)) == len(content_ids), 'duplicate-places')
         environment.append({'name': name, 'value': value})
     if args.task.startswith('kto-'):
         environment.append({'name': 'APP_CONTEST_PROFILE', 'value': '2026_KTO_WEBAPP'})

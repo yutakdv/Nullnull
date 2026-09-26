@@ -35,5 +35,5 @@ if [[ "$config_only" != 'true' ]]; then
   git -C "$NULLNULL_REPO_ROOT" diff --cached --quiet || fail 'dirty-index'
 fi
 
-printf 'staging_preflight=pass region=ap-northeast-2 budget_usd=200 expiry=2026-10-25 secondary_required=%s\n' \
-  "$require_secondary"
+printf 'staging_preflight=pass region=ap-northeast-2 budget_usd=200 expiry=%s secondary_required=%s\n' \
+  "$NULLNULL_EXPIRY_DATE" "$require_secondary"

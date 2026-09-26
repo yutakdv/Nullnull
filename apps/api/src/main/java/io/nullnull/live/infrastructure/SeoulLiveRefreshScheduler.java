@@ -19,7 +19,7 @@ public class SeoulLiveRefreshScheduler {
     // Seoul's published area identifier POI101 is named 서울숲공원. This is the provider's exact
     // endpoint name, not a place-to-area mapping decision; that separate decision needs a plan.
     private static final String AREA_NAME = "서울숲공원";
-    private static final Instant JUDGING_END = Instant.parse("2026-10-25T14:59:59Z");
+    private static final Instant JUDGING_END = Instant.parse("2026-10-31T14:59:59Z"); // A-069, staging_operator.EXPIRY
 
     private final JdbcSeoulLiveRefreshClaim claims;
     private final SeoulLiveAreaGateway gateway;

@@ -34,7 +34,7 @@ deletion_protection="$(aws_cli rds describe-db-instances \
   --query 'DBInstances[0].DeletionProtection' --output text)"
 [[ "$deletion_protection" == 'True' ]] || fail 'rds-deletion-protection-off'
 
-printf 'expiry_audit=complete expiry=2026-10-25 missing_stack=%s destructive_action=false\n' "$missing"
+printf 'expiry_audit=complete expiry=%s missing_stack=%s destructive_action=false\n' "$NULLNULL_EXPIRY_DATE" "$missing"
 
 aws_cli resourcegroupstaggingapi get-resources \
   --tag-filters Key=Project,Values=Nullnull \

@@ -45,7 +45,7 @@ node는 기존 Figma 핸드오프 기준이다. 추천용 내부 test ID는 이 
 | FR-LIV-04~06 | `420:2821`, `420:2950` | `listRelatedPlaces` / RelatedPlaceResult | relation query only | REC-REL-01~03 | BE/AI → FE |
 | FR-DAT-02~04 | 공통 provenance/비교 불가 | DataProvenance / CrowdComparison | snapshot pair eligibility | REC-DATA-01~06 | BE/AI → FE |
 | FR-OPT-01,03~06 | `415:2268`, `415:2413`, FCR-004 미해결 preview | `createOptimization`, `getOptimization` | QUEUED→RUNNING→READY | REC-OPT-01~05 | BE/AI → FE |
-| FR-OPT-07~16 | `417:2412`, `417:2567`, `485:3517` | `decideOptimization`, `revertOptimizationDecision` | APPLY/KEEP/REVERT 또는 실패 | REC-INT-02~06 | BE/AI → FE |
+| FR-OPT-07~16 | `417:2412`, `417:2567`, `485:3517` | `decideOptimization`, `revertOptimizationDecision` | APPLY/KEEP/REVERT 또는 실패(REVERT는 API만, A-074로 앱 진입점 퇴역) | REC-INT-02~06 | BE/AI → FE |
 | FR-ML-01 | P2 node 미정 | 새 ranking/노출 계약 필요 | 학습·실험, 일정 변경 권한 없음 | REC-ML-01~04 | BE/AI → FE |
 
 FCR 미해결은 domain/fixture 설계를 막지 않지만 영향 UI를 승인된 화면으로 간주할 수 없다. 특히 ITEM preview는 FCR-004의 실제 node와 상태를 연결한 뒤 FE 구현한다.

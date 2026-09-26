@@ -31,6 +31,15 @@ GATE_SUITES = ("gateChecks",)
 # the card's own test IDs and never opens a report (#208). So the ID stays where it is and
 # this reads the report instead.
 E2E_SUITES = ("e2e",)
+# Vitest's JUnit reporter, written by the web suite in the gate. The same gap as the browser suite
+# one level down: an acceptance clause proven by a unit test in apps/web - a static scan over the
+# screens that render a place, a component test of the credit itself - was invisible here, because
+# the gate ran vitest with its default reporter only. The directory is unit/ for the same reason e2e/
+# is e2e/: this reader looks for <dir>/<suite>/*.xml.
+VITEST_SUITES = ("unit",)
+# Which files are the web suite: vite.config.ts's `include`, and the reporter names each testsuite by
+# its path under apps/web. WorkflowWiringTests pins the two to each other.
+VITEST_TEST_FILES = ("src/**/*.test.ts", "src/**/*.test.tsx")
 TEST_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:BA-\d{3}-T\d+|REC-[A-Z]+-\d+)(?![A-Za-z0-9_-])")
 
 
@@ -253,12 +262,44 @@ def check_manifest(manifest: dict, ids: dict[str, set[str]],
                 "declare it")
 
 
+def check_vitest_files(directory: Path, source_root: Path, errors: list[str]) -> None:
+    """The report is the web suite's, and all of it: its testsuites are exactly the web app's test files.
+
+    read_junit accepts any valid report in unit/ with one passing testcase, so on its own a one-case
+    report from somewhere else, or a run whose include had narrowed to a single file, would count as the
+    web suite. The expected set comes from the tree, not from a list kept here: a list of test names or
+    a minimum count drifts with every test the frontend adds, and the file set is what vitest itself
+    was told to run.
+    """
+    expected = {path.relative_to(source_root).as_posix()
+                for pattern in VITEST_TEST_FILES for path in source_root.glob(pattern)}
+    if not expected:
+        errors.append(f"unit: no test files under {source_root / 'src'} to hold the report against")
+        return
+    seen: set[str] = set()
+    for path in sorted((directory / VITEST_SUITES[0]).glob("*.xml")):
+        try:
+            seen.update(node.get("name", "") for node in ET.parse(path).getroot().iter("testsuite"))
+        except (OSError, ET.ParseError):
+            continue  # read_junit has already reported this file
+    for name in sorted(seen - expected):
+        errors.append(f"unit: the report names {name}, which is not a test file of {source_root}")
+    for name in sorted(expected - seen):
+        errors.append(f"unit: test file {name} is not in the report")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--junit-dir", type=Path, help="Root containing the four Gradle suite directories")
     parser.add_argument("--e2e-junit-dir", type=Path,
                         help="Root containing e2e/, written by Playwright's JUnit reporter. Only the "
                              "full Compose gate runs the browser suite.")
+    parser.add_argument("--vitest-junit-dir", type=Path,
+                        help="Root containing unit/, written by Vitest's JUnit reporter in the web "
+                             "suite. Only the full Compose gate writes it.")
+    parser.add_argument("--vitest-source-dir", type=Path,
+                        help="The web app root (apps/web). Required with --vitest-junit-dir: a report "
+                             "is the web suite's only if its testsuites are that app's test files.")
     parser.add_argument("--gate-junit-dir", type=Path,
                         help="Root containing gateChecks/, written by record_gate_evidence.py. Only "
                              "the full Compose gate produces it.")
@@ -291,6 +332,14 @@ def main() -> int:
         if args.e2e_junit_dir is not None:
             ids.update(read_junit(args.e2e_junit_dir, args.run_start, errors, names,
                                   suites=E2E_SUITES))
+        if args.vitest_junit_dir is not None:
+            ids.update(read_junit(args.vitest_junit_dir, args.run_start, errors, names,
+                                  suites=VITEST_SUITES))
+            if args.vitest_source_dir is None:
+                errors.append("--vitest-junit-dir needs --vitest-source-dir: without the app's test files "
+                              "there is nothing to say whose report it is")
+            else:
+                check_vitest_files(args.vitest_junit_dir, args.vitest_source_dir, errors)
         if args.backend_plan is not None:
             plan = read_object(args.backend_plan)
             required = required_plan_ids(plan)

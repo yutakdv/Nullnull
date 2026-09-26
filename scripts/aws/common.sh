@@ -12,7 +12,10 @@ readonly NULLNULL_REPO_ROOT
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 NULLNULL_STACK_PREFIX="${NULLNULL_STACK_PREFIX:-nullnull-stg}"
 NULLNULL_BUDGET_LIMIT_USD="${NULLNULL_BUDGET_LIMIT_USD:-200}"
-NULLNULL_EXPIRY_DATE="${NULLNULL_EXPIRY_DATE:-2026-10-25}"
+NULLNULL_EXPIRY_DATE="${NULLNULL_EXPIRY_DATE:-2026-10-31}"
+# The staging end is this instant, 23:59:59 KST on the expiry date, exactly staging_operator.EXPIRY. Comparing
+# the date alone let a writing script run for nine more hours after the operator had stopped (A-069 review).
+NULLNULL_EXPIRY_AT="${NULLNULL_EXPIRY_DATE}T14:59:59Z"
 # profile: a named local profile (operator role); ambient: the GitHub OIDC session in the environment.
 NULLNULL_AWS_AUTH="${NULLNULL_AWS_AUTH:-profile}"
 export AWS_REGION NULLNULL_STACK_PREFIX NULLNULL_BUDGET_LIMIT_USD NULLNULL_EXPIRY_DATE NULLNULL_AWS_AUTH
@@ -75,12 +78,14 @@ assert_operator_contract() {
   [[ "$AWS_REGION" == 'ap-northeast-2' ]] || fail 'unexpected-region'
   [[ "$NULLNULL_STACK_PREFIX" == 'nullnull-stg' ]] || fail 'unexpected-stack-prefix'
   [[ "$NULLNULL_BUDGET_LIMIT_USD" == '200' ]] || fail 'unexpected-budget-limit'
-  [[ "$NULLNULL_EXPIRY_DATE" == '2026-10-25' ]] || fail 'unexpected-expiry-date'
+  [[ "$NULLNULL_EXPIRY_DATE" == '2026-10-31' ]] || fail 'unexpected-expiry-date'
   [[ "$NULLNULL_AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || fail 'invalid-account-id'
 
-  local today identity_arn
-  today="$(date -u +%F)"
-  [[ "${NULLNULL_READ_ONLY:-false}" == true || "$today" < "$NULLNULL_EXPIRY_DATE" || "$today" == "$NULLNULL_EXPIRY_DATE" ]] \
+  local now identity_arn
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  # Same-format UTC timestamps compare in time order as strings. At the end instant itself the operator has
+  # already stopped (it requires now < EXPIRY), so this does too.
+  [[ "${NULLNULL_READ_ONLY:-false}" == true || "$now" < "$NULLNULL_EXPIRY_AT" ]] \
     || fail 'staging-expired'
 
   identity_arn="$(aws_cli sts get-caller-identity --query Arn --output text)"

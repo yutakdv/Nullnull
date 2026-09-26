@@ -6,6 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/common.sh"
 
 public_url=''
 release_ready=false
+expect_edge='closed'
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -17,12 +18,18 @@ while [[ $# -gt 0 ]]; do
       release_ready=true
       shift
       ;;
+    --expect-edge)
+      [[ $# -ge 2 ]] || fail 'expect-edge-must-be-open-or-closed'
+      expect_edge="$2"
+      shift 2
+      ;;
     *)
       fail 'unknown-smoke-argument'
       ;;
   esac
 done
 
+[[ "$expect_edge" == 'closed' || "$expect_edge" == 'open' ]] || fail 'expect-edge-must-be-open-or-closed'
 require_command curl
 require_command node
 NULLNULL_READ_ONLY=true assert_operator_contract
@@ -47,10 +54,19 @@ assert_status() {
 
 assert_status '/' '200'
 
-# The public API edge must stay closed: an anonymous request gets the gate's 503 problem+json.
-closed_type="$(curl --silent --show-error --output "$work_dir/closed.json" --max-time 15 \
+# What an anonymous request gets from the API through the edge. Closed (the default, and every fresh release):
+# the gate's 503 problem+json. Open (--expect-edge open, the judging period after a --preserve-open-edge deploy,
+# A-061/A-069): the API's own health. The same question staging-flows.mjs --expect-edge asks; without it the
+# infrastructure lines below could not be produced for a release the judges are using.
+edge_answer="$(curl --silent --show-error --output "$work_dir/edge.json" --max-time 15 \
   --write-out '%{http_code} %{content_type}' "$public_url/api/v1/health/live")"
-[[ "$closed_type" == '503 application/problem+json' ]] || fail 'public-api-edge-not-closed'
+if [[ "$expect_edge" == 'closed' ]]; then
+  [[ "$edge_answer" == '503 application/problem+json' ]] || fail 'public-api-edge-not-closed'
+else
+  [[ "${edge_answer%% *}" == '200' ]] || fail 'public-api-edge-not-open'
+  node "$NULLNULL_REPO_ROOT/scripts/aws/validate-health.mjs" "$work_dir/edge.json" live "${edge_answer#* }" \
+    >/dev/null 2>&1 || fail 'public-api-edge-not-open'
+fi
 
 # The verifier token reaches the API through the same CloudFront -> VPC origin -> ALB path. It is read
 # from a 0600 header file, never from argv, and the gate strips it before the origin.
@@ -104,4 +120,4 @@ aws_cli iam get-role --role-name "$publish_role" \
   --query 'Role.AssumeRolePolicyDocument' --output json >"$work_dir/publish-trust.json"
 node "$NULLNULL_REPO_ROOT/scripts/aws/validate-oidc-trust.mjs" "$work_dir/publish-trust.json" publish
 
-printf 'staging_smoke=pass public_https=true public_api_edge=closed verifier_path_checked=%s alb_internal=true s3_private=true rds_private_multi_az=true\n' "$verifier_checked"
+printf 'staging_smoke=pass public_https=true public_api_edge=%s verifier_path_checked=%s alb_internal=true s3_private=true rds_private_multi_az=true\n' "$expect_edge" "$verifier_checked"

@@ -15,7 +15,7 @@ tags:
 - region: `ap-northeast-2` (서울)
 - 환경: staging 하나만 운영, production 없음
 - 총비용 상한: **USD 200**
-- 종료일: **2026-10-25**
+- 종료일: **2026-10-31**(A-069로 10-25에서 연장. 리소스 `Expiry` 태그는 의도적으로 2026-10-25로 둔다)
 - 공개 주소: CloudFront 기본 HTTPS domain, custom domain 없음
 - AWS: 오너 개인 계정, MFA와 CLI SSO 사용
 - KTO: 운영 key를 runtime secret으로만 주입
@@ -27,6 +27,8 @@ tags:
 개인 이메일과 account ID는 Git에 기록하지 않는다. primary 주소는 ignored local 설정의 `NULLNULL_ALARM_PRIMARY_EMAIL`과 GitHub/AWS 보호 설정으로만 전달한다. 스크립트는 값의 존재만 검사하고 출력하지 않는다.
 
 > 2026-09-15 오너 결정: 총비용 USD 200을 유지하고 운영 기간은 조정할 수 있다. 가동은 plan마다 최대 14일이고 최종 종료 한계는 2026-10-25이며 자동 연장하지 않는다(operator가 plan에서 강제한다). 삭제 원장은 아직 구현되지 않았다. 오너 결정 A-039(2026-09-19)로 공개 edge는 원장 없이, FE 로그인 흉내 화면이 들어간 release에서 연다. 심사 기간(2026-10-25까지)에는 DB snapshot 복원을 하지 않고, 복원이 필요하면 edge를 먼저 닫는다(§10·§11).
+>
+> 2026-09-25 A-069: 최종 종료 한계를 2026-10-31T14:59:59Z(KST 23:59:59)로 옮겼다. 비용 상한 USD 200은 유지하고, `Expiry` 태그는 옮기지 않는다(아래 tag 절).
 
 ## 1. 확정 아키텍처
 
@@ -107,7 +109,7 @@ CDK v2 TypeScript 구현은 stateful replacement와 배포 순서를 분리하�
 
 release digest를 담는 것은 `Migration`·`WebEdge`·`Services`뿐이다. 보호 stack(`Foundation`·`Network`·`Data`·`Platform`·`GlobalWaf`·`Observability`)의 template이 바뀌거나 migration 목록이 바뀌면 infra 변경으로 분류되어 `staging-infra` 승인 경로를 탄다.
 
-모든 resource에는 `Project=Nullnull`, `Environment=staging`, `ManagedBy=CDK`, `Expiry=2026-10-25` tag를 붙인다. RDS와 release/evidence bucket은 stack destroy와 분리하고 RDS는 final snapshot 없이는 제거하지 않는다.
+모든 resource에는 `Project=Nullnull`, `Environment=staging`, `ManagedBy=CDK`, `Expiry=2026-10-25` tag를 붙인다. 서비스 종료는 A-069로 2026-10-31이지만 이 태그는 옮기지 않는다: 바꾸면 RDS·Secrets·S3·DynamoDB·VPC를 포함한 86개 resource가 다시 태그되어 operator가 stateful 변경으로 거부한다. 이 태그를 읽는 코드는 없고(IAM 조건은 `Project`만 본다) 조직 자동화도 없다(오너 확인, 2026-09-25). RDS와 release/evidence bucket은 stack destroy와 분리하고 RDS는 final snapshot 없이는 제거하지 않는다.
 
 ## 4. Runtime 크기와 가용성
 
@@ -290,9 +292,9 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 여유(창 − 주기)가 덮어야 하는 늦음은 두 가지다. Scheduler의 전달은 `maxEventAge`(1시간)가 묶는다. 그보다 오래된 호출은 늦게 보내지 않고 버린다. 그 뒤의 Fargate 기동과 앞 장소 처리는 분 단위로 보지만, 여기서 막는 장치는 없고 재지도 않았다. 위 test는 여유를 전달 한도와만 대조한다.
 
-KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. 등록된 quota는 source당 하루 1000건(`V007`의 `perDay`)이라 0.5% 미만이다.
+KTO 호출은 목록(`FORECAST_DEMO_PLACES`)의 장소가 N곳일 때 예보 하루 약 2N건(12시간마다 장소마다 1건), detail 5일에 약 N건이다. A-070·A-071의 후보를 모두 넣어도 N은 20이라 예보는 하루 약 40건이고, 등록된 quota(source당 하루 1000건, `V007`의 `perDay`)의 4% 안이다. 지금 N은 `infra/src/staging.ts`의 그 상수에서 센다.
 
-**무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있고, 해제 도구는 없다. `DemoRefreshFailed`가 그때 울린다.
+**무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있다. `DemoRefreshFailed`가 그때 울린다. 해제는 사람이 원인을 확인한 뒤 ops task `release-source-quarantine`으로 한다(§11).
 
 `staging_operator.py`는 ops task를 **local 전용**으로 못박으므로(`ops-tasks-are-local-only`) schedule은 그 operator를 거치지 않고 ECS `RunTask`를 직접 부른다. 같은 task definition·image·revision을 쓰되 operator가 하던 것 중 빠지는 것이 있다.
 
@@ -304,7 +306,7 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 | 로그 allowlist 증거 수집 | **없다** | **메우지 못한다.** 줄은 CloudWatch에 남고 operator가 하던 선별·증거 파일이 없다. ops main들은 이미 allowlist 모양으로만 찍는다 |
 | task 종료까지 대기와 판정 | **없다** | 위 alarm들이 대신한다. 부재 alarm이 "돌지 않았다"와 "돌고 죽었다"를 함께 덮는다 |
 
-종료는 각 schedule 자신의 `EndDate`이고 값은 `staging_operator.py`의 `EXPIRY`(2026-10-25T14:59:59Z = KST 23:59:59)와 같다. 두 파일이 서로를 못 보므로 `scripts/tests/test_ops_alarm_metric_filters.py`가 대조한다.
+종료는 각 schedule 자신의 `EndDate`이고 값은 `staging_operator.py`의 `EXPIRY`(2026-10-31T14:59:59Z = KST 23:59:59, A-069)와 같다. 두 파일이 서로를 못 보므로 `scripts/tests/test_ops_alarm_metric_filters.py`가 대조한다. 서울 Live의 `JUDGING_END`와 `scripts/aws/common.sh`의 날짜 두 줄도 같은 test가 `EXPIRY`와 대조한다.
 
 비용 대응은 다음과 같이 고정한다.
 
@@ -313,7 +315,7 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 - `$160`: 신규 비용 증가 변경 동결
 - `$180`: 심사 기간 밖 API 두 번째 task 제거, retention 재점검
 - `$195`: evidence/final snapshot 준비 후 비상 종료 판단
-- `2026-10-25`: final snapshot과 evidence export 뒤 비상태 resource 제거
+- `2026-10-31`(A-069): final snapshot과 evidence export 뒤 비상태 resource 제거. 10-21 발표에서 선정되지 않으면 10-26 이후 바로 teardown을 판단한다
 
 이 계정에서는 AWS Budgets를 만들 수 없다(Organizations SCP). 위 금액 단계는 오너가 청구 화면을 보고 판단하며, 현재 단가로 다시 계산한 추정은 [infra/cost-basis.md](../../infra/cost-basis.md)에 있다. 자동으로 RDS/S3를 지우지 않는다.
 
@@ -330,7 +332,7 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 - `[합성]`: CDK를 합성해 확인했다. AWS는 호출하지 않았다.
 - `[미확인]`: AWS에서 재지 않았다.
 
-**EXPIRY 뒤 operator 동작** `[읽음]` — `staging_operator.py`의 `EXPIRY`는 2026-10-25T14:59:59Z다.
+**EXPIRY 뒤 operator 동작** `[읽음]` — `staging_operator.py`의 `EXPIRY`는 2026-10-31T14:59:59Z다(A-069).
 
 - 다음은 `staging-expired`로 거부된다.
   - deploy·bootstrap plan 생성
@@ -439,15 +441,14 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
   - 최종심사 대상 발표: 2026-10-21
   - 최종 발표심사: 2026-10-28
 
-  선정되면 발표심사가 EXPIRY 뒤다. 그때까지 서비스를 둘지 정한다.
-- **EXPIRY 연장 여부**: 만료값은 코드 여러 곳에 하드코딩돼 있다.
-  - `git grep -n '2026-10-25\|2026, 10, 25' -- ':!docs'`로 찾는다.
-  - 태그의 `Expiry` 값까지 포함해 한 PR에서 바꾼다. 대표적인 것은 `staging_operator.py`의 `EXPIRY`, `FORECAST_SCHEDULE_END`, `JUDGING_END`, `scripts/aws/common.sh`의 만료 검사다.
-  - A-029(종료일)와 A-044(상시 승인)를 다시 승인한다.
-- **edge 폐쇄 방법**: 다음 셋 중 하나다.
-  - EXPIRY 전에 닫는다. 이 경우 심사 마지막 시간과 겹친다.
-  - 닫지 않고 stack 삭제로 대신한다.
-  - `closed`만 EXPIRY 뒤에도 허용하도록 operator를 고친다.
+  원래 종료(10-25)로는 발표심사가 EXPIRY 뒤였다. A-069로 종료를 10-31로 옮겨 발표심사가 운영 기간 안에 든다.
+- **EXPIRY 연장 여부**: **결정됨(A-069, 2026-09-25)**. 2026-10-31T14:59:59Z로 연장했다.
+  - 옮긴 값: `staging_operator.py`의 `EXPIRY`, `FORECAST_SCHEDULE_END`, `JUDGING_END`, `scripts/aws/common.sh`의 기본값과 비교값. `test_ops_alarm_metric_filters.py`가 넷을 `EXPIRY`에 묶는다.
+  - **`Expiry` 태그는 옮기지 않는다.** 이전 판의 "태그까지 한 PR에서 바꾼다"는 틀렸다: 태그를 바꾸면 stateful resource 86개가 다시 태그되어 `--preserve-open-edge`는 `preserve-open-template-change`로, 일반 infra 배포는 `stateful-change-requires-separate-review`로 거부한다.
+  - 실제 시계로 plan·edge를 돌리던 operator test는 `EXPIRY`를 고정해, 종료 뒤에도 필수 게이트가 빨개지지 않는다.
+  - 비용은 A-029 상한 USD 200을 유지한다(오너 결정). 43일 추정은 [infra/cost-basis.md](../../infra/cost-basis.md)에 있다.
+- **edge 폐쇄 방법**: **기본값(A-069 뒤)** — teardown을 시작할 때 R4 이후 checkout의 operator로 닫는다. 늦어도 2026-10-31 23:00 KST(EXPIRY 한 시간 전)까지다. `edge`는 만료를 먼저 검사해서(`staging_operator.py` `verify_deployed_plan`) EXPIRY 뒤에는 operator로 닫을 수 없다. 그 시각을 놓치면 stack 삭제로 대신한다. operator를 고치는 안은 쓰지 않는다.
+- **rollback과 옛 종료**: R4 → R3 rollback은 R3 assembly의 Migration(스케줄 `EndDate` 10-25)과 R3 API image(서울 `JUDGING_END` 10-25)를 되살린다. 10-26~10-31에 rollback하면 서비스는 열려 있어도 두 자동 갱신 경로가 멈춘다. rollback은 edge도 닫는다. 그래서 A-069 뒤의 문제는 rollback 대신 **forward-fix**(되돌리는 변경을 main에 넣고 같은 preserve-open 절차로 재배포)로 푼다.
 - **데이터 보존**: 다음 셋을 각각 정한다.
   - RDS 최종 snapshot과 자동 백업
   - `WebBucket`의 사용자 업로드
@@ -487,9 +488,9 @@ KTO 호출은 예보 하루 4건(장소 2 × 2회), detail 5일에 2건이다. �
 **시나리오 2 — KTO 쿼터.** KTO 호출이 하루 한도(개발 계정, API별 1,000건)에 가까워진다. 비용은 A-050으로 이 tabletop에서 뺐다.
 
 - 호출 경로: KTO gateway를 부르는 것은 운영 명령뿐이다(`KtoSmokeMain`·`KtoForecastSmokeMain`·`KtoDemoRefresh`). **앱의 요청 경로는 KTO를 부르지 않고 저장된 snapshot만 읽는다** — 공개 뒤 심사 트래픽은 쿼터를 쓰지 않는다.
-- 양: schedule은 장소 둘(`FORECAST_DEMO_PLACES`)을 예보 12시간·detail 5일 간격으로, 만료가 가까운 것만 갱신한다(A-044, 하루 약 4건). 호출 실패 시 schedule 재시도는 최대 3회다. 사람이 돌리는 `kto-smoke`·수동 재적재는 한 번에 1~5건이다. task마다 `KTO_DEMO_REFRESH_QUOTA … per_day=1000 planned_ratio=…` 줄이 남는다.
-- 쿼터보다 큰 위험: 거절된 응답(schema drift·provider 오류)은 `KTO_KOR_SERVICE_2` source를 격리하고 **해제 도구가 없다**(§11). 그 동안 화면은 `UNAVAILABLE`을 사실대로 표시한다. 해제는 운영자의 DB 작업이다.
-- 오너 판단(2026-09-20): 쿼터로 멈출 지점 없음을 받아들인다. 개발 키의 활용기간이 운영 종료일(2026-10-25) 뒤까지인지는 오너가 data.go.kr에서 확인한다.
+- 양: schedule은 목록(`FORECAST_DEMO_PLACES`, A-044·A-070·A-071)의 장소를 예보 12시간·detail 5일 간격으로, 만료가 가까운 것만 갱신한다(N곳이면 예보 하루 약 2N건, 후보 전부인 20곳이면 약 40건). 호출 실패 시 schedule 재시도는 최대 3회다. 사람이 돌리는 `kto-smoke`·수동 재적재는 한 번에 1~5건이다. task마다 `KTO_DEMO_REFRESH_QUOTA … per_day=1000 planned_ratio=…` 줄이 남는다.
+- 쿼터보다 큰 위험: 거절된 응답(schema drift·provider 오류)은 `KTO_KOR_SERVICE_2` source를 격리한다. 그 동안 화면은 `UNAVAILABLE`을 사실대로 표시한다. 해제는 오너가 원인을 보고 판단한 뒤 ops task `release-source-quarantine`으로 한다(§11).
+- 오너 판단(2026-09-20): 쿼터로 멈출 지점 없음을 받아들인다. 개발 키의 활용기간이 운영 종료일 뒤까지인지는 오너가 data.go.kr에서 확인한다. 2026-09-25 오너 확인: KTO 개발 키와 서울 키·proxy 모두 2026-10-31 이후까지 유효하다.
 
 **시나리오 3 — 배포 실패와 rollback 판단.** 이 날 배포 실패 셋이 실제 사례다.
 
@@ -590,7 +591,10 @@ python3 scripts/aws/staging_operator.py deploy --plan plan/plan.json --approved-
   --execute --kind infra --preserve-open-edge
 # local에서 plan을 만들 때는 위 `deploy --manifest` 줄에 --accept-additive-schema <파일>을 붙이고, classify 출력의
 # accept_additive_schema= 줄을 확인한 뒤 같은 execute를 돌린다.
-bash scripts/aws/staging-smoke.sh                                      # NULLNULL_VERIFIER_TOKEN 이 있으면 API 경로도 본다
+# --preserve-open-edge 배포 뒤 edge는 열려 있으므로 smoke와 flows 둘 다 --expect-edge open을 준다. smoke의 기본값(closed)은
+# 닫힌 edge의 503을 요구해 public-api-edge-not-closed로 멈춘다. 둘 다 NULLNULL_VERIFIER_TOKEN이 있으면 API 경로도 본다.
+bash scripts/aws/staging-smoke.sh --expect-edge open
+node scripts/aws/staging-flows.mjs --url <public_url> --expect-edge open
 # rollback(§8). 기록된 release의 assembly로 Migration·WebEdge·Services만 배포하고, edge를 닫는다.
 # schema가 같은 release로 돌아갈 때: classify가 app이면 --kind app으로 실행한다.
 python3 scripts/aws/staging_operator.py rollback --previous-plan <plan.json> --previous-plan-sha256 <sha>
@@ -627,7 +631,7 @@ NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull \
 # 서울 Live 수동 관측(local 전용). 평시에는 API 작업이 V048의 원자적 claim으로
 # 서울숲공원을 5분마다 수집한다. 복제본 수만큼 호출하지 않으며 별도 주기 Fargate task도 없다.
 # 재시도 포함 최대 3회/작업이므로 정상 주기 최대 288작업·864 provider 요청/일이다.
-# 심사 종료 2026-10-25T14:59:59Z부터 API 스케줄러는 claim/호출을 중단한다.
+# 서비스 종료 2026-10-31T14:59:59Z(A-069)부터 API 스케줄러는 claim/호출을 중단한다.
 # 검증된 LIVE 관측 한 건이 저장될 때만 성공한다. provider의 PPLTN_TIME이 이미 낡았다면
 # 관측은 STALE로 저장되고 성공으로 세지 않는다. 300초 유효기간과 provider 갱신 간격이
 # 겹치므로 잠깐의 STALE 구간은 가능하며 화면과 경보를 그 사실대로 확인한다.
@@ -702,7 +706,8 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - alarm subscription과 synthetic test는 별도 스크립트이며 이메일 값을 출력하지 않는다.
 - restore drill은 plan이 기본이며 `--execute` 뒤에도 restore DB를 자동 삭제하거나 공개 연결하지 않는다.
 - `infra/`가 없거나 output contract가 다르면 script는 fail-closed한다.
-- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리하고 해제 도구가 없다** — release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `kto-smoke`는 항상 KTO를 새로 부르고 `called=true` 줄로만 CMP-KTO-003 report를 쓴다. `deployed/current.json`의 release와 ops 정의(image digest, `APP_RELEASE_VERSION`)가 다르면 task를 띄우기 전에 거부한다(`ops-image-not-the-deployed-release`·`ops-definition-not-the-deployed-release`). 실행된 image도 다시 본다(`executed-image-mismatch`). 저장본을 돌려받은 실행은 task가 `KTO smoke failed: CACHED_SNAPSHOT`으로 끝나 `task-failed`가 되고, `ops_log`에 `KTO_SMOKE_CACHED … called=false` 줄이 남으며, 배포 잠금이 유지된다(`unlock` 필요). `kto-smoke-did-not-call`은 `called=true`가 아닌 OK 줄에 대한 방어다. **거절된 호출은 `KTO_KOR_SERVICE_2` source를 격리한다** — 격리 동안 그 source의 호출이 모두 멈추므로, release가 확정된 뒤 한 번, 마지막 호출이 통과한 장소로 돈다.
+- `release-source-quarantine`은 최신 collector run이 `QUARANTINED`인 source를 오너 판단으로 다시 연다(`SourceQuarantineReleaseMain`, BA-020-T4~T8). 격리된 run은 그대로 두고 검토된 `RESOLVED` incident만 쓴다. 호출자 환경의 `NULLNULL_SOURCE_RELEASE_APPROVED=true`와 `--source-code`·`--owner-approval`이 필요하다. 성공 줄은 `source_quarantine_released source=… run=…` 하나다. 최신 run이 격리가 아니면 main이 `source_quarantine_release_refused … reason=not-quarantined`를 찍고, operator는 그 실행을 `source-not-released`로 실패시킨다. 그래서 먼저 `GET /api/v1/health/ready`에서 격리를 확인한다. 명령: `NULLNULL_SOURCE_RELEASE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-endpoint>:5432/nullnull python3 scripts/aws/staging_operator.py task --task release-source-quarantine --source-code KTO_KOR_SERVICE_2 --owner-approval '<누가·어디서 승인했는지>'`.
 - `kto-eng-link-import`는 `curate-live-maps`와 같은 승인 plan 경로다.
   - 성공 조건: sha 줄, 장소마다 `eng_link <placeId> PROCESSED` 한 줄, `eng_links_processed=<n>`, 그리고 실패 줄이 없어야 한다.
   - 근거 URL은 plan 파일에만 남고 출력되지 않는다.
@@ -733,7 +738,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 - `edge`는 배포된 release 자신의 승인 plan과 assembly로 WebEdge만 다시 배포하고 `TrafficEnabled`만 바꾼다. release 확인은 배포 잠금 안에서 한다. plan이 `deployed/current.json`의 `planSha256`이 아니거나 WebEdge stack이 진행 중이면 거부한다. hash 검사는 모두 하지만 시간 검사는 하지 않는다. 24시간 신선도와 plan의 `expiresAt` 가동 창을 보지 않고(심사 기간에 다시 열 수 있어야 한다) staging 종료 한계만 본다. 비용 plan도 다시 평가하지 않는다. `infra/package-lock.json`이 release의 것과 같은 checkout에서, `npm --prefix infra ci`를 한 뒤 돌린다(`toolchain-changed`).
 - 열기 전에는 CD가 배포 뒤 돌리는 `staging-smoke.sh`와 verifier 경로 `staging-flows.mjs`가 통과해야 한다. 배포 뒤에는 verifier 없이 `/api/v1/health/live`가 `200 application/json`(열림) 또는 `503 application/problem+json`(닫힘)이 될 때까지 확인한다. ALB의 `503 text/html`은 닫힘이 아니다. 이미 그 상태면 다시 배포하지 않고 확인만 한다.
 - **기본 deploy·모든 rollback은 edge를 다시 닫는다.** 공개가 필요한 release마다 다시 연다. 검토된 `--preserve-open-edge` deploy만 열린 상태를 유지하며, 스키마·보호 스택·Services 구조 불변과 공개 health 검사를 통과해야 한다. 스키마는 불변이거나, plan이 이름을 댄 migration(`--accept-additive-schema`)만 뒤에 덧붙어야 한다(A-067, §7). WebEdge는 구조 불변이 원칙이나, #312의 WebBucket에 정확히 `PUT`·`content-type`·서비스 HTTPS origin·300초 CORS 규칙 하나를 추가하는 변경만 허용한다. 다른 WebEdge 변경은 그대로 거부하며 공개 edge 변경은 먼저 계획으로 검토한다.
-- edge를 연 뒤 `staging-flows.mjs`는 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다.
+- edge를 연 뒤 `staging-smoke.sh`와 `staging-flows.mjs`는 둘 다 `--expect-edge open`으로 돌린다. 기본값(closed)은 CD가 새 release에 기대하는 상태다. 열린 edge에서 smoke는 익명 `/api/v1/health/live`가 `200 application/json`이고 `status=UP`인지 보고, 나머지 ALB·S3·RDS·OIDC 검사는 그대로 한다.
 - `staging-flows.mjs`의 `--survey`와 `--optimize-item`은 opt-in이라 CD(`--url`만 넘김)의 요청과 verdict는 그대로다. 전제가 없으면 `NOT-RUN`과 `staging_flows=incomplete`(exit 3, pass 아님)이고, 전제를 갖춘 한 곳짜리 여행이 낼 수 없는 결과만 `FAIL`이다.
 
 ## 12. Acceptance와 evidence
@@ -743,7 +748,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-006-T1` | full Docker report와 egress-denied probe |
 | `BA-006-T2` | `secret-scan`의 `clean-partial` evidence(KTO key·verifier token, A-045) |
 | `BA-006-T3` | exact OIDC trust validator와 wrong subject AssumeRole 거부 기록 |
-| `BA-071-T1` | `staging-smoke.sh`의 `alb_internal=true`·`s3_private=true`·`rds_private_multi_az=true`(OIDC 거부는 `BA-006-T3`이다) |
+| `BA-071-T1` | `staging-smoke.sh`의 `alb_internal=true`·`s3_private=true`·`rds_private_multi_az=true`(OIDC 거부는 `BA-006-T3`이다). 심사 중 열린 edge에서는 `--expect-edge open`의 `public_api_edge=open` 줄이 같은 판정이다. edge 판정만 다르고 ALB·S3·RDS 검사는 같다 |
 | `BA-071-T2` | local/GitHub deploy lock과 DB advisory lock 동시 실행 test(재현 절차는 카드에 있다) |
 | `BA-071-T3` | manifest에 묶인 산출물 전체(image digest·계약·web artifact·Flyway checksum)와 승인된 assembly의 operator 대조, 그리고 그 manifest로 성공한 release run(A-047) |
 | `BA-071-T4` | 이전 release로 rollback한 뒤의 외부 smoke(rollback task definition, current/previous manifest) |
@@ -752,7 +757,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 | `BA-072-T3` | 수신자 부재·비용/쿼터·rollback 판단 tabletop 기록(A-049, 실제 재현 아님). secondary는 A-043으로 없다 |
 | `BA-073-T1` | 새 browser profile, 외부망, anonymous HTTPS journey |
 | `BA-073-T2` | 제출 release의 actual-call 증거에 `check_actual_call_evidence.py --require-verified`를 돌린 기록 |
-| `BA-073-T4` | `BA-073-T4`를 단 testcase가 게이트 report에 수집된 기록. 지금은 FE-603-T4(`attribution-coverage.test.ts`, vitest)만 있고 vitest report는 집계되지 않는다(부분) |
+| `BA-073-T4` | 제출 release의 게이트 E2E report에 `BA-073-T4`를 단 testcase가 통과한 기록. `attribution.integration.spec.ts`(#382)의 제목이 그 ID를 단다 |
 | `BA-073-T5` | 제출 release의 게이트 E2E report에 `BA-073-T5`를 단 testcase가 모두 통과한 기록. FE-603-T1(`location-off.spec.ts`)의 제목이 그 ID를 단다(화면마다 1건과 전체 1건) |
 | `BA-073-T3` | 같은 release의 ledger·readiness·KTO inventory에 `check_submission_inventory.py`를 돌린 출력(diff 0) |
 
@@ -762,7 +767,7 @@ python3 scripts/aws/staging_operator.py edge --state closed --plan <풀어 둔 p
 
 최종 검수자는 다음 항목을 독립적으로 확인한다.
 
-- [ ] `$200`, `2026-10-25`, 서울 region이 CDK·operator·비용 근거(`infra/cost-basis.md`)에 동일하다.
+- [ ] `$200`, 종료 `2026-10-31`(A-069, `Expiry` 태그는 의도적으로 2026-10-25), 서울 region이 CDK·operator·비용 근거(`infra/cost-basis.md`)에 동일하다.
 - [ ] primary contact 값이 Git diff, CDK assembly, release artifact와 log에 없다.
 - [ ] secondary가 없으면 release-ready 검사가 실패한다.
 - [ ] public entry는 CloudFront 하나이며 S3/ALB/RDS direct access가 거부된다.

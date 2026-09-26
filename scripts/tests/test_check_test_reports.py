@@ -104,6 +104,20 @@ class ReportTests(unittest.TestCase):
         (self.root / "plan.json").write_text(json.dumps(plan))
         self.rejected(self.check(), "BA-099-T2 missing")
 
+    def test_a_vitest_report_is_only_counted_against_the_apps_test_files(self):
+        """Without the app root there is nothing to say whose report it is, so the pair is required."""
+        report = self.root / "vitest/unit/results.xml"
+        report.parent.mkdir(parents=True)
+        report.write_text('<testsuites><testsuite name="src/a.test.ts" tests="1" failures="0" errors="0" '
+                          'skipped="0"><testcase classname="src/a.test.ts" name="BA-099-T1 a"/></testsuite></testsuites>')
+        self.rejected(self.check("--vitest-junit-dir", self.root / "vitest"),
+                      "--vitest-junit-dir needs --vitest-source-dir")
+        app = self.root / "web"
+        (app / "src").mkdir(parents=True)
+        (app / "src/a.test.ts").write_text("")
+        self.assertEqual(0, self.check("--vitest-junit-dir", self.root / "vitest",
+                                       "--vitest-source-dir", app).returncode)
+
     def test_an_unmarked_missing_clause_still_fails(self):
         """The exemption must not become a way to stop asking about everything else."""
         plan = {"tasks": [{"id": "BA-099", "status": "integration-ready", "tests": [
@@ -329,7 +343,9 @@ out.mkdir(parents=True, exist_ok=True)
                              'apps/api/gradle/wrapper/gradle-wrapper.properties',
                              'apps/web/Dockerfile', 'apps/web/package.json', 'package.json',
                              'package-lock.json', 'compose.integration.yml', 'docs/api/openapi.yaml',
-                             'scripts/e2e/catalog-seed.sql'):
+                             'scripts/e2e/catalog-seed.sql',
+                             # The web suite's test files: the checker holds the Vitest report to them.
+                             'apps/web/src/app/shell.test.tsx', 'apps/web/src/app/feed.test.ts'):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
@@ -374,6 +390,30 @@ elif 'run' in args and 'egress-denied' in args:
 elif 'exec' in args and 'postgres' in args:
     # The seed step's verdict is its read-back line (#253); psql exiting 0 is not one.
     print('e2e_catalog_seed=places:3,published_posts:1,attributed_places:1')
+elif 'run' in args and 'web-quality' in args:
+    # The web unit suite's JUnit, in the shape Vitest 3.2 writes it - measured on this repository's
+    # suite: testsuites carries tests, failures and errors; each testsuite carries all four counts;
+    # a skipped test is a <skipped/> child. A run with no test files writes a bare testsuites. Each
+    # testsuite is named by its file under apps/web, which is what the checker holds against the tree.
+    if mode != 'vitest-missing':
+        path = root / 'vitest/unit/results.xml'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if mode == 'vitest-empty':
+            path.write_text('<testsuites name="vitest tests" tests="0" failures="0" errors="0"></testsuites>')
+        else:
+            files = ['src/app/shell.test.tsx', 'src/app/feed.test.ts']
+            if mode == 'vitest-partial': files = files[:1]
+            if mode == 'vitest-foreign': files = ['e2e/shell.spec.ts']
+            body = ''
+            for index, name in enumerate(files):
+                skipped = 1 if mode == 'vitest-skip' and index == 0 else 0
+                case = f'<testcase classname="{{name}}" name="FE-101-T1 {{name}} &gt; renders"/>'
+                if skipped:
+                    case += f'<testcase classname="{{name}}" name="a skipped unit test"><skipped/></testcase>'
+                body += (f'<testsuite name="{{name}}" tests="{{1 + skipped}}" failures="0" errors="0" '
+                         f'skipped="{{skipped}}">{{case}}</testsuite>')
+            path.write_text(f'<testsuites name="vitest tests" failures="0" errors="0">{{body}}</testsuites>')
+        if mode == 'vitest-stale': os.utime(path, (1, 1))
 elif 'run' in args and 'e2e' in args:
     # The browser suite's JUnit, in the shape Playwright 1.56 writes it: all four counts on both
     # testsuites and testsuite, and a skipped test as a <skipped/> child. The aggregator reads it
@@ -432,6 +472,22 @@ else:
         # report - which is exactly what counting it after the browser suite has to mean (#233).
         for mode, message in (('e2e-missing', 'e2e: missing JUnit XML'), ('e2e-skip', 'skipped=1, expected 0'),
                               ('e2e-stale', 'stale report')):
+            with self.subTest(mode=mode):
+                result, status = self.run_wrapper(mode)
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertEqual('failed', status)
+                self.assertNotIn('integration_mode=full-docker', result.stdout)
+
+    def test_BA_004_T2_actual_wrapper_rejects_a_unit_report_it_cannot_count(self):
+        """BA-004-T2 web unit suite의 report 부재·skip·빈 report·이전 실행·남의 report·일부만 돈 report를 실제 wrapper가 거부한다"""
+        # Every other suite passes in these runs, so the only thing that can fail them is the Vitest
+        # report. The last two are valid reports with passing cases: a one-case report of another suite,
+        # and the web suite with one of its two files missing - what read_junit alone would accept.
+        for mode, message in (('vitest-missing', 'unit: missing JUnit XML'), ('vitest-skip', 'skipped=1, expected 0'),
+                              ('vitest-empty', 'no testsuite elements'), ('vitest-stale', 'stale report'),
+                              ('vitest-foreign', 'the report names e2e/shell.spec.ts'),
+                              ('vitest-partial', 'test file src/app/feed.test.ts is not in the report')):
             with self.subTest(mode=mode):
                 result, status = self.run_wrapper(mode)
                 self.assertNotEqual(0, result.returncode, result.stdout)
@@ -513,7 +569,8 @@ class WorkflowWiringTests(unittest.TestCase):
         the wrapper: Gradle JUnit, the Python suite, and the gate verdicts recorded from the probes.
         """
         wrapper = (ROOT / 'scripts/integration-test.sh').read_text()
-        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir', '--e2e-junit-dir'):
+        for flag in ('--backend-plan', '--junit-dir', '--script-junit-dir', '--gate-junit-dir', '--e2e-junit-dir',
+                     '--vitest-junit-dir'):
             self.assertIn(flag, wrapper, f'the required gate must pass {flag}')
         self.assertIn('record_gate_evidence.py', wrapper)
         # Evidence before aggregation: recording a verdict after the checker read the directory
@@ -530,6 +587,34 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertLess(lines.index('"${compose[@]}" run --rm e2e'), checker[0],
                         'the browser suite must write its report before the checker reads it')
         self.assertIn('--e2e-junit-dir "${artifact_dir}/playwright" \\', lines[checker[0]:])
+        self.assertLess(lines.index('"${compose[@]}" run --rm web-quality'), checker[0],
+                        'the web suite must write its report before the checker reads it')
+        self.assertIn('--vitest-junit-dir "${artifact_dir}/vitest" \\', lines[checker[0]:])
+        self.assertIn('--vitest-source-dir "${project_root}/apps/web" \\', lines[checker[0]:])
+
+    def test_the_web_suite_writes_its_junit_where_the_gate_reads_it(self):
+        """Three declarations name one path, and the sandbox above fakes all three.
+
+        The reporter path is in apps/web/vite.config.ts, the bind that carries it out of the container
+        is in compose.integration.yml, and the directory the checker reads is in the wrapper. The
+        wrapper tests write the report where the checker looks, so any one of the three can drift and
+        they stay green; the gate would then fail on a missing report, or - worse - a reporter switched
+        off by a lost CI variable would be caught only by that same failure. So the three are held
+        against each other here.
+        """
+        compose = (ROOT / 'compose.integration.yml').read_text()
+        block = compose[compose.index('\n  web-quality:\n'):]
+        block = block[:block.index('\n\n')]
+        self.assertIn('CI: "true"', block, 'the reporter is switched on by CI')
+        self.assertIn('- ./.artifacts/integration/vitest:/workspace/apps/web/vitest-report', block)
+        config = (ROOT / 'apps/web/vite.config.ts').read_text()
+        self.assertIn("reporters: process.env.CI ? ['default', 'junit'] : ['default'],", config)
+        self.assertIn("junit: 'vitest-report/unit/results.xml'", config)
+        # And the files the checker holds the report to are the files vitest runs.
+        self.assertIn("include: ['src/**/*.test.{ts,tsx}'],", config)
+        checker = (ROOT / 'scripts/check_test_reports.py').read_text()
+        self.assertIn('VITEST_TEST_FILES = ("src/**/*.test.ts", "src/**/*.test.tsx")', checker)
+        self.assertIn('--vitest-junit-dir "${artifact_dir}/vitest"', (ROOT / 'scripts/integration-test.sh').read_text())
 
 
 if __name__ == '__main__':

@@ -1596,7 +1596,12 @@ export interface components {
              *     This list does NOT include `NONE`: an unmapped place has no observation, so no
              *     provenance object exists to carry it - that absence is `LivePlace.mappingType`.
              *     The Seoul area map CHECK pins `AREA` and `AREA_FALLBACK`; `NONE` lives in the
-             *     projection, not in the table, and `DIRECT` belongs to a different source. Declared `x-extensible-enum` rather than
+             *     projection, not in the table, and `DIRECT` belongs to a different source. A related
+             *     place's provenance sends its relation's derivation (`place_relations_derivation_check`):
+             *     `INTERNAL_RULE` for a relation our own catalog rule derived, which is the only producer
+             *     today, and `PROVIDER_DIRECT` for one a provider states - no approved provider sends one
+             *     yet. ProvenanceMappingTypeVocabularyIT holds this list to every word a server path
+             *     writes. Declared `x-extensible-enum` rather than
              *     `enum` because this is where a future source states its own mapping method, and a
              *     closed enum would make each one a breaking change.
              */

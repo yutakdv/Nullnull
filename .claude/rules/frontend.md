@@ -22,4 +22,4 @@ paths:
 - P1 capability가 OFF면 요청을 보내지 않고 명시적 disabled `준비 중` UI를 사용한다.
 - Frontend 작업은 장기 `frontend`에서 하고 `main`에만 PR을 만든다. 상대 승인과 `docs-contract`·`docker-integration` 전에는 merge-ready가 아니다.
 - 공모전 KTO 화면은 `출처: ⓒ한국관광공사` 또는 승인 문구와 기준시각/state를 표시한다. `TourAPI` 단독·무허가 CI/BI logo를 금지한다.
-- 공모전 profile은 로그인 불필요이며 위치 capability OFF다. geolocation API·permission prompt·좌표 request를 만들지 않는다.
+- 공모전 profile은 로그인 불필요이며(로그인 화면은 테스트 계정을 미리 채운 흉내이고 인증 요청을 보내지 않는다, A-075) 위치 capability OFF다. geolocation API·permission prompt·좌표 request를 만들지 않는다.

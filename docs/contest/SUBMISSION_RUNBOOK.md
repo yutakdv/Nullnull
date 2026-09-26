@@ -390,8 +390,8 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 순서는 다음과 같다.
 
 1. [ ] **배포**: 최종 main SHA를 operator로 배포한다([staging runbook](../operations/STAGING_DEPLOYMENT_RUNBOOK.md) §11). 성공 줄은 `deployment_action=executed …`다.
-   - operator 배포는 smoke·flows를 스스로 돌리지 않는다. 배포 뒤에 그 둘을 돌리는 것은 CD workflow뿐이다. 그래서 §11의 `staging-smoke.sh`와 `staging-flows.mjs`를 이어서 돌린다. edge가 열려 있으면 flows에 `--expect-edge open`을 준다.
-   - 성공 줄: `staging_smoke=pass …`, `staging_flows=pass …`
+   - operator 배포는 smoke·flows를 스스로 돌리지 않는다. 배포 뒤에 그 둘을 돌리는 것은 CD workflow뿐이다. 그래서 §11의 `staging-smoke.sh`와 `staging-flows.mjs`를 이어서 돌린다. edge가 열려 있으면(`--preserve-open-edge` 배포, A-069) 둘 다에 `--expect-edge open`을 준다. smoke의 기본값은 닫힌 edge를 요구해 `public-api-edge-not-closed`로 멈춘다.
+   - 성공 줄: `staging_smoke=pass … public_api_edge=open …`, `staging_flows=pass …`
    - flows 출력에 `pass catalog.search`가 있고 `catalog.closed-is-explicit`가 없어야 한다. flows는 닫힌 catalog 게이트(503 `SOURCE_UNAVAILABLE`)도 `pass`로 센다. readiness도 그 게이트를 보이지 않는다(R-045).
 2. [ ] **edge**: 단계 3 "AWS·서비스"의 edge 두 줄을 따른다. 성공 줄은 `edge=open release=<RELEASE> public_health_status=200`이다.
 3. [ ] **공통 변수**: [제출 release 대조 검사](#제출-release-대조-검사)의 `RELEASE`·`DIR`을 잡는다.

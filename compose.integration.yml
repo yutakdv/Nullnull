@@ -70,6 +70,12 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       target: test
+    # CI turns on Vitest's JUnit reporter (apps/web/vite.config.ts), which the gate's aggregator
+    # reads from the bind below - the same pair the e2e service uses for Playwright.
+    environment:
+      CI: "true"
+    volumes:
+      - ./.artifacts/integration/vitest:/workspace/apps/web/vitest-report
     command: ["npm", "run", "verify:ci"]
     networks:
       - integration-internal
