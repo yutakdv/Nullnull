@@ -92,19 +92,80 @@ class ForecastPhrases(unittest.TestCase):
         self.assertTrue(any(p.startswith(ts_const("INT04_CONTENT_ID") + ":") for p in places), places)
 
 
+def operator_expiry() -> dt.datetime:
+    expiry = re.search(
+        r"EXPIRY = dt\.datetime\((\d+), (\d+), (\d+), (\d+), (\d+), (\d+), tzinfo=dt\.timezone\.utc\)",
+        OPERATOR.read_text(),
+    )
+    assert expiry, "EXPIRY is no longer a literal datetime in staging_operator.py"
+    return dt.datetime(*(int(g) for g in expiry.groups()), tzinfo=dt.timezone.utc)
+
+
 class ScheduleConstants(unittest.TestCase):
     def test_the_schedule_ends_when_the_operator_expires(self):
-        expiry = re.search(
-            r"EXPIRY = dt\.datetime\((\d+), (\d+), (\d+), (\d+), (\d+), (\d+), tzinfo=dt\.timezone\.utc\)",
-            OPERATOR.read_text(),
-        )
-        assert expiry, "EXPIRY is no longer a literal datetime in staging_operator.py"
-        operator_end = dt.datetime(*(int(g) for g in expiry.groups()), tzinfo=dt.timezone.utc)
         end = re.search(r'FORECAST_SCHEDULE_END = new Date\("([^"]+)"\)', STAGING_TS.read_text())
         assert end
         self.assertEqual(
-            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_end
+            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_expiry()
         )
+
+    def test_the_seoul_live_collection_ends_when_the_operator_expires(self):
+        # A-069 moved the end once and this pair had no witness: leaving the Java constant behind stops
+        # the Seoul collection at the old date with every gate green, and nothing alarms (SNS unsubscribed).
+        scheduler = JAVA / "live" / "infrastructure" / "SeoulLiveRefreshScheduler.java"
+        end = re.search(r'JUDGING_END = Instant\.parse\("([^"]+)"\)', scheduler.read_text())
+        assert end, "JUDGING_END is no longer a literal Instant in SeoulLiveRefreshScheduler.java"
+        self.assertEqual(
+            dt.datetime.fromisoformat(end.group(1).replace("Z", "+00:00")), operator_expiry()
+        )
+
+    def test_the_shell_expiry_date_is_the_operator_expiry_date(self):
+        # common.sh spells the date twice, a default and the value it insists on; the shell scripts die
+        # with unexpected-expiry-date when either differs from the other, and neither was held to EXPIRY.
+        common = (ROOT / "scripts" / "aws" / "common.sh").read_text()
+        default = re.search(r'NULLNULL_EXPIRY_DATE="\$\{NULLNULL_EXPIRY_DATE:-([0-9-]+)\}"', common)
+        insisted = re.search(r'"\$NULLNULL_EXPIRY_DATE" == \'([0-9-]+)\' \]\] \|\| fail \'unexpected-expiry-date\'', common)
+        assert default and insisted, "common.sh no longer spells the expiry date the way this test reads it"
+        expected = operator_expiry().date().isoformat()
+        self.assertEqual(default.group(1), expected)
+        self.assertEqual(insisted.group(1), expected)
+        at = re.search(r'NULLNULL_EXPIRY_AT="\$\{NULLNULL_EXPIRY_DATE\}T([0-9:]+)Z"', common)
+        assert at, "common.sh no longer derives the end instant from the expiry date"
+        self.assertEqual(at.group(1), operator_expiry().strftime("%H:%M:%S"))
+
+    def test_a_writing_shell_script_stops_at_the_operator_end_instant(self):
+        # The shell guard compared the UTC date only, so a writing script (restore-drill creates an RDS
+        # instance) still ran for nine hours after the operator refused. Measured at the edge, with date and
+        # aws faked on PATH; the guard never reaches a real account.
+        import os, subprocess, tempfile
+        end = operator_expiry()
+        cases = [
+            ((end - dt.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"), True),
+            (end.strftime("%Y-%m-%dT%H:%M:%SZ"), False),
+            ((end + dt.timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ"), False),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp)
+            (fake / "date").write_text('#!/bin/sh\necho "$FAKE_NOW"\n')
+            (fake / "aws").write_text(
+                '#!/bin/sh\necho "arn:aws:sts::111111111111:assumed-role/nullnull-stg-operator/test"\n')
+            for tool in ("date", "aws"):
+                (fake / tool).chmod(0o755)
+            for now, allowed in cases:
+                with self.subTest(now=now):
+                    env = {k: v for k, v in os.environ.items() if not k.startswith("NULLNULL_")}
+                    env.update({"PATH": f"{fake}:{env.get('PATH', '')}", "FAKE_NOW": now,
+                                "NULLNULL_AWS_ACCOUNT_ID": "111111111111", "NULLNULL_AWS_AUTH": "profile",
+                                "AWS_PROFILE": "test", "AWS_REGION": "ap-northeast-2"})
+                    result = subprocess.run(
+                        ["bash", "-c", f'source "{ROOT}/scripts/aws/common.sh"; assert_operator_contract; echo contract=ok'],
+                        capture_output=True, text=True, env=env, check=False)
+                    if allowed:
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertIn("contract=ok", result.stdout)
+                    else:
+                        self.assertNotEqual(0, result.returncode)
+                        self.assertIn("reason=staging-expired", result.stderr)
 
     def test_the_scheduled_mains_are_the_ones_the_operator_runs_with_the_same_approvals(self):
         operator = OPERATOR.read_text()
@@ -186,7 +247,9 @@ class ScheduleConstants(unittest.TestCase):
         assert places
         value = ts_const("FORECAST_DEMO_PLACES")
         self.assertRegex(value, f"^{places.group(1)}$")
-        self.assertEqual(len(set(value.split(","))), len(value.split(",")), "duplicate-places")
+        # By contentId, the rule KtoDemoRefresh.places applies: a repeated contentId fails the whole list.
+        content_ids = [entry.split(":")[0] for entry in value.split(",")]
+        self.assertEqual(len(set(content_ids)), len(content_ids), "duplicate-places")
 
 
 class DeployRoleCanCreateTheSchedule(unittest.TestCase):

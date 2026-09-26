@@ -2,7 +2,7 @@
 aliases:
   - "서울 주요 장소 catalog 확대 수집 계획"
 doc_type: plan
-status: draft
+status: active
 area: operations
 tags:
   - nullnull/operations
@@ -11,7 +11,7 @@ tags:
 
 # 서울 주요 장소 catalog 확대 — 수집 계획 (#351)
 
-> **상태: 오너 검토 대기.** 이 문서는 계획이다. KTO OpenAPI 호출, staging 적재, 배포는 하지 않았다. 오너가 목록·경로·시점을 승인한 뒤 **오너가 자기 셸에서** 실행한다(§6 전제). [#351](https://github.com/yutakdv/Nullnull/issues/351)은 공개 검색으로 적재를 확인할 때까지 닫지 않는다.
+> **상태: 오너 결정됨, 배치 대기(2026-09-25).** §11의 결정은 A-070·A-071에 있다. 이 문서를 쓴 뒤에도 KTO OpenAPI 호출, staging 적재, 배포는 하지 않았다. 적재와 예보 측정은 **오너가 자기 셸에서** 실행한다(§6 전제, 측정 순서는 §12). [#351](https://github.com/yutakdv/Nullnull/issues/351)은 공개 검색으로 적재를 확인할 때까지 닫지 않는다.
 
 ## 요약
 
@@ -299,6 +299,8 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 ## 11. 오너가 정할 것
 
+**결정됨(2026-09-25)**: 15곳을 §4 목록 그대로 진행하고(*"넣는다"*, A-071의 *"알고 진행한다"*), 되돌릴 수 없음을 받아들였다(A-071). 경로는 (2) `kto-demo-detail`이다. 남산 둘·청계천·종로 쏠림은 따로 묻지 않았고 목록 그대로 승인됐다. 시점은 §12의 측정 순서와 배포 시점 제약을 따른다. 아래는 결정 전의 질문이다(당시 기록).
+
 1. **§4 목록 승인.** 특히 다음 셋을 판단한다.
    - 남산서울타워와 남산공원(서울)을 둘 다 넣을지(637 m, 한 권역)
    - 청계천을 넣을지. 하천 전체가 아니라 한 점이다. 일정의 경로 계산이 그 점을 쓴다.
@@ -312,11 +314,23 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 ## 12. 별도 결정 — 정기 갱신 목록 확대
 
-이 계획은 정기 갱신 목록을 바꾸지 않는다. 오너 결정(#351 댓글)대로 호출량과 관측 가능성을 본 뒤 따로 정한다. 아래는 그 결정에 필요한 사실이다.
+**결정됨(A-070, 2026-09-25)**: 배치 적재와 예보 측정 결과로 목록을 만든다. 기존 두 곳을 맨 앞에 두고, 예보 `coverage>0`이고 거절이 없던 새 장소만 넣는다. 예보 없는 장소는 한 번 적재만 한다. **A-071**이 기존 공개 장소 셋(126509, 126537, 127642)을 같은 조건의 후보로 더했다. 목록 순서는 기존 두 곳 → 이 셋 → 새 장소다.
+
+**예보 측정 순서(A-071)**. 측정은 목록을 정하는 입력이라 R4 plan 전에 끝나야 한다.
+
+- **위험**: 예보 요청의 `tAtsNm`은 detail snapshot의 제목이고, 이 operation에서 key가 아니라 filter다. 제목이 여러 관광지와 겹치면(`totalCount`가 받은 행 수와 다르거나 `MAX_RECORDS` 31을 넘으면) `MAPPING_UNCERTAIN`으로 거절된다(`KtoForecastResponseValidator`). 거절은 서울만 예외인 `PROVIDER_ERROR` 재시도 밖이라 `KTO_CONCENTRATION_FORECAST` 전체를 격리하고, 격리 중에는 INT-04(126508)의 정기 갱신도 `SOURCE_QUARANTINED`로 막힌다. 겹치는 이름이 하나도 없으면 거절이 아니라 `coverage=0`이다.
+- **순서**: 09-19에 `coverage=30`이 잰 기존 셋을 먼저, 그다음 P, 그다음 B, C 순서로 돈다. 한 명령 안에서 격리가 나면 뒤 장소는 호출 없이 `SOURCE_QUARANTINED`로 끝난다. 그 명령은 거기서 멈추고, 격리를 푼 뒤 원인 장소를 빼고 남은 장소만 다시 돈다.
+- **시점**: 정기 예보 tick(약 03:33·15:33 KST)이 **끝난 직후**에 시작한다. INT-04의 set이 막 24시간으로 갱신된 때라 격리를 푸는 동안 여유가 가장 크다.
+- **격리가 나면**: 실패한 task는 exit 1로 끝나 잠금을 남기므로 먼저 §7 복구 1대로 `unlock --owner <uuid>`를 한다. 그다음 `release-source-quarantine --source-code KTO_CONCENTRATION_FORECAST`(오너 승인 변수)를 돌린다. 이 task는 성공하면 자기 잠금을 풀고 끝나므로 뒤에 `unlock`이 필요 없다. 마지막으로 `/api/v1/health/ready`의 `source:KTO_CONCENTRATION_FORECAST`가 READY인지 확인한다. 원인 장소는 목록에 넣지 않는다.
+- **판정**: `KTO_DEMO_REFRESH_EVIDENCE contentId=… coverage=…`에서 `REFRESHED`이고 `coverage>0`인 장소만 목록에 넣는다. 장소별 줄은 #351 코멘트에 남긴다.
+
+**배포 시점 제약(A-071)**. 새로 적재한 장소의 detail snapshot은 적재 7일 뒤 만료된다. R3의 schedule은 두 곳만 갱신한다. R4 뒤 첫 정기 detail tick(약 5일 주기, 다음은 2026-09-30 03:32 KST 무렵)이 적재 뒤 7일 안에 오지 않으면, 그 사이 새 장소의 예보 갱신은 `NO_VERIFIED_KTO_MAPPING`으로 실패한다. 그래서 R4를 09-30 03:32 KST 전에 배포하거나, R4 직후 오너가 목록 전체로 `kto-demo-detail`을 한 번 돌린다. 이 명령은 만료 6일 안쪽인 장소만 KTO에 묻는다(`DETAIL_RENEW_BEFORE`).
+
+아래는 A-070 결정에 쓴 사실이다(당시 기록).
 
 - **목록 하나가 두 스케줄을 움직인다**: `infra/src/staging.ts`의 `FORECAST_DEMO_PLACES`가 detail(5일)과 예보(12시간) 스케줄의 입력이다.
-  - 두 스케줄은 같은 설정으로 만들어진다. 종료는 2026-10-25T14:59:59Z(`FORECAST_SCHEDULE_END`)이고, scheduler 재시도는 `retryAttempts: 3`이다.
-  - 스케줄은 `Migration` stack에 있다. 목록을 바꾸면 `infra/` 코드를 고치지만 app release로 나간다.
+  - 두 스케줄은 같은 설정으로 만들어진다. 종료는 `FORECAST_SCHEDULE_END`(A-069로 2026-10-31T14:59:59Z)이고, scheduler 재시도는 `retryAttempts: 3`이다.
+  - 스케줄은 `Migration` stack에 있다. 목록이나 종료를 바꾸면 Migration template이 바뀌어 classify가 **infra**로 판정한다(`template-changed-Migration`). 이전 판의 "app release로 나간다"는 틀렸다. `--preserve-open-edge`는 Migration만 바뀐 infra plan을 받는다.
 - **#363 전의 detail 갱신 결함**([#361](https://github.com/yutakdv/Nullnull/issues/361), 고쳐졌다):
   - 등급: `[읽음]` 코드 분석이다. #361의 staging 로그 측정에서는 예보가 한 번 갱신하고 한 번 건너뛰기를 되풀이했다.
   - 그때는 `rate 5일 + DETAIL_RENEW_BEFORE 2일 = 수명 7일`이라 갱신 여부가 기동 지연 차이로 갈렸다. 건너뛴 주기에는 detail snapshot이 약 3일 비고, 그동안 예보 갱신이 `NO_VERIFIED_KTO_MAPPING`으로 실패했다.
