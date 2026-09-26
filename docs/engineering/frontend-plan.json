@@ -2181,7 +2181,7 @@
           "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003 네 행을 이 카드가 소유한다. CMP-SUB-004(외부 접속 URL)는 매트릭스대로 DRI가 BE·AI이고 FE는 검토한다 — 증거가 배포 작업인 HTTPS smoke라서다(bbc58308). responsive.spec·session.spec·shell.spec은 로컬·게이트의 뼈대이고 배포 URL 증거는 step 1의 사람 walk로 모은다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003 네 행을 이 카드가 소유한다. CMP-SUB-004(외부 접속 URL)는 매트릭스대로 DRI가 BE·AI이고 FE는 검토한다 — 증거가 배포 작업인 HTTPS smoke라서다(bbc58308). responsive.spec·session.integration.spec·shell.spec은 로컬·게이트의 뼈대이고 배포 URL 증거는 step 1의 사람 walk로 모은다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     }
