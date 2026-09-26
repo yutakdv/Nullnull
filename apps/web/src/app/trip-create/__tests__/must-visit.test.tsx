@@ -644,19 +644,33 @@ async function unsavedState(names: string[]) {
   return message;
 }
 
-describe('FE-103-T32 when a pick cannot be saved, the wizard stays and names it', () => {
+describe('FE-103-T32 when a pick cannot be saved, the wizard stays on /start', () => {
   beforeEach(answerWrites);
 
-  it('says the trip exists and names only the place that failed, without leaving', async () => {
+  it('does not leave for the trip once the writes have finished', async () => {
+    failing.add(second?.id ?? '');
+    await keepTwoAndFill();
+
+    // 다시 시도 appears when the writes are done with one left over — the
+    // point at which the all-saved case opens the trip. Waited on rather than
+    // the message, so this clause does not lean on T42's wording.
+    await screen.findByRole('button', { name: copy['mustVisit.retry'] });
+    expect(saved).toHaveLength(2);
+    // Still here. Opening the trip would have dropped the failed place
+    // without a word, which is the defect #185 reported in the first place.
+    expect(router.state.location.pathname).toBe('/start');
+  });
+});
+
+describe('FE-103-T42 the partial-failure alert names only the places that failed', () => {
+  beforeEach(answerWrites);
+
+  it('says the trip exists and names the place that failed, not the one that was saved', async () => {
     failing.add(second?.id ?? '');
     await keepTwoAndFill();
 
     const message = await unsavedState([second?.name ?? '']);
     expect(message).not.toHaveTextContent(first?.name ?? '');
-    expect(saved).toHaveLength(2);
-    // Still here. Opening the trip would have dropped the failed place
-    // without a word, which is the defect #185 reported in the first place.
-    expect(router.state.location.pathname).toBe('/start');
   });
 });
 
