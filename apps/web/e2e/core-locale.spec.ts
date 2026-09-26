@@ -37,7 +37,17 @@ const RUN = JSON.parse(fixture('optimizations/run-ready.json')) as {
 // check here read the app's own copy and none read the server's. The server
 // writes it in the owner's language (OptimizeItemHandler picks ko or en, and
 // apps/ai explain/templates.py renders it), so an en-US reader gets the EN
-// template. This is that sentence for the example's own facts. The source
+// template.
+//
+// The en-US value below is a TEST OVERRIDE standing in for that EN sentence, not
+// what the server would send for this example. It fills the EN template with the
+// example's own facts, but 'Insadong' is this file's choice. The server names the
+// place with the catalog's locale fallback (JdbcCatalogPlaceQuery `find`: the
+// exact locale, then the language, then ko, then the canonical name), and the
+// approved trip example calls it 인사동 (trips/trip-detail-scheduled.json). Where
+// the catalog has no English name for it, the real EN sentence reads
+// "Moving 인사동 from ...". The override is all English on purpose, so that the
+// Korean walker below measures the app's copy and not that fallback. The source
 // credit stays as the registry wrote it, which is what the server passes in.
 const CREDIT = String(RUN.proposals[0]?.dataProvenance[0]?.attribution);
 const SUMMARY = {
@@ -165,13 +175,16 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await expect(
       page.getByRole('button', { name: M['decision.keep'], exact: true }),
     ).toBeVisible();
-    // The server's sentence, verbatim, in the language of the screen around it.
+    // The served summary, verbatim, in the language of the screen around it: the
+    // approved example's sentence in ko-KR, this file's override in en-US (SUMMARY).
     await expect(page.getByText(SUMMARY[locale], { exact: true })).toBeVisible();
     if (locale === 'en-US') {
       // And no other Korean: every text node and accessible label on the
       // screen, with the source credits quoted as written taken out. The
       // checks above read the controls this file names; this reads the rest,
-      // so a Korean sentence anywhere - the server's or the app's - fails here.
+      // so Korean anywhere - the app's own copy, or a ko summary shown where the
+      // en one was served - fails here. It does not judge the server's real EN
+      // sentence, which can carry a Korean place name (see SUMMARY).
       const korean = await page.evaluate((quoted) => {
         const found: string[] = [];
         const check = (text: string) => {
