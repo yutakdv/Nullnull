@@ -655,12 +655,12 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 
 - owner A/B/C는 cookie에서 유도하며 같은/타 session CSRF, Origin의 scheme/host/port, 중복 자격 증명, 다중 탭 LRU·동시 발급을 검사한다.
 - injected clock으로 first touch, throttle, idle/absolute·CSRF 만료의 등호 경계, orphan 및 revoked retention을 검사한다. DB `now()`를 테스트 clock으로 대신 쓰지 않는다.
-- `apps/web/e2e/session.spec.ts`는 `API_INTERNAL_BASE_URL`의 실제 API를 직접 호출하는 Playwright transport 검사다. Compose 내부 HTTP에서는 Secure cookie를 명시 전달한다. 브라우저 Secure cookie 수락이나 아직 없는 세션 UI를 검증했다고 쓰지 않는다. 기존 `shell.spec.ts`의 keyboard/focus 검사는 계속 실행한다.
+- `apps/web/e2e/session.integration.spec.ts`는 `API_INTERNAL_BASE_URL`의 실제 API를 직접 호출하는 Playwright transport 검사다. Compose 내부 HTTP에서는 Secure cookie를 명시 전달한다. 브라우저 Secure cookie 수락이나 아직 없는 세션 UI를 검증했다고 쓰지 않는다. 기존 `shell.spec.ts`의 keyboard/focus 검사는 계속 실행한다.
 - report: `apps/api/build/test-results/{test,integrationTest,openapiContractTest}/*.xml`; 전체 gate의 복사본은 `.artifacts/integration/api-test-results/`와 `.artifacts/integration/test-results/`다. 전체 owner resource matrix와 삭제 receipt는 후속 slice 범위다.
 
 ### BA-011 프로필 검사
 
-`backend-plan.json`의 BA-011-T1~T3는 `integrationTest`의 `OwnerPreferencesIT`·`OwnerPreferencesConcurrencyIT`, `openapiContractTest`의 `OwnerContractTest`에서 실행한다. null/absent와 잘못된 patch의 원자성, 동일 owner의 동시 변경 보존, 반복 onboarding의 PostgreSQL row version 불변, field error와 response schema를 검사한다. 실제 TripLookup은 BA-030 전까지 fail-closed이며 test override의 owner/삭제 trip 검사를 실제 trip table 구현으로 쓰지 않는다. Playwright `session.spec.ts`는 실제 API에서 KO/EN 저장·재조회·unsupported locale 응답을 검사한다. UI-only 흐름과 기존 keyboard/focus 검사는 구분한다.
+`backend-plan.json`의 BA-011-T1~T3는 `integrationTest`의 `OwnerPreferencesIT`·`OwnerPreferencesConcurrencyIT`, `openapiContractTest`의 `OwnerContractTest`에서 실행한다. null/absent와 잘못된 patch의 원자성, 동일 owner의 동시 변경 보존, 반복 onboarding의 PostgreSQL row version 불변, field error와 response schema를 검사한다. 실제 TripLookup은 BA-030 전까지 fail-closed이며 test override의 owner/삭제 trip 검사를 실제 trip table 구현으로 쓰지 않는다. Playwright `session.integration.spec.ts`는 실제 API에서 KO/EN 저장·재조회·unsupported locale 응답을 검사한다. UI-only 흐름과 기존 keyboard/focus 검사는 구분한다.
 
 ### BA-012 삭제 수명주기 검사
 
@@ -669,7 +669,7 @@ B01 scaffold에서는 실제 구현한 기반 suite와 모든 미지원 capabili
 - T1은 revoke/receipt/tombstone/job의 단일 transaction, 같은 revoked cookie와 key의 24시간 projection 재생, 다른 key·route 차단, 상태 token의 HMAC·저장 hash·정확한 만료 경계와 plaintext canary 부재를 검사한다.
 - T2는 실제 worker의 `PARTIAL_FAILED` 재시도, eraser의 짧은 `JobContext.transactional` 실행, 비중첩과 profile 비부활을 검사하며 testcase에 `REC-SEC-03`을 함께 등록한다.
 - T3는 retained tombstone의 restore 재적용, eraser 오류 시 startup 실패, web server보다 앞선 lifecycle phase, status hash 7일 삭제와 retained FK가 사라진 뒤의 owner hard delete를 검사한다.
-- `apps/web/e2e/session.spec.ts`는 실제 API에서 삭제 접수·정확한 replay·상태 조회·revoked 접근 차단을 검사한다. S14 UI의 확인 dialog, memory-only token 보관, polling 진행/부분 실패/만료 화면은 Frontend 검수 항목이다.
+- `apps/web/e2e/session.integration.spec.ts`는 실제 API에서 삭제 접수·정확한 replay·상태 조회·revoked 접근 차단을 검사한다. S14 UI의 확인 dialog, memory-only token 보관, polling 진행/부분 실패/만료 화면은 Frontend 검수 항목이다.
 
 `RequestBodySwallowBoundIT`는 큰 upload에 대해 `HttpClient`가 반드시 IOException을 던진다는 가정을 사용하지 않는다. raw TCP writer가 응답과 독립적으로 본문을 보내며 서버가 전체 upload를 중단하는지, 후속 pipelined request가 성공하지 않는지 검사한다. `max-swallow-size=-1` 변이에서 전체 본문 전송이 완료되어 새 단언이 실패한다. 정상 2 MiB 설정은 유지하며 413을 먼저 받는 경우와 응답 없는 transport 실패를 모두 표현한다.
 

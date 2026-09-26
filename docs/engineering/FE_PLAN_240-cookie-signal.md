@@ -141,11 +141,20 @@ cd apps/web && npm run verify:ci
 
 `docker-integration`은 로컬에서 돌리지 않는다. 돌리지 않은 검사를 통과로 쓰지 않는다.
 
-`session.spec.ts`의 `BA-010`·`011`·`012` 3건은 **실제 backend가 필요해 로컬에서
-원래 빨갛다.** 제 변경과 무관하다는 것을 `git stash`로 확인했다 — 실패로 세지 않는다.
+`e2e/session.integration.spec.ts`(`10d86196` 전 이름 `session.spec.ts`)의
+`BA-010`·`011`·`012` 3건은 **실제 backend가 필요하다.** 이 문서를 쓸 때는 로컬에서 원래
+빨갰고, 제 변경과 무관하다는 것을 `git stash`로 확인했다. 지금은 로컬 mock 실행에
+나타나지 않는다 — `playwright.config.ts`의 `testIgnore`가 `*.integration.spec.ts`를
+composed API 실행에서만 모은다. 그래서 로컬 결과는 이 3건에 대해 아무것도 판정하지 않고,
+판정은 `docker-integration`만 낸다.
 
 ## 열려 있는 것
 
-`e2e/session.spec.ts:16,53,94`의 하드코딩된 `http://localhost:5173`과 compose의
-`APP_PUBLIC_ORIGIN`을 **한 PR로** 넣어야 한다는 BE 판단(#233 09-16)이 유효하다.
-이 작업과 같이 갈지는 그때 확인한다.
+없다. 여기 적혀 있던 항목(session spec의 하드코딩된 `http://localhost:5173` 세 곳과
+compose의 `APP_PUBLIC_ORIGIN`을 **한 PR로** 넣어야 한다는 BE 판단, #233 09-16)은 **이
+문서보다 먼저 닫혀 있었다.** `7ffd37e8`(DX-003, 09-17)이 두 쪽을 한 커밋으로 넣었다 —
+spec의 세 literal을 `PLAYWRIGHT_BASE_URL`에서 유도하는
+`ORIGIN`으로 바꾸고(지금 `e2e/session.integration.spec.ts:27`, `http://localhost:5173`은
+:19 주석에 옛 값으로만 남는다), `compose.integration.yml`의 `APP_PUBLIC_ORIGIN`과 e2e
+`PLAYWRIGHT_BASE_URL`을 둘 다 `http://localhost:4173`으로 맞췄다(지금 :200, :226). 줄
+번호 `16,53,94`는 `7ffd37e8` 직전 파일의 것이었다.

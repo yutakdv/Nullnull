@@ -50,8 +50,9 @@ npm run test       # vitest만
 npm run test:e2e   # Playwright. dev:mock 서버를 직접 띄운다
 ```
 
-`e2e/session.spec.ts` 3건은 `apps/api`(:8080)를 직접 호출하므로 백엔드 없이는
-실패한다. 브라우저를 쓰지 않는 transport 테스트라서 MSW가 가로채지 않는다.
+`e2e/session.integration.spec.ts` 3건은 `apps/api`(:8080)를 직접 호출하는 transport
+테스트라 MSW가 가로채지 않는다. 그래서 `*.integration.spec.ts` 이름으로 두어 mock 실행은
+수집하지 않고(`playwright.config.ts`의 `testIgnore`) 게이트의 합성 스택에서만 돈다.
 나머지 E2E는 명시적인 `dev:mock` 서버로 돈다.
 
 ## 구조

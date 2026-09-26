@@ -5,7 +5,8 @@ import type { Page } from '@playwright/test';
 // are drawn in the gate: the gate's own Live routes show only the 403 of
 // FEATURE_LIVE_DATA off. Moved here rather than copied for the reason
 // overflow.ts gives - two callers must agree on what counts as a coordinate.
-// The three shapes and their comments moved unchanged.
+// The three shapes - one exported pattern each, below - and their comments
+// moved unchanged.
 
 /** Reads like a latitude/longitude pair — `37.5665,126.9780` — in a URL or a body. */
 export const COORDINATE = /[-+]?\d{1,3}\.\d{4,}\s*,\s*[-+]?\d{1,3}\.\d{4,}/;
@@ -48,19 +49,53 @@ export const COORDINATE_PARAM =
 
 /**
  * Installs the three watches location-off.spec.ts keeps on a screen - the
- * geolocation API wrapped so a call throws AND is recorded, the browser
- * permission dialog, and the wire - before the page loads. `report()` returns
- * what each saw.
+ * geolocation API wrapped so a call throws AND is recorded, JS dialogs, and the
+ * wire - before the page loads. `report()` returns what each saw.
+ *
+ * What the dialog watch sees is `alert`/`confirm`/`prompt`/`beforeunload`: an
+ * app-made "use your location?" pre-prompt, for instance. It does NOT see the
+ * browser's own permission prompt, and it was documented as if it did. Measured
+ * with Playwright 1.56.0's headless Chromium on /about-data: an unwrapped
+ * `getCurrentPosition` with no permission granted came back `code=1 User denied
+ * Geolocation` and no `dialog` event fired, while a `confirm()` in the same page
+ * did fire one. The browser prompt
+ * is closed off by the wrapper instead - the Geolocation API is the only thing
+ * that raises it, and a call is recorded before the browser could ask. The
+ * Permissions API is not watched here. location-off.spec.ts's last test watches
+ * it on the /feed screen only, as that screen loads, so no screen-wide claim
+ * rests on it.
+ *
+ * Calls are recorded outside the page as well as in it. A record kept only in
+ * `window` belongs to one document, and a full navigation replaces it: measured,
+ * a `getCurrentPosition` on /about-data read as [] after `page.goto('/feed')`.
+ * The walks that use this navigate - location-off.spec.ts falls back to a fresh
+ * `goto` when Back does not return, and in the gate a trip screen is reached
+ * through the splash first - so a call made before one read as no call at all.
+ *
+ * `asked` is null when the wrapper is not on the document being reported: an
+ * uninstalled wrapper records nothing, and reading that as "no calls" is the
+ * vacuous pass this exists to prevent. Callers assert it is not null.
  */
 export async function watchLocation(page: Page) {
+  const asked: string[] = [];
   const dialogs: string[] = [];
   const leaked: string[] = [];
+  // Exposed before the init script is added and before any navigation, so every
+  // document (and every frame) the wrapper lands in can reach it.
+  await page.exposeFunction('__nnGeolocationCalled', (name: string) => {
+    asked.push(name);
+  });
   await page.addInitScript(() => {
+    const view = window as unknown as {
+      __geo: string[];
+      __nnGeolocationCalled: (name: string) => Promise<void>;
+    };
     const record = (name: string) => {
-      (window as unknown as { __geo: string[] }).__geo.push(name);
+      view.__geo.push(name);
+      void view.__nnGeolocationCalled(name);
       throw new Error(`geolocation.${name} must not be called`);
     };
-    (window as unknown as { __geo: string[] }).__geo = [];
+    view.__geo = [];
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       value: {
@@ -78,6 +113,9 @@ export async function watchLocation(page: Page) {
     const url = request.url();
     if (!url.includes('/api/')) return;
     const body = request.postData() ?? '';
+    // COORDINATE_PARAM is applied to the body as well as the URL: a
+    // form-encoded POST carries `lat=37.5665` in exactly the same shape, and
+    // checking only the URL would let the same value through by changing verb.
     if (
       COORDINATE.test(url) ||
       COORDINATE.test(body) ||
@@ -90,10 +128,15 @@ export async function watchLocation(page: Page) {
   });
   return {
     async report() {
-      const asked = await page.evaluate(
-        () => (window as unknown as { __geo?: string[] }).__geo ?? null,
-      );
-      return { asked, dialogs, leaked };
+      const inPage = await page.evaluate(() => {
+        const geo = (window as unknown as { __geo?: unknown }).__geo;
+        return Array.isArray(geo) ? (geo as string[]) : null;
+      });
+      if (inPage === null) return { asked: null, dialogs, leaked };
+      // The page's own list backs up the outside one for a call made just
+      // before this read: `__geo` took it synchronously, while its message to
+      // `asked` may still be on the way.
+      return { asked: asked.length > 0 ? [...asked] : inPage, dialogs, leaked };
     },
   };
 }
