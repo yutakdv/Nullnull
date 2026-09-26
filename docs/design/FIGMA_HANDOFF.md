@@ -370,7 +370,7 @@ S12 P1 범위 정합성:
 | 후보 선택 `399:658`, `409:1595` | focus-trapped sheet, trip picker, new-trip route | trip list/active-trip, owner filter | no-trip·single·multiple 여행 |
 | 후보 결과 `399:843`, `399:1011`, `399:1179` | saving/saved/duplicate/error·exact retry | candidate idempotency/unique key/Problem | 일정 version 미변경 불변식 |
 | 여행 날짜·관심사·계획 `438:3012`, `438:3108`, `438:3134` | wizard draft, field validation, 뒤로가기 복구 | date/timezone/enum/관심사 최종 검증 | step 이동·refresh·경계값 QA |
-| 필수 장소 `438:3158` | search/select/remove, unresolved state | `searchPlaces`, canonical mapping, seed constraint | 동명 장소·미해결 검증 |
+| 필수 장소 `438:3158` | search/select/remove, unresolved state | `searchPlaces`, canonical mapping, `addTripCandidate`(`mustVisit`) | 동명 장소·미해결 검증 |
 | 입력 방식 `400:1201` | 수동/붙여넣기 분기와 draft 보존 | API 호출 없음 | 분기 전환 시 raw text 비영속 |
 | 붙여넣기 `401:1221` | raw text 비영속, parse/remap UI | `parseTripImport`/`remapTripImport`, 비저장·비로그 | unresolved 수정 후에만 confirm |
 | 직접 입력 `438:3199` | 날짜별 item draft/순서 편집 | place validation, create input 검증 | 범위 밖 item·중복 차단 |
