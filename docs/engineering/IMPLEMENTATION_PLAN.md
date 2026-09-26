@@ -273,7 +273,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-303` | B05 | S07-8 후보 panel과 일정화 flow | `412:1912` |
 | `FE-304` | B05 | lock control, unlock/date-lock confirm | `413:2081`, `527:3876` |
 | `FE-305` | B05 | 검색/추가/교체/날짜 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
-| `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | 미지정 · S07 편집 흐름 |
+| `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | `411:1837` · 영향 목록 state는 FCR-032(디자인 부재) · 진입 control은 FCR-037(node 없음, FE placeholder) |
 | `FE-307` | B05 | item 편집 시트에서 잠금 종류별 독립 설정 | `411:1837` |
 | `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
 | `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
