@@ -207,7 +207,7 @@ test('FE-103-T30 FE-303-T4 kept places become must-visit candidates of the new t
   expect(headings.sort()).toEqual([...(savedNames as string[])].sort());
 });
 
-test('FE-103-T32 FE-103-T33 FE-103-T39 a place that fails is named, and the retry re-sends it with its key', async ({
+test('FE-103-T32 FE-103-T42 FE-103-T33 FE-103-T39 a place that fails is named, and the retry re-sends it with its key', async ({
   page,
 }) => {
   const copy = COPY['en-US'];
@@ -242,38 +242,53 @@ test('FE-103-T32 FE-103-T33 FE-103-T39 a place that fails is named, and the retr
   expect(sent[2]?.tripId).toBe(sent[1]?.tripId);
 });
 
-// 390px Korean is here because it failed where the others passed: the message
-// was already inside the scroll box, just under the fixed bar, and a
-// 'nearest' scroll left it hidden there.
+/**
+ * Walks to the partial-failure state at one size and locale and returns its
+ * message. 180px is 360px at 200% zoom, the way the other reflow checks
+ * emulate it.
+ */
+async function partialFailureAt(page: Page, locale: Locale, width: 180 | 360 | 390) {
+  const copy = COPY[locale];
+  await page.setViewportSize({
+    width,
+    height: { 180: 400, 360: 800, 390: 844 }[width],
+  });
+  await interceptWrites(page, INSADONG.id);
+  await keepBothAndFill(page, locale);
+  const message = page.getByText(copy.unsaved([INSADONG.name]));
+  await expect(message).toBeVisible();
+  return { copy, message };
+}
+
+// One test per clause, so a failure names the clause it broke: the three
+// layout clauses used to share one test and one ID, and only the bar clause
+// had ever been seen to fail (#185 review). 390px Korean is here because it
+// failed where the others passed: the message was already inside the scroll
+// box, just under the fixed bar, and a 'nearest' scroll left it hidden there.
 for (const [locale, width] of [
   ['ko-KR', 180],
   ['en-US', 360],
   ['ko-KR', 390],
 ] as const) {
-  test(`FE-103-T40 FE-103-T41 the partial-failure state holds at ${String(width)}px in ${locale}`, async ({
+  const at = `at ${String(width)}px in ${locale}`;
+
+  test(`FE-103-T40 the partial-failure state does not spill sideways ${at}`, async ({
     page,
   }) => {
-    // 180px is 360px at 200% zoom, the way the other reflow checks emulate it.
-    const copy = COPY[locale];
-    await page.setViewportSize({
-      width,
-      height: { 180: 400, 360: 800, 390: 844 }[width],
-    });
-    await interceptWrites(page, INSADONG.id);
-    await keepBothAndFill(page, locale);
-
-    const message = page.getByText(copy.unsaved([INSADONG.name]));
-    await expect(message).toBeVisible();
-
-    // Nothing on the page scrolls sideways.
+    await partialFailureAt(page, locale, width);
     const layout = await overflow(page);
     expect(layout.spilling, `spills: ${layout.widest.join(', ')}`).toEqual([]);
+  });
 
-    // The state's own text is not cut off. Scoped to the message and the two
-    // buttons rather than asserted over `layout.clipped`: at 180px the search
-    // result cards above already clip their names and crowd labels before
-    // this state exists (measured on the same flow without a failure), and
-    // that belongs to the step's card layout, not to #185.
+  test(`FE-103-T43 the partial-failure state's own text is not cut off ${at}`, async ({
+    page,
+  }) => {
+    // Scoped to the message and the two buttons rather than asserted over
+    // `overflow().clipped`: at 180px the search result cards above already
+    // clip their names and crowd labels before this state exists (measured on
+    // the same flow without a failure), and that belongs to the step's card
+    // layout, not to #185.
+    const { copy, message } = await partialFailureAt(page, locale, width);
     const state = [
       message,
       page.getByRole('button', { name: copy.retry }),
@@ -286,8 +301,13 @@ for (const [locale, width] of [
       );
       expect(cut, `${await locator.innerText()} is cut off`).toBe(false);
     }
+  });
 
+  test(`FE-103-T44 the partial-failure message sits above the fixed bar ${at}`, async ({
+    page,
+  }) => {
     // Readable where it lands: above the fixed bar, not scrolled under it.
+    const { message } = await partialFailureAt(page, locale, width);
     const [text, bar] = await Promise.all([
       message.boundingBox(),
       page.locator('[data-fixed="true"]').boundingBox(),
@@ -296,7 +316,12 @@ for (const [locale, width] of [
     expect(bar).not.toBeNull();
     expect((text?.y ?? 0) + (text?.height ?? 0)).toBeLessThanOrEqual((bar?.y ?? 0) + 1);
     expect(text?.y ?? -1).toBeGreaterThanOrEqual(0);
+  });
 
+  test(`FE-103-T41 the partial-failure actions are 44px touch targets ${at}`, async ({
+    page,
+  }) => {
+    const { copy } = await partialFailureAt(page, locale, width);
     for (const name of [copy.retry, copy.openTrip]) {
       const box = await page.getByRole('button', { name }).boundingBox();
       expect(box, `${name} is rendered`).not.toBeNull();
