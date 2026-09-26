@@ -474,7 +474,13 @@ describe('FE-103-T19 a failed next page is not a failed search here', () => {
       ).toBeInTheDocument();
     }
     expect(screen.queryByText(copy['addPlace.searchError'])).toBeNull();
-    expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter((alert) => alert.textContent !== copy['placeSearch.moreFailed']),
+    ).toEqual([]);
   });
 });
 

@@ -528,9 +528,32 @@ describe('FE-103-T9 a failed continuation says so', () => {
 
     await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      copy['placeSearch.moreFailed'],
-    );
+    // Among all alerts rather than the only one: a second alert is
+    // FE-103-T19's to report, and a single-alert query would throw on it here.
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toContain(
+        copy['placeSearch.moreFailed'],
+      );
+    });
+  });
+});
+
+describe('FE-103-T19 a failed continuation is not a failed search', () => {
+  it("FE-103-T19 adds no search failure of the screen's own when the next page fails", async () => {
+    servePlaceSearchPages({ failNext: 1 });
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    expect(screen.queryByText(copy['mustVisit.searchError'])).toBeNull();
+    // Nor an alert in other words: the continuation's is the only report.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter((alert) => alert.textContent !== copy['placeSearch.moreFailed']),
+    ).toEqual([]);
   });
 });
 

@@ -948,7 +948,13 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
       ).toBeInTheDocument();
     }
     expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
-    expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter((alert) => alert.textContent !== copy['placeSearch.moreFailed']),
+    ).toEqual([]);
   });
 
   it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {

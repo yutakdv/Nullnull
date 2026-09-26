@@ -500,9 +500,15 @@ describe('FE-401 Live area list', () => {
       ).toBeVisible();
     }
     expect(screen.queryByText(messages['en-US']['live.searchError'])).toBeNull();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      messages['en-US']['placeSearch.moreFailed'],
-    );
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter(
+          (alert) => alert.textContent !== messages['en-US']['placeSearch.moreFailed'],
+        ),
+    ).toEqual([]);
   });
 
   it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {
