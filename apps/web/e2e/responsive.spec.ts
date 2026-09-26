@@ -29,13 +29,53 @@ function screenT3AcceptanceId(screenName: string) {
 
 // Not the splash. Under `reduce` it skips its hold and redirects as soon as the
 // bootstrap lands, so by `networkidle` the case named "splash" is measuring
-// /language (5/5 runs; without `reduce` the splash is still up in all 5 at
-// 360px and at 180px, which is why the T3 cases keep it). The splash's reduced
-// motion is that skipped hold, and the unit test in onboarding.test.tsx is what
-// proves it.
+// /language (5/5 runs). The T3 cases keep the splash because they hold its
+// bootstrap open instead of racing the redirect (openHeldSplash below). The
+// splash's reduced motion is that skipped hold, and the unit test in
+// onboarding.test.tsx is what proves it.
 function screenMotionAcceptanceId(screenName: string) {
   if (screenName === 'language' || screenName === 'intro') return 'FE-101-T5 ';
   return screenName === 'profile' ? 'FE-105-T5 ' : '';
+}
+
+// The splash is measured on a HELD bootstrap, not after `networkidle`.
+//
+// It stays up for an 800ms floor from mount (SplashScreen.tsx
+// MINIMUM_VISIBLE_MS) and then redirects, and `networkidle` landed 638-746ms
+// after navigation in the mock run: a margin the gate's production build spends
+// on registering sw.js and on a real POST /demo/sessions. The case named
+// "splash" would then measure /language and still carry FE-101-T3 — and it did
+// pass that way when the splash was made to leave at once (measured). So the
+// bootstrap is caught and never answered, which keeps the splash on its
+// in-flight frame for as long as the case measures it, in the mock run and in
+// the gate alike, and the case proves the splash is on screen before measuring.
+//
+// page.route cannot see a request the MSW worker answers
+// (live-replay-matrix.spec.ts), so the splash cases block service workers.
+// Without the worker the request reaches the network, where the route holds it.
+const SPLASH = 'splash';
+
+async function openHeldSplash(page: Page) {
+  let held = false;
+  await page.route('**/api/v1/demo/sessions', () => {
+    // Neither fulfilled nor continued: the bootstrap stays in flight.
+    held = true;
+  });
+  await page.goto('/');
+  await expect
+    .poll(() => held, { message: 'the bootstrap never reached the hold' })
+    .toBe(true);
+  await expect(page.locator('#splash-heading')).toBeVisible();
+  // The in-flight frame, which is the one these cases claim to measure.
+  await expect(
+    page.locator('section[aria-labelledby="splash-heading"]').getByRole('status'),
+  ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  // `networkidle` also waited out font loading, and it cannot be reached while
+  // a request is held open.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
 }
 
 async function expectOptimizationRunContent(page: Page, screenName: string) {
@@ -81,15 +121,26 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
   for (const screen of SCREENS) {
     const acceptanceId =
       fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
-    test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expectOptimizationRunContent(page, screen.name);
-      const result = await overflow(page);
-      expect(result.spilling, `${screen.name} has content past the viewport`).toEqual([]);
-      expect(result.clipped, `${screen.name} clips text`).toEqual([]);
-      const requested = page.viewportSize()?.width ?? 0;
-      expect(result.documentWidth).toBeLessThanOrEqual(requested);
+    // Anonymous, so the testcase name is unchanged: it exists to give the
+    // splash alone `serviceWorkers: 'block'` (see openHeldSplash).
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expectOptimizationRunContent(page, screen.name);
+        const result = await overflow(page);
+        expect(result.spilling, `${screen.name} has content past the viewport`).toEqual(
+          [],
+        );
+        expect(result.clipped, `${screen.name} clips text`).toEqual([]);
+        const requested = page.viewportSize()?.width ?? 0;
+        expect(result.documentWidth).toBeLessThanOrEqual(requested);
+      });
     });
   }
 });
@@ -99,32 +150,40 @@ test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () 
   for (const screen of SCREENS) {
     const acceptanceId =
       fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
-    test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
-      page,
-    }) => {
-      await page.goto(screen.path);
-      await page.waitForLoadState('networkidle');
-      await expectOptimizationRunContent(page, screen.name);
-      const result = await overflow(page);
-      // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
-      //
-      // Compared against the viewport we asked for, not window.innerWidth: a
-      // `min-width` on the page widens innerWidth to match, so comparing the
-      // document to it would compare a number to itself and always pass. That
-      // is exactly how the min-width floor hid from an earlier version here.
-      const requested = page.viewportSize()?.width ?? 0;
-      expect(
-        result.documentWidth,
-        // The widest elements are named because this failure depends on the
-        // rendering environment: a container without the Figma font falls back
-        // to metrics that differ from a developer machine, so "it passed
-        // locally" is not evidence and the message has to say what was wide.
-        `${screen.name} forces horizontal scrolling at 200% zoom: document is ` +
-          `${String(result.documentWidth)}px in a ${String(requested)}px viewport. ` +
-          `Widest: ${result.widest.join(' | ') || 'none measured'}`,
-      ).toBeLessThanOrEqual(requested);
-      expect(result.spilling).toEqual([]);
-      expect(result.clipped).toEqual([]);
+    // Anonymous for the same reason as the 360px block above.
+    test.describe(() => {
+      if (screen.name === SPLASH) test.use({ serviceWorkers: 'block' });
+      test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
+        page,
+      }) => {
+        if (screen.name === SPLASH) {
+          await openHeldSplash(page);
+        } else {
+          await page.goto(screen.path);
+          await page.waitForLoadState('networkidle');
+        }
+        await expectOptimizationRunContent(page, screen.name);
+        const result = await overflow(page);
+        // WCAG 1.4.10: content reflows rather than requiring two-axis scrolling.
+        //
+        // Compared against the viewport we asked for, not window.innerWidth: a
+        // `min-width` on the page widens innerWidth to match, so comparing the
+        // document to it would compare a number to itself and always pass. That
+        // is exactly how the min-width floor hid from an earlier version here.
+        const requested = page.viewportSize()?.width ?? 0;
+        expect(
+          result.documentWidth,
+          // The widest elements are named because this failure depends on the
+          // rendering environment: a container without the Figma font falls back
+          // to metrics that differ from a developer machine, so "it passed
+          // locally" is not evidence and the message has to say what was wide.
+          `${screen.name} forces horizontal scrolling at 200% zoom: document is ` +
+            `${String(result.documentWidth)}px in a ${String(requested)}px viewport. ` +
+            `Widest: ${result.widest.join(' | ') || 'none measured'}`,
+        ).toBeLessThanOrEqual(requested);
+        expect(result.spilling).toEqual([]);
+        expect(result.clipped).toEqual([]);
+      });
     });
   }
 });
