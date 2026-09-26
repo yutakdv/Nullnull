@@ -12,9 +12,10 @@ import { SCREENS } from './screens.js';
 //
 // Why an E2E rather than the unit test that already exists: profile.test.tsx
 // covers one screen by replacing navigator.geolocation, which proves that
-// screen is clean and says nothing about the other seven. A permission prompt
-// appearing anywhere on the judged walk-through is a compliance failure, so
-// the guard has to be as wide as the app.
+// screen is clean and says nothing about any other screen in SCREENS (no count
+// here: the list grows, and a number written beside it went stale). A
+// permission prompt appearing anywhere on the judged walk-through is a
+// compliance failure, so the guard has to be as wide as the app.
 //
 // Three things are watched on every screen, because they fail differently:
 //   - the geolocation API, wrapped so a call throws AND is recorded
@@ -32,13 +33,15 @@ import { SCREENS } from './screens.js';
 // This file kept its own copy after they moved there, and the copy was the one
 // without the guard that the wrapper was installed at all.
 //
-// On the wire, three shapes count as a coordinate, because a position reaches a
-// server in more than one form: a comma-joined pair (`37.5665,126.9780`), a
-// JSON field (`{"lat": …}`), and a named parameter (`?lat=…`, `&lng=…`) in
-// either a URL or a form-encoded body. The last of these was added after the
-// first two were found to miss `?lat=37.5665&lng=126.9780` entirely — see
-// COORDINATE_PARAM in location-watch.ts for what it excludes and why the
-// precision floor sits where it does.
+// On the wire, three shapes count as a coordinate - one per pattern in
+// location-watch.ts, COORDINATE, COORDINATE_FIELD and COORDINATE_PARAM - because
+// a position reaches a server in more than one form: a comma-joined pair
+// (`37.5665,126.9780`), a JSON field (`{"lat": …}`), and a named parameter
+// (`?lat=…`, `&lng=…`) in either a URL or a form-encoded body. The last of
+// these was added after the first two were found to miss
+// `?lat=37.5665&lng=126.9780` entirely — see COORDINATE_PARAM in
+// location-watch.ts for what it excludes and why the precision floor sits
+// where it does.
 
 // Service workers are blocked in the gate only, for openScreen's page.route
 // (responsive.spec.ts has the same line and the reason).

@@ -5,7 +5,8 @@ import type { Page } from '@playwright/test';
 // are drawn in the gate: the gate's own Live routes show only the 403 of
 // FEATURE_LIVE_DATA off. Moved here rather than copied for the reason
 // overflow.ts gives - two callers must agree on what counts as a coordinate.
-// The three shapes and their comments moved unchanged.
+// The three shapes - one exported pattern each, below - and their comments
+// moved unchanged.
 
 /** Reads like a latitude/longitude pair — `37.5665,126.9780` — in a URL or a body. */
 export const COORDINATE = /[-+]?\d{1,3}\.\d{4,}\s*,\s*[-+]?\d{1,3}\.\d{4,}/;
