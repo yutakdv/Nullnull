@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import { BottomCta, Chip, IconArrowRight, NavBar } from '../../shared/ui/index.js';
 import {
+  useAddTripCandidate,
   useCreateTrip,
   usePreviewTripDraft,
   useUpdatePreferences,
@@ -35,9 +36,19 @@ import { RecommendedDraftStep } from './RecommendedDraftStep.js';
 import { recommendedSeedItems } from './recommended-draft.js';
 import styles from './TripWizardScreen.module.css';
 
+type PlaceSummary = components['schemas']['PlaceSummary'];
 type PlanningLevel = components['schemas']['PlanningLevel'];
 type SeedTripItem = components['schemas']['SeedTripItem'];
 type TripDraftPreview = components['schemas']['TripDraftPreview'];
+
+/**
+ * A must-visit pick on its way to the created trip, with the Idempotency-Key
+ * that write keeps across retries.
+ */
+interface PendingPick {
+  place: PlaceSummary;
+  key: string;
+}
 
 // Figma: S02-1 dates `438:3012`, S02-2 interests `438:3108`,
 // S02-3 planning level `438:3134`.
@@ -136,6 +147,10 @@ export function TripWizardScreen() {
   // one per press would let a retry after a lost response create a second
   // trip (invariant 6).
   const submitKey = useRef<{ for: string; key: string } | null>(null);
+  // The must-visit picks go to the trip as candidates, after it exists (#180
+  // option B, #185). No hook-level trip: the id is only known once createTrip
+  // answers, so every call names it.
+  const addCandidate = useAddTripCandidate(null);
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -161,7 +176,16 @@ export function TripWizardScreen() {
   // the press did nothing at all, with no error shown. The prop is typed
   // `() => void`, which happily accepts a function that ignores its argument,
   // so TypeScript could not see it.
-  function submit(using: WizardDraft, seedItems?: SeedTripItem[]) {
+  //
+  // `picks` are the must-visit places to save onto the trip once it exists.
+  // Only the must-visit step passes them: they ride on the CANDIDATE, never on
+  // CreateTripRequest (#180 option B), so a draft still holding picks from a
+  // branch the traveller left does not send them from another one.
+  function submit(
+    using: WizardDraft,
+    seedItems?: SeedTripItem[],
+    picks: PlaceSummary[] = [],
+  ) {
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -181,22 +205,56 @@ export function TripWizardScreen() {
           // starting a second trip would reopen the finished one and the new
           // trip would inherit the first one's dates.
           clearSnapshot();
-          // The trip just created becomes the owner's active one, which is what
-          // the 내 여행 tab resolves to (AppShell). BA-011 stores the pointer
-          // but never sets it on its own — `owners.active_trip_id` is only ever
-          // written by this PATCH and cleared by the trip's own ON DELETE SET
-          // NULL — so without this call a traveller can own four trips and the
-          // tab still has nowhere to go.
-          //
-          // Best effort, and deliberately not awaited: the trip EXISTS, and
-          // navigation must not wait on a preference write or fail because of
-          // one. A rejection leaves the pointer where it was and the tab falls
-          // back, which is the same state as before this call.
-          setActiveTrip.mutate({ activeTripId: trip.id });
-          void navigate(`/trip/${trip.id}`, { replace: true });
+          if (picks.length === 0) {
+            enterTrip(trip.id);
+            return;
+          }
+          // One key per (trip, place), minted once here and kept by every
+          // retry of that place: a retry after a lost response must replay
+          // the save the server already made, not make a second one
+          // (invariant 6).
+          void savePicks(
+            trip.id,
+            picks.map((place) => ({ place, key: crypto.randomUUID() })),
+          );
         },
       },
     );
+  }
+
+  // Saves the picks onto the trip, one request after another.
+  //
+  // Sequential rather than concurrent, and not for simplicity alone: every
+  // idempotent command takes its owner's row lock for its whole transaction
+  // (IdempotencyGuard, `nullnull.idempotency.lock-timeout` PT3S), so the server
+  // runs these one at a time whatever the client does. Firing them together
+  // only adds lock waits, which on a slow day turn into failures of saves that
+  // would have succeeded.
+  async function savePicks(tripId: string, picks: PendingPick[]) {
+    for (const pick of picks) {
+      await addCandidate.mutateAsync({
+        tripId,
+        idempotencyKey: pick.key,
+        request: { placeId: pick.place.id, source: { type: 'SEARCH' }, mustVisit: true },
+      });
+    }
+    enterTrip(tripId);
+  }
+
+  function enterTrip(tripId: string) {
+    // The trip just created becomes the owner's active one, which is what
+    // the 내 여행 tab resolves to (AppShell). BA-011 stores the pointer
+    // but never sets it on its own — `owners.active_trip_id` is only ever
+    // written by this PATCH and cleared by the trip's own ON DELETE SET
+    // NULL — so without this call a traveller can own four trips and the
+    // tab still has nowhere to go.
+    //
+    // Best effort, and deliberately not awaited: the trip EXISTS, and
+    // navigation must not wait on a preference write or fail because of
+    // one. A rejection leaves the pointer where it was and the tab falls
+    // back, which is the same state as before this call.
+    setActiveTrip.mutate({ activeTripId: tripId });
+    void navigate(`/trip/${tripId}`, { replace: true });
   }
 
   function requestRecommendation(using: WizardDraft) {
@@ -702,7 +760,7 @@ export function TripWizardScreen() {
             setDraft((current) => removeMustVisit(current, placeId));
           }}
           onSubmit={() => {
-            submit(draft);
+            submit(draft, undefined, draft.mustVisit);
           }}
           onSkip={() => {
             // A real answer, not a cancel: the traveller says there are no

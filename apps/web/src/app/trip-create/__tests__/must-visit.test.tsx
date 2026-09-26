@@ -15,7 +15,12 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { crowdFixtures, placeFixtures } from '@nullnull/contracts';
+import {
+  candidateFixtures,
+  crowdFixtures,
+  placeFixtures,
+  sessionFixtures,
+} from '@nullnull/contracts';
 import { I18nProvider } from '../../../i18n/I18nProvider.js';
 import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
@@ -78,6 +83,9 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
+/** The router of the last render, so a case can read where the wizard went. */
+let router: ReturnType<typeof createMemoryRouter>;
+
 /**
  * Renders the wizard and walks it to step 4.
  *
@@ -90,7 +98,7 @@ afterEach(() => {
  */
 async function renderStep4() {
   const user = userEvent.setup();
-  const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
+  router = createMemoryRouter(routes, { initialEntries: ['/start'] });
   render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -468,5 +476,134 @@ describe('FE-103 a place shows an image only when it can be credited', () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+  });
+});
+
+// #185, the write. 이대로 채우기 used to create the trip and drop every pick:
+// `toCreateRequest` never carries them and nothing else sent them, so the
+// judged promise on this screen ("이 장소는 그대로 지켜드리고") was broken for
+// every traveller who answered 꼭 가고 싶은 곳만 정했어요. The owner settled the
+// shape on #180 (option B): each pick becomes a candidate of the new trip, with
+// `mustVisit: true`, after createTrip. Those N+1 requests are not one
+// transaction (invariant 5), which is why the partial-failure cases below exist.
+const TRIP = '018f4c00-0000-7000-8000-0000000000aa';
+const candidateTemplate = candidateFixtures.page.items[0];
+
+interface SavedCandidate {
+  tripId: string;
+  key: string | null;
+  body: Record<string, unknown>;
+}
+
+/** createTrip requests, counted so a second trip is visible as a number. */
+let createdTrips = 0;
+/** Every addTripCandidate request, including the ones answered with a failure. */
+let saved: SavedCandidate[] = [];
+let patched: Record<string, unknown>[] = [];
+/** Place ids whose candidate write fails, until a case takes them out again. */
+let failing = new Set<string>();
+
+function answerWrites() {
+  createdTrips = 0;
+  saved = [];
+  patched = [];
+  failing = new Set();
+  server.use(
+    http.post(`${API_BASE}/trips`, () => {
+      createdTrips += 1;
+      return HttpResponse.json({ id: TRIP }, { status: 201 });
+    }),
+    http.patch(`${API_BASE}/me`, async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      patched.push(body);
+      return HttpResponse.json({ ...sessionFixtures.owner, ...body });
+    }),
+    http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request, params }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      saved.push({
+        tripId: String(params.tripId),
+        key: request.headers.get('Idempotency-Key'),
+        body,
+      });
+      if (failing.has(String(body.placeId))) return HttpResponse.error();
+      const place = placeFixtures.searchPage.items.find((p) => p.id === body.placeId);
+      return HttpResponse.json(
+        {
+          candidate: {
+            ...candidateTemplate,
+            id: crypto.randomUUID(),
+            tripId: TRIP,
+            place,
+            status: 'ACTIVE',
+            scheduledTripItemId: null,
+            mustVisit: true,
+          },
+          duplicate: false,
+          tripScheduleChanged: false,
+        },
+        { status: 201 },
+      );
+    }),
+  );
+}
+
+/** Keeps the first two search results and presses 이대로 채우기. */
+async function keepTwoAndFill() {
+  const user = await searchFor('서울');
+  await user.click(await addButton(first?.name ?? ''));
+  await user.click(await addButton(second?.name ?? ''));
+  await user.click(screen.getByRole('button', { name: copy['mustVisit.next'] }));
+  return user;
+}
+
+const byPlace = (a: SavedCandidate, b: SavedCandidate) =>
+  String(a.body.placeId).localeCompare(String(b.body.placeId));
+
+describe('FE-103-T30 이대로 채우기 writes each pick as a must-visit candidate of the new trip', () => {
+  beforeEach(answerWrites);
+
+  it('sends one SEARCH candidate per pick, to the created trip, each with its own key', async () => {
+    await keepTwoAndFill();
+
+    await waitFor(() => {
+      expect(saved).toHaveLength(2);
+    });
+    // The whole body, not a field of it: `mustVisit: false` or a missing
+    // source would each be a different request the server stores differently.
+    expect([...saved].sort(byPlace).map((s) => s.body)).toEqual(
+      [first, second]
+        .map((place) => ({
+          placeId: place?.id,
+          source: { type: 'SEARCH' },
+          mustVisit: true,
+        }))
+        .sort((a, b) => String(a.placeId).localeCompare(String(b.placeId))),
+    );
+    // The trip the create answered with, not the hook's own (null) trip.
+    expect(saved.map((s) => s.tripId)).toEqual([TRIP, TRIP]);
+    // One key per place: a shared key would make the server replay the first
+    // place's answer for the second and save only one of them.
+    const keys = saved.map((s) => s.key);
+    expect(keys.every((key) => /^[0-9a-f-]{36}$/i.test(key ?? ''))).toBe(true);
+    expect(new Set(keys).size).toBe(2);
+    expect(createdTrips).toBe(1);
+  });
+});
+
+describe('FE-103-T31 once every pick is saved the wizard opens the trip, as before', () => {
+  beforeEach(answerWrites);
+
+  it('opens the created trip only after the picks landed, and makes it the active one', async () => {
+    await keepTwoAndFill();
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/trip/${TRIP}`);
+    });
+    // After, not instead: the trip is opened once both writes answered.
+    expect(saved).toHaveLength(2);
+    expect(router.state.historyAction).toBe('REPLACE');
+    await waitFor(() => {
+      expect(patched).toEqual([{ activeTripId: TRIP }]);
+    });
   });
 });
