@@ -252,11 +252,11 @@ BE/AI가 제공해야 하는 contract SHA·canonical examples·state machine·mi
 
 Frontend는 심사위원이 외부망·익명창·로그인 없이 핵심 흐름을 완주할 수 있다는 **실제 화면 증거**를 담당한다.
 
-- `일정 입력·확인 → Feed → +Trip 후보 저장 → My Trip 일정화/편집 → ITEM 최적화 preview/apply/revert → Live/replay` 녹화와 E2E run을 같은 release SHA에 연결한다.
+- `일정 입력·확인 → Feed → +Trip 후보 저장 → My Trip 일정화/편집 → ITEM 최적화 preview/apply(되돌리기는 A-074로 퇴역) → Live/replay` 녹화와 E2E run을 같은 release SHA에 연결한다.
 - 대표 이미지 1장과 실제 P0 상세 화면 3~5장을 staging이 아닌 제출 production release에서 캡처한다.
 - 출처를 `출처: ⓒ한국관광공사` 등 승인된 텍스트로 표시하고 공식 CI/BI logo를 허가 없이 사용하지 않는다.
 - source state, 관측/발표·대상 시각, freshness, 비교 불가 이유가 screenshot에서도 판독 가능하게 한다.
-- login CTA, JA/ZH, P1 화면을 구현된 기능처럼 보이게 하지 않고 `준비 중`/OFF를 명확히 표시한다.
+- JA/ZH, P1 화면을 구현된 기능처럼 보이게 하지 않고 `준비 중`/OFF를 명확히 표시한다. 로그인은 A-075대로 /sign-in 흉내와 프로필 `TEST` 표기로 두고 정식 계정 login(P1)과 로그인·인증 요청은 만들지 않는다.
 - loading/error/empty/대안 없음에서도 dead end가 없는 외부망 smoke 결과를 보존한다.
 - 기능설명서에 적는 route·문구·스크린샷은 최종 배포본과 일치시킨다. prototype/Figma만으로 구현 증거를 대체하지 않는다.
 - secret, API key, 개인 데이터, 내부 URL이 screenshot·trace·bundle·PDF에 없는지 제출 전 검사한다.

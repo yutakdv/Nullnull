@@ -14,7 +14,7 @@ tags:
 - 상태: Accepted operational checklist
 - 공식 마감: 2026-09-21 16:00(KST)
 - 배포·제출 전 차단 검사: `python3 scripts/check_actual_call_evidence.py <report> --require-verified`. `CMP-KTO-003`이 EXCLUSION이므로 **actual-call 증거가 없으면 release를 진행하지 않는다.** local 실행 증거는 통과하지 않는다(BA-021-T3은 staging을 요구한다). 제출일의 명령·성공 줄·멈춤 조건은 [제출 release 대조 검사](#제출-release-대조-검사)에 있다.
-- 제출 방식: 외부 HTTPS 웹 URL, `로그인 불필요`, 공식 기능설명서 PDF
+- 제출 방식: 외부 HTTPS 웹 URL, `로그인 불필요`(앱의 로그인 표현은 `A-075`대로 /sign-in 흉내와 프로필 `TEST` 표기, 로그인·인증 요청 0건), 공식 기능설명서 PDF
 
 이 문서는 제출을 실제로 수행할 때 순서대로 체크하는 운영 절차다. 공식 제출 화면과 최신 매뉴얼이 바뀌면 공식 자료를 우선하고 [준수 매트릭스](./COMPETITION_COMPLIANCE_MATRIX.md)를 즉시 갱신한다. 체크하지 않은 항목을 완료로 간주하지 않는다.
 
@@ -43,7 +43,7 @@ divisionExactLabel: ②-2 웹·앱 구현 부문  # 제출 화면 표시값과 �
 serviceTypeExactLabel:  # 내부 배포 형태는 웹(PWA); 제출 화면 표시값으로 확정
 designatedTaskExactLabel:  # 내부 가정은 지정과제 2; 제출처 선택값과 대조 후 확정
 publicUrl:
-loginMode: 로그인 불필요
+loginMode: 로그인 불필요  # A-075: 앱의 /sign-in은 흉내(로그인·인증 요청 0건)다. 이 선택값이 맞는지 제출 화면에서 확인
 releaseVersion:
 gitSha:
 contractSha:
@@ -67,7 +67,7 @@ independentChecker:
 
 - [ ] `frontend`, `backend`가 최신 `main`을 포함한다.
 - [ ] INT-01 익명 session·여행 생성, INT-02 KTO Feed·후보, INT-03 일정화·편집, INT-04 preview·APPLY/KEEP가 staging에서 완결된다.
-- [ ] 미완성 P1은 capability OFF이며 로그인·JA/ZH·알림·주변·DAY/TRIP 최적화 control이 disabled/준비 중이다. **게시물 작성은 2026-09-20부터 제출 범위이므로 이 목록에 넣지 않는다**(`A-058`).
+- [ ] 미완성 P1은 capability OFF이며 JA/ZH·알림·주변·DAY/TRIP 최적화 control이 disabled/준비 중이다. 로그인은 `A-075`대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기이고, 로그인 없이 쓰는 경로는 그대로다. **게시물 작성은 2026-09-20부터 제출 범위이므로 이 목록에 넣지 않는다**(`A-058`).
 - [ ] 공모전 profile에서 `FEATURE_NEARBY_LOCATION=OFF`이고 browser geolocation 호출이 없다.
 - [ ] 승인된 KTO 운영 key와 quota가 Backend runtime에만 주입된다.
 - [ ] KTO 인증키 신청자와 운영계정 신청/승인 상태를 확인하고, 제출 원장에는 key 원문 대신 credential 입력 확인 여부만 기록한다.
@@ -113,7 +113,7 @@ independentChecker:
 | 5 | 상세 | `/trip/{id}/optimize` | ITEM 범위 선택과 "제안만 만든다"는 preview 고지 | 여행 1건 |
 
 **6번 후보(조건부)**: `/trip/{id}/optimizations/{runId}`의 APPLY/KEEP 결정 화면.
-BA-051·BA-052가 열려 FE-503/505가 붙은 뒤에만 촬영한다. 그 전까지 이 route는
+BA-051·BA-052가 열려 FE-503이 붙은 뒤에만 촬영한다(FE-505의 되돌리기는 A-074로 퇴역해 조건이 아니다). 그 전까지 이 route는
 "결과 화면 준비 중"을 보여주므로 제출 이미지로 쓰지 않는다.
 
 **찍지 않는 것**: `/live`(준비 중 화면), `/start`의 wizard 단계 전체(진행 중 draft라
@@ -316,7 +316,7 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 1. 참가 신청 계정으로 한국관광 콘텐츠랩에 로그인한다.
 2. 이메일 인증 상태와 올바른 팀/서비스를 확인한다.
 3. 최종 팀원과 서비스명·개요·부문/유형의 exact label·지정과제 1개를 입력·대조한다.
-4. 웹 URL을 입력하고 테스트 방식은 `로그인 불필요`를 선택한다.
+4. 웹 URL을 입력하고 테스트 방식은 `로그인 불필요`를 선택한다(앱의 /sign-in 흉내는 `A-075`대로 로그인·인증 요청 0건이고 로그인 없이 쓰는 경로가 그대로다).
 5. 최종 서비스가 실제 사용한 KTO OpenAPI, 신청자 인증키 정보와 운영계정 신청 여부를 입력한다. 키 원문은 제출 화면 밖으로 복사하지 않고 원장에는 `ktoCredentialEntryVerified=true`와 exact 운영계정 상태만 기록한다.
 6. 공식 양식의 최종 PDF를 업로드한다.
 7. independent checker가 입력값·file name/checksum·URL을 다시 읽어 확인한다.

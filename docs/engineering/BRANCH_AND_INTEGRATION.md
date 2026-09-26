@@ -188,7 +188,7 @@ sandbox/production-approved key로 실제 KTO 호출과 attribution/call-audit �
 | INT-01 | 익명 session → KO/EN → 여행 생성 | cookie/CSRF/redirect/owner 격리 |
 | INT-02 | KTO 기반 feed/post → 여행 후보 저장 | 출처 누락, 중복 row, 일정 version 변경 |
 | INT-03 | 후보 일정화 → 날짜/시간 편집 | ETag 충돌, 부분 transaction, keyboard 불가 |
-| INT-04 | ITEM preview → APPLY/KEEP → revert | 잠금 위반, 승인 전 변경, 원복 불가 |
+| INT-04 | ITEM preview → APPLY/KEEP. revert는 앱 진입점이 A-074로 퇴역해 verifier API 경로(`scripts/aws/staging-flows.mjs --optimize-item`)에서만 확인한다 | 잠금 위반, 승인 전 변경, (API) 원복 불가 |
 | INT-05 | Live/list/data guide → replay/degraded | replay를 live로 표현, map 대체 목록 없음 |
 | INT-06 | 프로필 → 최적화 상태 이력 → 삭제 status | 일정 본문 이력 보존, revoke 지연 |
 

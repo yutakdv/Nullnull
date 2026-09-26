@@ -215,10 +215,10 @@ Wizard 규칙:
 | `415:2413` | S09-1 계산 중 | loading | polling; `내 여행으로 돌아가기`는 navigation만, run은 계속되고 URL로 재조회 (`FCR-014` 2026-09-08); route-free copy (`FCR-005`) | `GET /optimizations/:runId` |
 | `655:4067` | S09-2 ITEM preview (`FCR-004`) | preview P0 | item before/after, provenance, lock validation, APPLY/KEEP | same + decision |
 | `439:3104` | S09-D1 하루 preview | preview P1 | day scope before/after | same |
-| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | persistent 패널: 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
-| `724:4602` | S09-3 되돌리는 중 | applied submitting | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
-| `724:4730` | S09-3 되돌림 | applied `REVERTED` | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
-| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
+| `417:2412` | S09-3 적용 완료 | applied `AVAILABLE` | **퇴역(A-074): 앱이 이 패널을 그리지 않는다.** 원래 설계: persistent 패널에 결과·v7→v8·`revertUntil`·되돌리기 버튼, toast는 보조 (`FCR-015` 2026-09-08) | decision/revert |
+| `724:4602` | S09-3 되돌리는 중 | applied submitting · 퇴역(A-074) | 버튼 disabled, 중복 실행 차단 | `revertOptimizationDecision` pending |
+| `724:4730` | S09-3 되돌림 | applied `REVERTED` · 퇴역(A-074) | v8→v9, 카드가 v7 위치로 복귀, 버튼 없음 | `revertOptimizationDecision` 200 |
+| `724:4858` | S09-3 기한 지남 | applied `EXPIRED` · 퇴역(A-074) | `REVERT_WINDOW_EXPIRED`, 일정 편집으로 안내 | `revertAvailability=EXPIRED` |
 | `417:2567` | REF S09 오류 | error reference | code별 문구/CTA | Problem Details |
 | `485:3517` | REF stale | stale | `TRIP_CHANGED` 재계산 | recompute |
 
@@ -256,8 +256,9 @@ Figma 오류 계약:
 - setup은 사용자가 선택한 `targetItemId`를 보여 주고 P0에서 ITEM만 활성화한다.
 - loading 화면을 떠나거나 client timeout이 발생해도 server run 취소로 표현하지 않는다.
   P0에는 cancel operation이 없고 같은 run URL을 다시 조회한다.
-- 적용 완료 화면은 toast와 별개로 `beforeRevisionId`, `afterRevisionId`,
-  `revertUntil`에 대응하는 대상 일정과 남은 되돌리기 상태를 지속적으로 보여 준다.
+- (퇴역, A-074 2026-09-25) 적용 완료 화면이 toast와 별개로 `beforeRevisionId`, `afterRevisionId`,
+  `revertUntil`에 대응하는 대상 일정과 남은 되돌리기 상태를 지속적으로 보여 준다는 요구는 더 이상 적용하지 않는다.
+  되돌리기 진입점은 2026-09-21에 빠졌고 앱은 적용 결과에서 되돌리기를 약속하지 않는다. 기록으로만 남긴다.
 - 여행 보기의 `더 여유로운 날짜가 있어요` 배너는 `FCR-013`으로 제거했다. 표시
   threshold가 `FR-DAT-02`/`FR-DAT-05`에 정의되기 전에는 다시 넣지 않는다.
 
@@ -326,7 +327,7 @@ Candidate relation:
 
 | Figma node | 화면 | Priority | 구현 메모 |
 | --- | --- | --- | --- |
-| `422:2925` | S14 프로필 | P0 | guest 표시(익명 세션 저장 설명), disabled `로그인 · 준비 중`(`FCR-006` 2026-09-07), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
+| `422:2925` | S14 프로필 | P0 | `TEST` 계정 표기(`이 계정은 test계정입니다`, A-075 2026-09-25; 요청 없음), 내 여행, AI 최적화 이력, 여행별 관심사, locale, 데이터 안내, session 삭제. 로그인 흉내는 onboarding의 /sign-in(A-4 sign-in, 804:4537)이 맡는다 |
 | `423:2967` | S15 데이터 안내 | P0 | 출처/상태/신뢰도/재현 의미 |
 | `442:3344` | S12 알림 | P1 | item deep link, 개별 읽음, `모두 읽음`, unread count |
 | `442:3370` | S10 주변 | P1 | 위치 동의·로컬 거리 계산 우선 |
@@ -335,9 +336,9 @@ Candidate relation:
 
 S14 P0 범위 정합성:
 
-- 계정 로그인은 P1이다. P0 login CTA는 `준비 중`을 명시한 disabled control로 렌더링하고 route/API를 호출하지 않는다. 단순히 누르지 않는 가짜 CTA를 두지 않는다.
+- 계정 로그인은 P1이다. P0의 로그인 표현은 A-075(오너 2026-09-25)대로 둔다: onboarding의 /sign-in이 공모전 테스트 계정을 미리 채워 브라우저 안에서만 대조하고(로그인·인증 요청 0건, 계정 생성·연결 없음), 프로필은 `TEST` 계정으로 표기한다. 이 줄의 옛 요구였던 disabled `준비 중` login control은 적용하지 않는다.
 - 현재 Figma의 `로그인하면 일정을 저장할 수 있어요`는 사실과 다르다. 익명 session에
-  저장된다는 문구로 바꾸고 활성 login affordance를 제거한다(`FCR-006`).
+  저장된다는 교체 문구는 A-075의 프로필 `TEST` 표기로 대체됐고, 프로필에는 활성 login affordance가 없다(`FCR-006`).
 - `내 여행`은 `listTrips`를 사용하며 empty/loading/error와 active trip을 구분한다.
 - `AI 최적화 이력`은 `listOptimizationHistory`로 run 상태, scope, 요청/완료 시각, decision만 보여 준다. 이력 목적으로 일정 before/after 본문을 별도 보존하지 않는다.
 - `여행별 관심사`는 여행을 선택한 뒤 `getTrip`/`replaceTripInterests`로 수정하며 `If-Match`와 최신 ETag를 쓴다.
@@ -384,14 +385,14 @@ S12 P1 범위 정합성:
 | 최적화 설정 `415:2268` | ITEM scope만 활성, lock summary, submit | `createOptimization`, snapshot/fingerprint | 승인 전 trip 미변경 |
 | 계산 중 `415:2413` | polling/backoff, refresh restore, timeout/cancel UX | `getOptimization`, state machine/Retry-After | terminal state/네트워 끊김 QA |
 | preview `439:3104` | before/after/delta/비교 적격성 | proposal, metrics, validation summary | fingerprint/expiry/잠금 표시 |
-| 적용 `417:2412` | applied revision, undo CTA, 중복 방지 | decide/revert 원자 transaction/audit | apply/keep/revert E2E |
+| 적용 `417:2412` | 적용 결과 문구(`이 대안을 적용했어요`·`일정을 업데이트했어요`)와 결정 한 번만 전송. revision 표시와 undo CTA는 A-074로 퇴역했다 | decide 원자 transaction/audit(revert API는 남아 있지만 앱이 부르지 않는다) | apply/keep E2E(`optimization-keyboard.spec.ts`). revert E2E는 퇴역, `applied-panel.spec.ts`가 부재를 지킨다 |
 | 최적화 예외 `417:2567`, `485:3517` | code별 copy/CTA, 일정 미변경 표시 | 정확한 code/status, recompute guard | 6 error code fixture 전부 |
 | Live 목록/지도 `418:2523` | 목록 필수, map은 provider capability, 동일 filter/selection | `queryLiveAreas`/`listLiveAreaPlaces`, freshness/source state | map OFF/list와 map ON 전환 상태 유지 |
 | Live 상세 `419:2617` | crowd/freshness/action, unavailable UX | `getLivePlace`, source mapping/fallback | state·source·시각 100% 표시 |
 | Live 대안 `420:2821`, `420:2950` | relation/reason/empty CTA | `listRelatedPlaces`, comparison eligibility | fake ranking/candidate 0 |
 | Replay `421:2850` | replay badge/snapshot time을 상시 표시 | immutable replay dataset/readiness | 현재 Live로 오인 가능성 0 |
 | Live 재계획 `501:3750` | P1 위치 동의/취소·목적 안내 | consent-bounded replan, 보존 가드 | 동의 없이 서버 위치 0건 |
-| 프로필 `422:2925` | guest/준비 중 CTA, trips/history/interests/data UI | owner/trips/interests, `listOptimizationHistory` | 비로그인 P0 전 상태 QA |
+| 프로필 `422:2925` | `TEST` 계정 표기(A-075), trips/history/interests/data UI | owner/trips/interests, `listOptimizationHistory` | 비로그인 P0 전 상태 QA |
 | 데이터 안내 `423:2967` | 용어/출처/날짜를 읽기 쉽게 표현 | readiness/source catalog 현황 | API state 6종 copy 일치 |
 | 알림 `442:3344` | P1 list/badge/개별·모두 읽음/deep link | `listNotifications`/`markNotificationRead`/`markAllNotificationsRead` | unread 멱등·deep-link allowlist |
 | 주변 `442:3370` | P1 permission/denied/fallback UI | 최소 위치 처리·source 검증 | denied에서도 핵심 탐색 가능 |
@@ -405,11 +406,11 @@ S12 P1 범위 정합성:
 3. B Feed `391:310`/게시물 `398:611`: KTO 기반 장소와 텍스트 출처 확인
 4. 후보 저장 `399:658`~`399:1179`: 특정 여행 후보로 저장되고 일정은 변하지 않음
 5. D/E 내 여행 `410:1738`/`411:1837`: 후보 일정화·날짜/시간 변경
-6. F 최적화 `415:2268`~`417:2412`: 변경 전후·근거 확인 후 사용자가 APPLY 또는 KEEP
+6. F 최적화 `415:2268`~`417:2412`: 변경 전후·근거 확인 후 사용자가 APPLY 또는 KEEP(`417:2412`의 되돌리기 진입점은 A-074로 퇴역)
 7. G Live `418:2523`~`421:2850`: 기준시각과 LIVE/FORECAST/REPLAY 상태를 오인 없이 확인
 8. I 데이터 안내 `423:2967`: 실제 KTO 활용, 출처, 상태 의미와 문의 안내 확인
 
-제출 profile에서 로그인 CTA, JA/ZH, P1 알림·주변·DAY/TRIP 최적화는 `준비 중`/capability OFF다. **게시물 작성은 2026-09-20부터 제출 범위라 이 목록에서 빠진다**(`A-058`) — 실제로 동작하는 화면이고 기능설명서의 구현 목록에도 들어간다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
+제출 profile에서 JA/ZH, P1 알림·주변·DAY/TRIP 최적화는 `준비 중`/capability OFF다. 로그인 표현은 A-075대로 /sign-in 흉내(로그인·인증 요청 0건)와 프로필 `TEST` 표기다. **게시물 작성은 2026-09-20부터 제출 범위라 이 목록에서 빠진다**(`A-058`) — 실제로 동작하는 화면이고 기능설명서의 구현 목록에도 들어간다. dead CTA나 클릭 가능한 가짜 기능으로 두지 않고 기능설명서의 구현 목록에서도 제외한다. 위치 permission prompt는 어떤 경로에서도 열리지 않는다.
 
 ## 5. Component 계약
 
@@ -507,7 +508,7 @@ shared/          ui, api-generated, i18n, analytics, test fixtures
 - 데이터 state/provenance 표시 여부
 - OpenAPI/ERD 영향과 migration 필요 여부
 - 실제 KTO 데이터가 나타나는 위치, 출처 문구, 기준시각과 source state
-- 공모전 profile에서 P1/위치/로그인 control의 disabled·OFF 상태
+- 공모전 profile에서 P1/위치 control의 disabled·OFF 상태와 A-075 로그인 표현(/sign-in 흉내 로그인·인증 요청 0건, 프로필 `TEST` 표기)
 
 시각값(color/type/spacing)은 Figma variable을 export한 token으로 구현하고, 이 문서에 수치를 복사해 이중 관리하지 않는다.
 

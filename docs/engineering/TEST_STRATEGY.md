@@ -138,7 +138,7 @@ Playwright desktop이 아닌 mobile viewport를 기본으로 한다.
 | E2E-04 | 일정 edit | move/time/reorder/cancel/discard |
 | E2E-05 | lock | must/date/time/reservation 독립 처리 |
 | E2E-06 | ITEM optimize preview → keep | provenance/lock validation, 일정 미변경 |
-| E2E-07 | ITEM optimize preview → apply → revert | before/after, explicit decision, revision |
+| E2E-07 | ITEM optimize preview → apply(되돌리기 진입점은 A-074로 퇴역) | before/after, explicit decision |
 | E2E-08 | 두 tab stale apply | `TRIP_CHANGED`, 최신 일정 복구 |
 | E2E-09 | Live | live/replay/stale/unavailable/none |
 | E2E-10 | session 삭제 | revoke와 owned route 차단 |
@@ -147,7 +147,7 @@ Playwright desktop이 아닌 mobile viewport를 기본으로 한다.
 | E2E-13 | 프로필 active trip | 여행 전환/삭제 뒤 tab destination 일관성 |
 | E2E-14 | 삭제 상태 | receipt 조회, 완료, 실패 재시도, 재로그인 격리 |
 | E2E-15 | 프로필 여행·관심사·최적화 이력 | active/all trips, ETag conflict, history cursor/detail/empty |
-| E2E-16 | P0 capability와 Figma 문구 | English 활성, unsupported feed control 0, guest 익명 저장 copy, data state 6개 |
+| E2E-16 | P0 capability와 Figma 문구 | English 활성, unsupported feed control 0, 프로필 `TEST` 계정 표기(A-075), data state 6개 |
 | E2E-17 | Live 장소 검색·거리 | canonical search→coverage, UNAVAILABLE, 거리 기준/source 없음 처리 |
 | E2E-CMP-01 | 외부망·익명 심사 흐름 | login 불필요, INT-01~04, 새 session/empty/error |
 | E2E-CMP-02 | KTO 실제 데이터 표시 | actual call, normalized response, 출처·기준시각·state |
@@ -503,7 +503,7 @@ DB 테스트는 실제 PostgreSQL을 쓴다. 격리된 Gradle integrationTest는
 추천 결과 표시·순서·sheet·검색·일정 변경·최적화에 영향을 주는 구현 PR은 관련 Playwright와 키보드 검사를 함께 추가한다.
 
 - E2E-02/03: feed → picker → 후보 → 날짜 지정. 후보 저장 단계에서 일정 미변경을 API와 화면 양쪽에서 확인한다.
-- E2E-06/07/08: preview → KEEP, APPLY → REVERT, 두 tab stale. before/after·출처·실패 후 미변경을 확인한다.
+- E2E-06/07/08: preview → KEEP, preview → APPLY(되돌리기 진입점은 A-074로 퇴역), 두 tab stale. before/after·출처·실패 후 미변경을 확인한다.
 - E2E-09/16: LIVE/FORECAST/REPLAY/QUALITATIVE/STALE/UNAVAILABLE, unsupported P0 control의 network 요청 0.
 - mobile 360×800/390×844, KO/EN에서 sheet focus trap·Escape·복귀·중복 submit 방지.
 - comparison false에서 delta를 0으로 대체하거나 `덜 붐빔`으로 표시하지 않는 DOM assertion.

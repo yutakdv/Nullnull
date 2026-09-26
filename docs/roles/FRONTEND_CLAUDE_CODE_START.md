@@ -53,7 +53,7 @@ Frontend 작업을 보고해줘. 수동 API type/client를 만들거나 P1 capab
 | 앱 코드 | `apps/web/`, `apps/api/`, `apps/ai/`, generated client, Flyway migration이 모두 있음 | 존재 여부를 이 표에서 읽지 말고 `git ls-tree -d --name-only origin/main`으로 본다 — 이 칸은 한 번 낡아서 사람을 틀리게 했다 |
 | Figma | 현재 52개 구현 frame, component 49개를 확인했지만 P0 mismatch가 남음 | FCR-001~015 영향 화면은 Figma 수정·검토 전 UI를 확정하지 않는다 |
 | P0 언어 | 한국어·English 실제 지원, 日本語·中文만 disabled `준비 중` | English를 준비 중으로 표시하거나 API 호출을 막으면 안 된다 |
-| 로그인·위치 | P0은 익명 session, login/위치는 OFF | 로그인 CTA·P1 feature·geolocation request를 활성화하지 않는다 |
+| 로그인·위치 | P0은 익명 session, 정식 계정 login(P1)/위치는 OFF. 로그인 표현은 A-075대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기 | 정식 로그인·P1 feature·geolocation request를 활성화하지 않는다 |
 
 M0의 web toolchain, router, i18n shell, generated client 연결 준비처럼 Figma visual
 결정을 고정하지 않는 작업은 FCR 종료와 병렬로 할 수 있다. 반면 언어 선택, feed header,
@@ -182,7 +182,7 @@ KO/EN은 선택·저장·새로고침 복구, JA/ZH는 disabled `준비 중` 및
   기준 시각과 함께 나타낸다. 색·숫자만으로 차이를 전달하지 않는다.
 - 붙여넣기 원문, 정밀 위치, secret/cookie/session/owner ID를 UI log, fixture, analytics,
   prompt, screenshot에 넣지 않는다.
-- P0 submission profile은 로그인 불필요·browser geolocation OFF다.
+- P0 submission profile은 로그인 없이 쓰는 경로를 유지하고(로그인 표현은 A-075의 /sign-in 흉내·프로필 `TEST` 표기, 로그인·인증 요청 0건) browser geolocation OFF다.
 
 ## 7. Definition of Ready와 Done
 

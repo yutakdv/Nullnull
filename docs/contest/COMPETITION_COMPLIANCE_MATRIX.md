@@ -41,7 +41,7 @@ tags:
 | CMP-SUB-002 | 공식/EXCLUSION | 참가 신청 계정, 이메일 인증, 팀/서비스 선택으로 제출 | 제출 입력 전에 대표 계정과 팀원 계정을 확인 | 콘텐츠랩 팀원 화면·인증 상태의 비공개 확인 기록 | 공동 / 공동 |
 | CMP-SUB-003 | 공식/EXCLUSION | 최종 팀원, 팀명·서비스명·개요·부문/유형·지정과제 1개를 정확히 입력 | 부문을 포함한 exact label과 값을 서비스/PDF/제출처의 한 표에서 대조 | 3개 위치의 값과 2인 확인 시각 | 공동 / 공동 |
 | CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | BE·AI / FE |
-| CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
+| CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결. 앱의 로그인 표현은 `A-075`(오너 2026-09-25)대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기다 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
 | CMP-SUB-006 | 공식/EXCLUSION | 공식 기능설명서 양식과 필수 항목을 유지해 PDF 제출 | 양식의 표·순서·필수 field를 임의 변경하지 않음 | 원본 version/checksum, PDF render, field checklist | 공동 / 공동 |
 | CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외. 촬영은 FE지만 선행 조건이 전부 FE 밖이다 — **BA-006(배포 URL) · BA-021-T3(catalog 게이트) · [#183](https://github.com/yutakdv/Nullnull/issues/183)(게시물 3~5건)**. 촬영 목록은 [runbook](SUBMISSION_RUNBOOK.md)에 사전 확정했고, 남은 것은 그 셋이 열리는 날 찍는 것뿐이다 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
 | CMP-SUB-008 | 공식/REQUIRED | 기능설명서에는 최종 서비스에서 실제 구현·사용한 내용만 기재 | disabled·준비 중·mock-only·계획 기능 제외 | PDF 기능 목록 ↔ release journey/test 대조 | 공동 / 공동 |

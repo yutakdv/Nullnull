@@ -299,7 +299,7 @@
       "id": "FE-105",
       "phase": "B02",
       "priority": "P0",
-      "title": "S14 프로필 shell: guest, disabled login `준비 중`, KO/EN, trips, 데이터 안내, 삭제 receipt/status",
+      "title": "S14 프로필 shell: `TEST` 계정 표기(A-075), KO/EN, trips, 데이터 안내, 삭제 receipt/status",
       "status": "integration-ready",
       "dependsOn": [
         "FE-101",
@@ -325,16 +325,16 @@
       ],
       "designRequests": [],
       "steps": [
-        "S14 프로필 shell을 guest 상태·여행 목록·데이터 안내 진입으로 구현한다",
-        "로그인 CTA는 요청을 보내지 않는 disabled 준비 중으로 둔다",
+        "S14 프로필 shell을 `TEST` 계정 표기(A-075)·여행 목록·데이터 안내 진입으로 구현한다",
+        "로그인 표현은 A-075대로 onboarding의 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기로 두고, 로그인 없이 쓰는 경로를 유지한다",
         "삭제 receipt/status 화면을 상태별로 구현한다",
         "BA-011/BA-012가 열리면 fixture를 실제 응답으로 교체한다"
       ],
-      "safety": "이력을 위해 일정 본문을 복제·장기 보관하지 않는다. 로그인 CTA는 가짜 활성 상태를 만들지 않는다.",
+      "safety": "이력을 위해 일정 본문을 복제·장기 보관하지 않는다. 로그인 표현은 A-075의 흉내(/sign-in, 프로필 `TEST` 표기)에 그치고 계정 생성·연결이나 로그인·인증 요청을 만들지 않는다.",
       "tests": [
         {
           "id": "FE-105-T1",
-          "assertion": "로그인 CTA가 요청·route를 만들지 않고 삭제 receipt는 status만 조회한다"
+          "assertion": "프로필의 `TEST` 계정 표기와 로그인 흉내 화면은 로그인·인증 요청·계정 route를 만들지 않고 삭제 receipt는 status만 조회한다(A-075)"
         },
         {
           "id": "FE-105-T2",
@@ -1269,8 +1269,9 @@
       "id": "FE-505",
       "phase": "B06",
       "priority": "P0",
-      "title": "applied/undo/recompute flow",
-      "status": "integration-ready",
+      "title": "applied/undo/recompute flow (undo 진입점 퇴역, A-074)",
+      "status": "deferred",
+      "reason": "A-074(오너 2026-09-25): 여행 화면의 24시간 되돌리기 진입점은 93de5679(2026-09-21)에서 빠졌고 퇴역으로 기록했다. revertOptimizationDecision(BA-053)과 TripAppliedPanel 코드는 남아 있지만 앱이 mount하지 않는다. 안전 기본값은 적용 결과에서 되돌리기를 약속하지 않는 것이다. applied-panel.spec.ts가 게이트에서 패널·되돌리기 버튼·이력 요청의 부재를 지키고, 데이터 안내도 되돌리기를 약속하지 않는다(FE-404-T5). 다시 여는 것은 오너 결정이다.",
       "dependsOn": [
         "FE-503",
         "BA-052",
@@ -1310,7 +1311,7 @@
           "assertion": "dialog·sheet가 없는 applied panel임을 확인하고 reduced motion을 이 화면에서 검증한다"
         }
       ],
-      "handoff": "FE-505-T1~T4는 unit과 local MSW Playwright에서 검증한다. composed stack은 optimization capability가 OFF라 applied-panel.spec.ts를 제외하며 gate 증거로 세지 않는다. capability가 ON이 되면 제외를 제거하고 같은 E2E를 gate에서 실행한다.",
+      "handoff": "퇴역(A-074): FE-505-T1~T4는 기록으로만 남는다. TripAppliedPanel의 unit test(applied-panel.test.tsx·applied-revert.test.ts·trip-applied-panel.test.tsx)는 남아 있지만 앱이 패널을 mount하지 않으므로 gate 증거로 세지 않는다. applied-panel.spec.ts는 composed gate에서도 돈다(testIgnore는 *.mock.spec.ts만 제외한다). 그 spec은 여행 화면에 되돌리기 영역·버튼과 /optimizations 요청이 없음을 지킨다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -1729,14 +1730,14 @@
       "designRequests": [],
       "steps": [
         "BA-081의 magic-link·transfer preview·confirm·conflict·recovery 계약을 승인된 example로 검토한다",
-        "submission profile에서는 현재 guest와 로그인 준비 중 상태를 유지하고 인증 요청을 보내지 않는다",
+        "submission profile에서는 A-075의 로그인 표현(/sign-in 흉내, 프로필 `TEST` 표기)을 유지하고 인증 요청을 보내지 않는다",
         "capability 승인 뒤 프로필의 로그인·승계 preview·충돌·실패·복구 상태를 구현한다"
       ],
-      "safety": "로그인 capability가 OFF인 제출 profile에서는 요청을 보내지 않는다. 익명 owner 데이터는 preview와 명시적 confirm 전 이동·병합하지 않고 session fixation과 owner isolation을 보존한다.",
+      "safety": "로그인 capability가 OFF인 제출 profile에서는 로그인·인증 요청을 보내지 않는다. 익명 owner 데이터는 preview와 명시적 confirm 전 이동·병합하지 않고 session fixation과 owner isolation을 보존한다.",
       "tests": [
         {
           "id": "FE-P1-106-T1",
-          "assertion": "submission profile은 로그인 준비 중 상태를 유지하고 인증 요청이 0건이며 enabled profile은 magic-link 상태를 구분한다"
+          "assertion": "submission profile은 A-075의 로그인 표현을 유지하고 인증 요청이 0건이며 enabled profile은 magic-link 상태를 구분한다"
         },
         {
           "id": "FE-P1-106-T2",
