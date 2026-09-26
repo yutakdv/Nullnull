@@ -124,16 +124,19 @@ export const csrfQueryKey = ['session', 'csrf'] as const;
 /**
  * Makes sure this tab holds a CSRF token, without minting a session.
  *
- * Why it exists: only the splash screen bootstraps, so a refresh or a deep
- * link onto any other route left `currentCsrfToken()` null and every mutation
- * would have been rejected. Verified by loading /feed directly — the token was
- * null before this.
+ * Why it exists: when it was written only the splash screen bootstrapped, so
+ * a refresh or a deep link onto any other route left `currentCsrfToken()` null
+ * and every mutation would have been rejected. Verified by loading /feed
+ * directly — the token was null before this.
  *
  * It asks the server only when the token is actually missing, and only for a
- * session the cookie already names. A 401 here means the session is gone, and
- * it stays an error rather than bootstrapping a replacement: a fresh bootstrap
- * on an expired session creates a DIFFERENT anonymous owner
- * (SessionSafetyIT.expiration), silently stranding the user's trips.
+ * session the cookie already names. A 401 for a cookie the server rejected
+ * means the session is gone, and it stays an error rather than bootstrapping a
+ * replacement: a fresh bootstrap on an expired session creates a DIFFERENT
+ * anonymous owner (SessionSafetyIT.expiration), silently stranding the user's
+ * trips. A 401 whose `missingCredential` is `SESSION_COOKIE` (no cookie was
+ * sent at all, a first visit) is the one case AppShell answers with a
+ * bootstrap (#240 A-1); this hook still only reports it.
  */
 export function useCsrfToken(): UseQueryResult<string, Problem | Error> {
   return useQuery({
