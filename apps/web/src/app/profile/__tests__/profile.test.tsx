@@ -7,7 +7,10 @@
 // FE-105-T1: the profile labels the test account without exposing a sign-in
 //             control or making an authentication request.
 // FE-105-T2: the trip list renders its default, loading, empty, server-error
-//             and offline states.
+//             and connection-failure states. The connection failure is a
+//             request that fails with no response while the browser believes
+//             it is online; a browser that has announced it is offline is not
+//             covered (see the case below and the card's handoff).
 // FE-105-T3: keyboard reach and accessible names. 360px and 200% zoom are the
 //             other half, measured on /profile by e2e/responsive.spec.ts.
 // FE-105-T4: closing the trip delete confirm keeps focus in the page.
@@ -108,10 +111,10 @@ describe('FE-105-T1 S14 test account state', () => {
 // (AGENTS.md rule 7②). The history, interests and deletion sections carry
 // their own cards' state clauses (FE-506-T2, FE-106-T2, deletion.test.tsx).
 //
-// Offline and a server error reach the same branch — a dropped connection
-// returns null from toProblem and falls into `isError` (shared/api/problem.ts)
-// — but they are different inputs, so each is sent once below rather than one
-// standing in for the other.
+// A dropped connection and a server error reach the same branch — a dropped
+// connection returns null from toProblem and falls into `isError`
+// (shared/api/problem.ts) — but they are different inputs, so each is sent once
+// below rather than one standing in for the other.
 describe('FE-105-T2 the trip list renders each of its states', () => {
   it('lists the trips it is given', async () => {
     renderProfile();
@@ -148,8 +151,13 @@ describe('FE-105-T2 the trip list renders each of its states', () => {
   });
 
   it('offers a retry when the connection fails', async () => {
-    // HttpResponse.error() is a network failure with no response at all: the
-    // shape an offline device produces.
+    // HttpResponse.error() is a network failure with no response at all, sent
+    // while the browser believes it is online. That is all this proves. Once
+    // the browser has announced it is offline, TanStack's default networkMode
+    // ('online', not overridden in query-client.ts) PAUSES the query instead
+    // of failing it, and the list stays on its loading line with no retry
+    // until the connection returns — measured, and left as a known gap in
+    // FE-105's handoff rather than claimed here.
     server.use(http.get(`${API_BASE}/trips`, () => HttpResponse.error()));
     renderProfile();
     expect(await screen.findByText(copy['profile.trips.error'])).toBeInTheDocument();

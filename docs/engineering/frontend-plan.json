@@ -292,7 +292,7 @@
         },
         {
           "id": "FE-101-T2",
-          "assertion": "A-1 splash가 bootstrap 진행 중·서버 오류·연결 실패(offline) 상태를 각각 렌더한다"
+          "assertion": "A-1 splash가 bootstrap 진행 중·서버 오류·cold start 연결 실패(브라우저가 online이라 믿는 동안 응답 없이 실패한 요청) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-101-T3",
@@ -311,7 +311,7 @@
           "assertion": "언어 화면의 다음은 프로필에서 열렸을 때만 intro 대신 프로필로 돌아간다"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다. 알려진 공백(FE-101-T2가 증명하지 않는다): 브라우저가 offline을 알린 뒤(offline 이벤트) 시작된 bootstrap은 실패하지 않고 pause된다 — TanStack Query 기본 networkMode 'online'이고 query-client.ts가 바꾸지 않는다. 그동안 splash에는 alert도 retry도 없고 status 줄은 800ms hold 동안만 보이며(reduced motion이면 처음부터 없다), 연결이 돌아오면 bootstrap이 이어서 /language로 간다(unit 탐침으로 측정: onlineManager.setOnline(false) 뒤 /를 렌더해 100ms·1.5초에 보고, setOnline(true) 뒤 다시 봤다. test로 남기지 않았다). FR-ONB-01이 금지하는 빈 화면 모양이지만 동작은 바꾸지 않았다. offline을 별도 상태로 그릴지는 제품 결정 대기다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -358,7 +358,7 @@
         },
         {
           "id": "FE-105-T2",
-          "assertion": "프로필 여행 목록이 기본·loading·empty·서버 오류·연결 실패(offline) 상태를 각각 렌더한다"
+          "assertion": "프로필 여행 목록이 기본·loading·empty·서버 오류·연결 실패(브라우저가 online이라 믿는 동안 응답 없이 실패한 요청) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-105-T3",
@@ -377,7 +377,7 @@
           "assertion": "프로필의 언어 행이 언어 화면을 키보드로 다시 연다"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다. 알려진 공백(FE-105-T2가 증명하지 않는다): 사용 중 브라우저가 offline을 알린 뒤(offline 이벤트) 프로필을 열면 여행 목록 query는 실패하지 않고 pause된다 — TanStack Query 기본 networkMode 'online'이고 query-client.ts가 바꾸지 않는다. 그래서 목록은 오류·재시도 대신 연결이 돌아올 때까지 loading 줄에 머물고 재시도 control이 없다(unit 탐침으로 측정: onlineManager.setOnline(false) 뒤 /profile을 렌더하면 1.5초 뒤 loading만 있고 재시도 control은 0개이며, setOnline(true) 뒤 목록이 그려진다. test로 남기지 않았다). 동작은 바꾸지 않았다. offline을 별도 상태로 그릴지(LiveScreen이 onlineManager를 구독하는 선례가 있다)는 제품 결정 대기다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Trip list and optimization history are served by provisional mock fixtures; listTrips and listOptimizationHistory have no approved example yet. Swap when BA-030/BA-053 land."

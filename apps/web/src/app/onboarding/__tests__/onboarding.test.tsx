@@ -8,8 +8,11 @@
 //
 // FE-101-T1: bootstrap failure and retry never produce a redirect loop, and
 //            JA/ZH send no request.
-// FE-101-T2: the splash renders its in-flight, server-error and offline
-//            states.
+// FE-101-T2: the splash renders its in-flight, server-error and cold-start
+//            connection-failure states. The connection failure is a request
+//            that fails with no response while the browser believes it is
+//            online; a bootstrap started after the browser announced it is
+//            offline is not covered (see that case and the card's handoff).
 // FE-101-T3: keyboard reach and accessible names. 360px and 200% zoom are the
 //            other half, measured on /, /language and /intro by
 //            e2e/responsive.spec.ts.
@@ -180,8 +183,13 @@ describe('A-1 splash bootstraps the anonymous session', () => {
   });
 
   it('FE-101-T2 offers a retry instead of a blank screen when bootstrap fails', async () => {
-    // The offline case: HttpResponse.error() is a network failure with no
-    // response at all.
+    // A cold-start connection failure: HttpResponse.error() is a network
+    // failure with no response at all, sent while the browser believes it is
+    // online (TanStack's onlineManager starts online and only an `offline`
+    // event changes that). A bootstrap that starts AFTER such an event is not
+    // this case: TanStack's default networkMode pauses it instead of failing
+    // it, and the splash shows no alert and no retry until the connection
+    // returns — measured, and left as a known gap in FE-101's handoff.
     server.use(http.post(`${API_BASE}/demo/sessions`, () => HttpResponse.error()));
     renderAt('/');
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['splash.failed']);
