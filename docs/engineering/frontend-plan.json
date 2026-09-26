@@ -292,15 +292,19 @@
         },
         {
           "id": "FE-101-T2",
-          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+          "assertion": "A-1 splash가 bootstrap 진행 중·서버 오류·연결 실패(offline) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-101-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "A-1/A-2/A-3의 keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
         },
         {
           "id": "FE-101-T4",
           "assertion": "언어 화면에서 선택하지 않고 다음으로 넘어가도 화면이 보여 주는 locale을 owner 선호에 저장하고, 이미 저장한 선택은 다시 보내지 않는다"
+        },
+        {
+          "id": "FE-101-T5",
+          "assertion": "A-1/A-2/A-3 화면의 reduced motion을 검증한다"
         },
         {
           "id": "FE-101-T6",
@@ -354,11 +358,19 @@
         },
         {
           "id": "FE-105-T2",
-          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+          "assertion": "프로필 여행 목록이 기본·loading·empty·서버 오류·연결 실패(offline) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-105-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "프로필의 keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
+        },
+        {
+          "id": "FE-105-T4",
+          "assertion": "프로필의 여행 삭제 확인이 닫힌 뒤 focus가 document나 닫힌 dialog에 남지 않고 화면 안으로 돌아간다"
+        },
+        {
+          "id": "FE-105-T5",
+          "assertion": "프로필 화면의 reduced motion을 검증한다"
         },
         {
           "id": "FE-105-T6",

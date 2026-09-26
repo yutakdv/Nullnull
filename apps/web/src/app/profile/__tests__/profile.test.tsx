@@ -6,8 +6,13 @@
 //
 // FE-105-T1: the profile labels the test account without exposing a sign-in
 //             control or making an authentication request.
-// FE-105-T2: default/loading/empty/error states each render.
-// FE-105-T3: keyboard reach, focus and accessible names.
+// FE-105-T2: the trip list renders its default, loading, empty, server-error
+//             and offline states.
+// FE-105-T3: keyboard reach and accessible names. 360px and 200% zoom are the
+//             other half, measured on /profile by e2e/responsive.spec.ts.
+// FE-105-T4: closing the trip delete confirm keeps focus in the page.
+// FE-105-T5 (reduced motion) is e2e/responsive.spec.ts's alone: jsdom
+//             computes no style, so nothing here could measure it.
 // FE-105-T6: the profile reopens the language screen.
 //
 // The history assertions matter beyond rendering: CLAUDE.md forbids keeping
@@ -94,7 +99,20 @@ describe('FE-105-T1 S14 test account state', () => {
   });
 });
 
-describe('the trip list renders each of its states', () => {
+// FE-105-T2 was "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+// with no testcase carrying it. It is now the trip list's five, and `stale` is
+// out of it on purpose: nothing on this screen can be stale in a way the user
+// sees. The list is a plain query read, a background refetch keeps the rows it
+// has, and the profile renders no freshness claim that could go out of date —
+// a case asserting a stale state here would assert a state nothing produces
+// (AGENTS.md rule 7②). The history, interests and deletion sections carry
+// their own cards' state clauses (FE-506-T2, FE-106-T2, deletion.test.tsx).
+//
+// Offline and a server error reach the same branch — a dropped connection
+// returns null from toProblem and falls into `isError` (shared/api/problem.ts)
+// — but they are different inputs, so each is sent once below rather than one
+// standing in for the other.
+describe('FE-105-T2 the trip list renders each of its states', () => {
   it('lists the trips it is given', async () => {
     renderProfile();
     // Scoped to the trips section: the history card links its target trip by
@@ -129,10 +147,28 @@ describe('the trip list renders each of its states', () => {
     expect(await screen.findByText(copy['profile.trips.loading'])).toBeInTheDocument();
   });
 
-  it('offers a retry when the request fails', async () => {
+  it('offers a retry when the connection fails', async () => {
+    // HttpResponse.error() is a network failure with no response at all: the
+    // shape an offline device produces.
     server.use(http.get(`${API_BASE}/trips`, () => HttpResponse.error()));
     renderProfile();
     expect(await screen.findByText(copy['profile.trips.error'])).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: copy['profile.retry'] })[0],
+    ).toBeInTheDocument();
+  });
+
+  it('offers a retry when the server answers with an error', async () => {
+    // A Problem body rather than a dropped connection. INTERNAL_ERROR is
+    // `safe-get-once` in problem-policy.ts, so the query repeats the GET once
+    // after its 1s backoff before the error shows — hence the longer wait.
+    server.use(http.get(`${API_BASE}/trips`, () => problemResponse('INTERNAL_ERROR')));
+    renderProfile();
+    expect(
+      await screen.findByText(copy['profile.trips.error'], {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    // "Could not find out" is not "you have none".
+    expect(screen.queryByText(copy['profile.trips.empty'])).toBeNull();
     expect(
       screen.getAllByRole('button', { name: copy['profile.retry'] })[0],
     ).toBeInTheDocument();
@@ -443,7 +479,13 @@ describe('FE-506-T3 the history rows are reachable and named', () => {
   });
 });
 
-describe('the profile is reachable by keyboard', () => {
+// FE-105-T3 was "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced
+// motion을 검증한다" — six clauses behind one id, which the aggregator counts as
+// proven by a test of any one of them (AGENTS.md registration rule 3). It is
+// split the way FE-104 and FE-203 were: T3 keeps keyboard reach and accessible
+// names here, plus 360px and 200% zoom in e2e/responsive.spec.ts; focus return
+// is T4 below; reduced motion is T5, measured on /profile by the same spec.
+describe('FE-105-T3 the profile is reachable by keyboard', () => {
   it('moves focus through the links in order', async () => {
     const user = userEvent.setup();
     renderProfile();
@@ -462,18 +504,118 @@ describe('the profile is reachable by keyboard', () => {
   });
 
   it('reaches the data guide link and follows it', async () => {
+    // By keyboard, as the describe says. This used to click, which proved the
+    // link worked for a mouse and nothing about reaching it.
     const user = userEvent.setup();
     renderProfile();
     const guide = await screen.findByRole('link', {
       name: new RegExp(copy['profile.dataGuide.title']),
     });
-    await user.click(guide);
+    for (let i = 0; i < 40 && document.activeElement !== guide; i += 1) {
+      await user.tab();
+    }
+    expect(guide).toHaveFocus();
+    await user.keyboard('{Enter}');
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
         'id',
         'data-guide-heading',
       );
     });
+  });
+
+  it('names each trip’s delete control after its trip', async () => {
+    // The control draws only a ✕, so without its label a screen reader hears
+    // "✕" once per trip and cannot tell which trip it would delete.
+    //
+    // Every fixture trip, not only the ones found on screen: resetMockState()
+    // puts the list back after each test (vitest.setup.ts), so all of them are
+    // listed, and filtering by what rendered would hide a missing row. The
+    // length guard keeps the loop from passing over an empty fixture.
+    expect(tripFixtures.page.items.length).toBeGreaterThan(0);
+    renderProfile();
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    for (const trip of tripFixtures.page.items) {
+      expect(
+        await within(card).findByRole('button', {
+          name: copy['trip.delete.open'].replace('{name}', trip.title),
+        }),
+      ).toBeInTheDocument();
+    }
+  });
+});
+
+// FE-105-T4, the "focus 복귀" third of the old T3. The trip delete confirm is
+// the profile's own dialog; the deletion section's confirm is DeletionSection's.
+// ConfirmDialog does the restoring, but a card's clause is proven on its
+// screen: these open the dialog from the profile row and look at where focus
+// lands on the profile, not at the component in isolation.
+describe('FE-105-T4 closing a confirm on the profile returns focus', () => {
+  const target = tripFixtures.page.items[0] ?? null;
+
+  async function focusDeleteControl(user: ReturnType<typeof userEvent.setup>) {
+    const card = await screen.findByRole('region', {
+      name: copy['profile.trips.title'],
+    });
+    const control = await within(card).findByRole('button', {
+      name: copy['trip.delete.open'].replace('{name}', target?.title ?? ''),
+    });
+    for (let i = 0; i < 40 && document.activeElement !== control; i += 1) {
+      await user.tab();
+    }
+    expect(control).toHaveFocus();
+    return control;
+  }
+
+  it('returns focus to the delete control when the confirm is cancelled', async () => {
+    const user = userEvent.setup();
+    renderProfile();
+    const control = await focusDeleteControl(user);
+    await user.keyboard('{Enter}');
+    // The safe choice takes focus when the confirm opens.
+    const cancel = await screen.findByRole('button', {
+      name: copy['trip.delete.cancel'],
+    });
+    await waitFor(() => {
+      expect(cancel).toHaveFocus();
+    });
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(control).toHaveFocus();
+    });
+  });
+
+  it('keeps focus in the page, not the document, once the row is deleted', async () => {
+    // The opener goes with its row, so there is nothing to return to — the
+    // failure this guards is focus falling to <body>, or staying on a button
+    // inside the closed dialog, and the next Tab starting over at the top of
+    // the page.
+    //
+    // Measured on this screen: focus lands on <main>. The confirm lives in the
+    // trips <section>, which ConfirmDialog treats as the block its change
+    // rewrites and so skips, and no control precedes that section — so the
+    // shared `restoreFocusTo` fallback takes it (focus-restore.ts). That is
+    // the designed last resort, and the next Tab continues inside the page.
+    const user = userEvent.setup();
+    renderProfile();
+    const control = await focusDeleteControl(user);
+    await user.keyboard('{Enter}');
+    await user.click(
+      await screen.findByRole('button', { name: copy['trip.delete.confirm'] }),
+    );
+
+    await waitFor(() => {
+      expect(control).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+    });
+    const active = document.activeElement as HTMLElement | null;
+    expect(active?.closest('dialog')).toBeNull();
+    expect(document.getElementById('main')?.contains(active)).toBe(true);
   });
 });
 

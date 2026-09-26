@@ -15,6 +15,29 @@ function fe503T3AcceptanceId(screenName: string) {
   return !composedStack && screenName === 'optimization run' ? 'FE-503-T3 ' : '';
 }
 
+// FE-101 (A-1/A-2/A-3) and FE-105 (S14) own a screen each, so their layout and
+// motion clauses ride on the cases that measure THAT screen and on no other.
+// On a describe title, as FE-104-T3 is, an id reads as proven by every screen
+// in SCREENS, and the aggregator cannot tell which case measured the card's
+// own. T3 is keyboard 이동·접근성 이름과 360px·200% zoom; T5 is reduced motion.
+const ONBOARDING = new Set(['splash', 'language', 'intro']);
+
+function screenT3AcceptanceId(screenName: string) {
+  if (ONBOARDING.has(screenName)) return 'FE-101-T3 ';
+  return screenName === 'profile' ? 'FE-105-T3 ' : '';
+}
+
+// Not the splash. Under `reduce` it skips its hold and redirects as soon as the
+// bootstrap lands, so by `networkidle` the case named "splash" is measuring
+// /language (5/5 runs; without `reduce` the splash is still up in all 5 at
+// 360px and at 180px, which is why the T3 cases keep it). The splash's reduced
+// motion is that skipped hold, and the unit test in onboarding.test.tsx is what
+// proves it.
+function screenMotionAcceptanceId(screenName: string) {
+  if (screenName === 'language' || screenName === 'intro') return 'FE-101-T5 ';
+  return screenName === 'profile' ? 'FE-105-T5 ' : '';
+}
+
 async function expectOptimizationRunContent(page: Page, screenName: string) {
   if (composedStack || screenName !== 'optimization run') return;
 
@@ -56,7 +79,8 @@ async function expectOptimizationRunContent(page: Page, screenName: string) {
 // (AGENTS.md registration rule 3).
 test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed width', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
     test(`${acceptanceId}${screen.name} fits`, async ({ page }) => {
       await page.goto(screen.path);
       await page.waitForLoadState('networkidle');
@@ -73,7 +97,8 @@ test.describe('FE-601-T1 FE-104-T3 FE-203-T3 at 360px, the narrowest designed wi
 test.describe('FE-104-T3 FE-203-T3 at 200% zoom, where the viewport halves', () => {
   test.use({ viewport: { width: 180, height: 500 } });
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) + screenT3AcceptanceId(screen.name);
     test(`${acceptanceId}${screen.name} reflows instead of scrolling sideways`, async ({
       page,
     }) => {
@@ -142,7 +167,11 @@ test.describe('FE-601-T2 with English copy, which runs longer than the Korean', 
 // saved-places screen are each measured rather than stood in for.
 test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 FE-104-T3 FE-203-T3 keyboard and motion', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = fe503T3AcceptanceId(screen.name);
+    // Not the splash: on success it renders no control at all, so its walk
+    // finds nothing to judge and would carry FE-101-T3 without measuring it.
+    const acceptanceId =
+      fe503T3AcceptanceId(screen.name) +
+      (screen.name === 'splash' ? '' : screenT3AcceptanceId(screen.name));
     test(`${acceptanceId}BA-070-T5 ${screen.name} puts focus on something visible`, async ({
       page,
     }) => {
@@ -354,7 +383,9 @@ test.describe('FE-601-T3 FE-602-T2 FE-001-T2 FE-002-T2 FE-003-T2 FE-004-T2 motio
 //
 test.describe('FE-104-T4 FE-203-T5 reduced motion, per screen', () => {
   for (const screen of SCREENS) {
-    const acceptanceId = screen.name === 'optimization run' ? 'FE-503-T4 ' : '';
+    const acceptanceId =
+      (screen.name === 'optimization run' ? 'FE-503-T4 ' : '') +
+      screenMotionAcceptanceId(screen.name);
     test(`${acceptanceId}${screen.name} collapses motion under reduce`, async ({
       page,
     }) => {
