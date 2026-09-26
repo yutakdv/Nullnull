@@ -79,6 +79,12 @@ function focusResult(list: HTMLElement | null, index: number): HTMLElement | nul
   return item;
 }
 
+/** Focus is still where a press of `button` leaves it (FE-103-T22). */
+function focusIsOnPress(button: HTMLButtonElement | null): boolean {
+  const active = document.activeElement;
+  return active === null || active === document.body || active === button;
+}
+
 export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
   const { t } = useI18n();
   const button = useRef<HTMLButtonElement>(null);
@@ -153,6 +159,15 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
     if (result.data?.pages[0] !== pressed.first) return;
     // On failure focus stays on the button, which now offers the retry.
     if (result.isError) return;
+    // The same search, but the reader may have gone elsewhere while the page
+    // loaded: a click into the search box is enough, before a letter is typed
+    // (FE-103-T22). Focus moves only while it is still where a press leaves
+    // it: on this button, or on the document, where Safari leaves a clicked
+    // button and where focus falls if the button unmounts. Read when the press
+    // settles, because where the reader is now is what a move would take them
+    // from. Both moves below depend on it; the landing one only waits for the
+    // page to render.
+    if (!focusIsOnPress(button.current)) return;
     const count = result.data?.items.length ?? 0;
     if (!refused && count > pressed.from) {
       setLanding(pressed);

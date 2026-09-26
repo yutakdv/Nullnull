@@ -682,6 +682,10 @@ describe('FE-103-T15 a continuation that settles after its search changed moves 
   // page that was pressed for. Found by a reviewer's probe: typing while page
   // two loaded moved focus from the search box onto a result of the new search.
   //
+  // Focus left in the box is now held for a reason of its own (FE-103-T22),
+  // so each case first puts focus back where a press leaves it. The search's
+  // change is then the only thing that can keep it there.
+  //
   // Two cases because the press has two ways to move focus, split by how many
   // results the new search holds against the count at the press.
 
@@ -699,7 +703,7 @@ describe('FE-103-T15 a continuation that settles after its search changed moves 
     });
   }
 
-  it('FE-103-T15 leaves focus in the search box when the new search has no more than before', async () => {
+  it("FE-103-T15 leaves focus on the new search's continuation when that search has no more than before", async () => {
     const client = createQueryClient();
     const served = servePlaceSearchPages({ hold: true });
     const user = await renderStep4(client);
@@ -712,15 +716,17 @@ describe('FE-103-T15 a continuation that settles after its search changed moves 
     // A new search while page two is out. It answers the same two places, so
     // its count equals the count at the press.
     await user.type(box, 'x');
-    await screen.findByRole('button', { name: copy['placeSearch.more'] });
+    const more = await screen.findByRole('button', { name: copy['placeSearch.more'] });
     expect(served.bodies.some((body) => body.query === '서울x')).toBe(true);
+    // A keyboard reader moves on to the new search's own continuation.
+    more.focus();
 
     served.release();
     await pageTwoSettled(client);
-    expect(box).toHaveFocus();
+    expect(more).toHaveFocus();
   });
 
-  it('FE-103-T15 leaves focus in the search box when the new search has more than before', async () => {
+  it('FE-103-T15 leaves focus on the document when the new search has more than before', async () => {
     const client = createQueryClient();
     const served = servePlaceSearchPages({ hold: true });
     // The new query answers three places on one page, past the count of two
@@ -744,9 +750,70 @@ describe('FE-103-T15 a continuation that settles after its search changed moves 
 
     await user.type(box, 'x');
     await addButton(searchPages.next[0].name);
+    // The new search has no continuation to move on to. A click outside the
+    // box leaves focus on the document, as a press on Safari does.
+    await user.click(document.body);
+    expect(document.body).toHaveFocus();
 
     served.release();
     await pageTwoSettled(client);
+    expect(document.body).toHaveFocus();
+  });
+});
+
+describe('FE-103-T22 a continuation that settles after focus left it moves no focus', () => {
+  // The same search this time: the traveller only moved focus while page two
+  // loaded, and the page's arrival must not pull it back. Found by a
+  // reviewer's probe: a click into the search box, before a letter was typed,
+  // and page two landing took focus onto its first result.
+  //
+  // Two cases because the press has two ways to move focus: to the first
+  // result the page added, or, when it added none, to the last result.
+
+  it('FE-103-T22 leaves focus in the search box when the page adds results', async () => {
+    const served = servePlaceSearchPages({ hold: true });
+    const user = await searchFor('서울');
+    const box = screen.getByRole('searchbox');
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.loadingMore'] });
+
+    await user.click(box);
+    served.release();
+    await addButton(searchPages.next[0].name);
+    expect(box).toHaveFocus();
+  });
+
+  it('FE-103-T22 leaves focus in the search box when the last page adds nothing', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    servePlaceSearchPages();
+    server.use(
+      http.post(`${API_BASE}/places/search`, async ({ request }) => {
+        const body = (await request.clone().json()) as { cursor?: string | null };
+        if (body.cursor !== NEXT_CURSOR) return undefined;
+        await held;
+        return HttpResponse.json({
+          items: [],
+          page: { nextCursor: null, hasMore: false },
+        });
+      }),
+    );
+    const user = await searchFor('서울');
+    const box = screen.getByRole('searchbox');
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.loadingMore'] });
+
+    await user.click(box);
+    release();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: copy['placeSearch.loadingMore'] }),
+      ).toBeNull();
+    });
     expect(box).toHaveFocus();
   });
 });
