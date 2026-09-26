@@ -153,4 +153,7 @@
    pushing the step past 360px or 200% zoom. */
 .unsaved {
   overflow-wrap: anywhere;
+  /* Scrolled to above the fixed bar, not under it: the same reservation the
+     wizard's padding makes for a bar with a secondary action. */
+  scroll-margin-bottom: calc(var(--layout-bottom-action) + env(safe-area-inset-bottom));
 }

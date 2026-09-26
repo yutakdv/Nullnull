@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceCrowdForecasts, usePlaceSearch } from '../../shared/api/index.js';
@@ -10,6 +10,7 @@ import {
   SearchField,
   unitCredits,
 } from '../../shared/ui/index.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
@@ -123,6 +124,21 @@ export function MustVisitStep({
   // place kept after the press would not be among the picks 다시 시도 sends,
   // and one removed would still be sent (#185).
   const locked = isSubmitting || unsaved.length > 0;
+  // #185's partial failure, shown once a write attempt has finished with
+  // places left over — and again after each retry that leaves some.
+  const showUnsaved = unsaved.length > 0 && !isSubmitting;
+  const unsavedRef = useRef<HTMLParagraphElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  // Brings the message into view and focus back to the CTA, which is 다시
+  // 시도 now. The CTA was disabled while the writes ran, and Chromium drops
+  // focus from a disabled control to <body> (focus-restore.ts records the same
+  // measurement), so without this the next Tab starts from the top of the page
+  // and the message can sit scrolled out of sight above a long result list.
+  useEffect(() => {
+    if (!showUnsaved) return;
+    unsavedRef.current?.scrollIntoView({ block: 'nearest' });
+    restoreFocusTo(retryRef.current);
+  }, [showUnsaved]);
 
   function meta(place: PlaceSummary): string {
     // categoryName, not categoryCode. BA-022 made the distinction explicit in
@@ -288,8 +304,12 @@ export function MustVisitStep({
             it. No Figma frame yet (FCR-039), so this is an FE placeholder in
             the wizard's own error style. Hidden while a retry is in flight and
             rendered again if it fails, so the alert is announced each time. */}
-        {unsaved.length > 0 && !isSubmitting ? (
-          <p className={`${styles.state} ${styles.unsaved}`} role="alert">
+        {showUnsaved ? (
+          <p
+            className={`${styles.state} ${styles.unsaved}`}
+            ref={unsavedRef}
+            role="alert"
+          >
             {t('mustVisit.unsaved', {
               count: unsaved.length,
               places: unsaved.map((place) => place.name).join(', '),
@@ -313,6 +333,7 @@ export function MustVisitStep({
           re-sends only those picks, and 여행으로 가기. */}
       {unsaved.length > 0 ? (
         <BottomCta
+          buttonRef={retryRef}
           fixed
           label={t('mustVisit.retry')}
           disabled={isSubmitting}
