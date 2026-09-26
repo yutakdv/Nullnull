@@ -10,6 +10,7 @@
 //            JA/ZH send no request.
 // FE-101-T2: default/loading/empty/error/offline/stale states each render.
 // FE-101-T3: keyboard reach, focus, accessible names, reduced motion.
+// FE-101-T6: opened from the profile, the language screen returns there.
 //
 // Requests are counted rather than asserted from the policy table: a table that
 // says "no request" while the screen fires one would pass an inspection test
@@ -448,6 +449,44 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
       'id',
       'intro-heading',
     );
+  });
+});
+
+// FE-101-T6. The profile's language row (FE-105-T6) opens this screen with
+// `?from=profile`. Next used to go to /intro unconditionally, which walked a
+// traveller who only wanted to switch KO/EN back through the intro and the
+// sign-in screen. The value is compared, never followed: only `profile`
+// changes where Next goes, so the query string cannot send anyone to a path
+// of its choosing.
+describe('FE-101-T6 the language screen returns to the profile it was opened from', () => {
+  it('FE-101-T6 goes back to the profile, in the language just chosen', async () => {
+    const user = userEvent.setup();
+    renderAt('/language?from=profile');
+    await user.click(await screen.findByRole('button', { name: /한국어/ }));
+    await user.click(
+      await screen.findByRole('button', { name: messages['ko-KR']['language.next'] }),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'profile-heading',
+      );
+    });
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      messages['ko-KR']['profile.title'],
+    );
+  });
+
+  it('FE-101-T6 continues onboarding for any other return target', async () => {
+    const user = userEvent.setup();
+    renderAt('/language?from=%2Ffeed');
+    await user.click(await screen.findByRole('button', { name: copy['language.next'] }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute(
+        'id',
+        'intro-heading',
+      );
+    });
   });
 });
 

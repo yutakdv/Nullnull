@@ -8,6 +8,7 @@
 //             control or making an authentication request.
 // FE-105-T2: default/loading/empty/error states each render.
 // FE-105-T3: keyboard reach, focus and accessible names.
+// FE-105-T6: the profile reopens the language screen.
 //
 // The history assertions matter beyond rendering: CLAUDE.md forbids keeping
 // itinerary content for history, so a test checks the screen shows status and
@@ -473,6 +474,56 @@ describe('the profile is reachable by keyboard', () => {
         'data-guide-heading',
       );
     });
+  });
+});
+
+// FE-105-T6. S14 lists locale among its rows (FIGMA_HANDOFF §H/I) and the
+// route table says /language is "profile에서 재진입 가능", but the splash
+// redirect was the only way to /language: once past onboarding, nothing led
+// back to KO/EN. The row takes the data-guide row's list style; FCR-016 keeps
+// the S14 language flow's own frame open, so its layout and copy follow Figma
+// when that lands.
+//
+// The id is on the first case only. The two below prove the row's note, not
+// that the row reopens the choice, and a describe title would lend them T6.
+describe('the profile reopens the language choice', () => {
+  it('FE-105-T6 opens the language screen by keyboard', async () => {
+    const user = userEvent.setup();
+    const { router } = renderProfile();
+    const row = await screen.findByRole('link', {
+      name: new RegExp(copy['profile.language.title']),
+    });
+    for (let i = 0; i < 40 && document.activeElement !== row; i += 1) {
+      await user.tab();
+    }
+    expect(row).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /Choose your language/ }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/language');
+    // Opening a screen changes nothing: the choice is saved where it is made.
+    expect(requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
+  });
+
+  it('names the language the app is showing', async () => {
+    renderProfile();
+    const row = await screen.findByRole('link', {
+      name: new RegExp(copy['profile.language.title']),
+    });
+    expect(row).toHaveTextContent(copy['language.en.name']);
+    expect(row).not.toHaveTextContent(copy['language.ko.name']);
+  });
+
+  it('names Korean when the app is in Korean', async () => {
+    renderKo();
+    const ko = messages['ko-KR'];
+    const row = await screen.findByRole('link', {
+      name: new RegExp(ko['profile.language.title']),
+    });
+    expect(row).toHaveTextContent(ko['language.ko.name']);
+    expect(row).not.toHaveTextContent(ko['language.en.name']);
   });
 });
 

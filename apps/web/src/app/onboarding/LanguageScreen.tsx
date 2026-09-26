@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { SupportedLocale } from '../../i18n/locales.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -58,6 +58,13 @@ export function LanguageScreen() {
   const { locale, setLocale, t } = useI18n();
   const navigate = useNavigate();
   const updatePreferences = useUpdatePreferences();
+  // Opened from the profile's language row (FE-101-T6), Next returns there: a
+  // traveller switching KO/EN after onboarding should not be walked through
+  // the intro and the sign-in screen again. The value is compared, never
+  // navigated to, so the query string cannot choose a destination; anything
+  // but `profile` is the first-visit flow.
+  const [searchParams] = useSearchParams();
+  const continueTo = searchParams.get('from') === 'profile' ? '/profile' : '/intro';
   // The locale the owner record is known to hold, so Next does not send a
   // choice a tap already SAVED. Written only once the server has answered: a
   // tap whose save failed must leave Next to send it again (#399 review).
@@ -152,7 +159,7 @@ export function LanguageScreen() {
           // projected in it, while search follows the UI (WEB-RT-1), so the
           // language the traveller is reading is saved here too.
           if (saved.current !== locale) save(locale);
-          void navigate('/intro');
+          void navigate(continueTo);
         }}
       />
     </section>

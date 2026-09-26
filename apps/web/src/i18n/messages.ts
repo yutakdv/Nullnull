@@ -329,6 +329,9 @@ export const messages = {
       '다른 곳에서 이 여행이 바뀌었어요. 선택한 내용은 그대로 두었어요.',
     'profile.interests.conflict.reload': '최신 내용 불러오기',
     'profile.interests.conflict.discard': '내 변경 취소',
+    // S14 lists locale among its rows; the note under it is the language the
+    // app is showing, read from the language names below (FCR-016).
+    'profile.language.title': '언어',
     'profile.dataGuide.title': '혼잡도 데이터 안내',
     'profile.dataGuide.note': '실시간 관측 · 공식 예측 · 장기 참고의 차이',
     'profile.location.title': '위치 권한',
@@ -1421,6 +1424,7 @@ export const messages = {
       'This trip changed somewhere else. Your choices are still here.',
     'profile.interests.conflict.reload': 'Load the latest',
     'profile.interests.conflict.discard': 'Discard my changes',
+    'profile.language.title': 'Language',
     'profile.dataGuide.title': 'About crowd data',
     'profile.dataGuide.note':
       'Live observation · official forecast · long-term reference',
