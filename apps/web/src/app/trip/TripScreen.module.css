@@ -689,6 +689,13 @@
     flex-wrap: wrap;
   }
 
+  /* Wrapped, the controls no longer share the title's 27px line, and the
+     negative margin that kept them inside it would pull them up over the
+     title's last line (shell.spec.ts, a 100-character title at 180px). */
+  .viewHeadRow .titleEditButton {
+    margin-block: 0;
+  }
+
   .itemHead {
     flex-wrap: wrap;
   }
