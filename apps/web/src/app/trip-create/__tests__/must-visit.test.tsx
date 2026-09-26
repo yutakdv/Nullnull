@@ -563,12 +563,16 @@ describe('FE-103-T18 the same control retries a failed continuation', () => {
     const user = await searchFor('서울');
     const [c] = searchPages.next;
     await addButton(searchPages.first[0].name);
-    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    const more = screen.getByRole('button', { name: copy['placeSearch.more'] });
+    await user.click(more);
 
-    // The same control is the retry, and the retry is what brings the page.
-    await user.click(
-      await screen.findByRole('button', { name: copy['placeSearch.retryMore'] }),
-    );
+    // The same control is the retry, the very element pressed, not a second
+    // button drawn beside it; and the retry is what brings the page.
+    const retry = await screen.findByRole('button', {
+      name: copy['placeSearch.retryMore'],
+    });
+    expect(retry).toBe(more);
+    await user.click(retry);
     expect(await addButton(c.name)).toBeInTheDocument();
     expect(screen.queryByText(copy['placeSearch.moreFailed'])).not.toBeInTheDocument();
   });
