@@ -498,7 +498,7 @@ BA-011 구현 증거 (local·full Docker Java 276 / 121 / 13 / 19, 0 fail/error/
 - `OwnerPreferencesIT.mergePatchAndRepeat/malformedAndAtomic`, `OwnerPreferencesConcurrencyIT.lockedReadPreservesConcurrentChange`: null/absent, unknown/type/content-type, 실패 원자성, owner 잠금 뒤 최신 필드 보존, 반복 onboarding의 owner row version 불변을 검사한다.
 - `OwnerContractTest.schemas/mediaType`는 OwnerProfile·Problem과 merge-patch 415를 검사한다. `SessionContractTest.securityParity`가 실제 route/operation/security를 함께 검사한다.
 - report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.OwnerPreferencesIT.xml`, `TEST-io.nullnull.identity.OwnerPreferencesConcurrencyIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.OwnerContractTest.xml`. Playwright는 `apps/web/e2e/session.spec.ts`의 BA-011 transport 검사이며 shell keyboard/focus와 함께 실행한다.
-- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·로그인 CTA(A-075 뒤 `/sign-in` 흉내, 프로필 `TEST` 표기)·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
+- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·A-075 로그인 표현(`/sign-in` 흉내, 프로필 `TEST` 표기, 프로필 로그인 컨트롤 없음)·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-002, PM-006, PM-017.
 

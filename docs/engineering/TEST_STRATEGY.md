@@ -34,7 +34,7 @@ tags:
 | P0 | 실제 KTO 호출 없이 mock/replay만 제출 | staging actual-call + provider history/call-audit gate |
 | P0 | KTO 출처 누락·무허가 CI/BI 사용 | DOM/visual/asset-license coverage |
 | P0 | 제출 profile에서 로그인/위치가 핵심 흐름을 막음 | external incognito + permission/network test |
-| P0 | Figma의 언어·feed·guest·data 상태가 실제 capability와 다름 | FCR screen-manifest + dead-control/network E2E |
+| P0 | Figma의 언어·feed·로그인 표현·data 상태가 실제 capability와 다름(로그인은 A-075: 프로필 'TEST' 표기, 로그인 컨트롤 없음, `/sign-in` 흉내는 인증 요청 없음) | FCR screen-manifest + dead-control/network E2E |
 | P1 | 경로 제안 불가능/시간창 위반 | route/optimizer property test |
 
 ## 2. Test layer
