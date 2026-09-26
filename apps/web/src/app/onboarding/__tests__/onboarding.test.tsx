@@ -20,6 +20,7 @@
 // FE-101-T5: reduced motion — the skipped splash hold here, the collapse of
 //            motion on /language and /intro in e2e/responsive.spec.ts.
 // FE-101-T6: opened from the profile, the language screen returns there.
+// FE-101-T7: opened with any other `from`, it continues to the intro.
 //
 // T2 and T3 used to be the template's six states and six a11y clauses, with no
 // testcase carrying either id. T2 is narrowed to the states these screens can
@@ -536,13 +537,17 @@ describe('FE-101-T1 A-2 language selection (FCR-001 trace)', () => {
   });
 });
 
-// FE-101-T6. The profile's language row (FE-105-T6) opens this screen with
+// FE-101-T6 and T7. The profile's language row (FE-105-T6) opens this screen with
 // `?from=profile`. Next used to go to /intro unconditionally, which walked a
 // traveller who only wanted to switch KO/EN back through the intro and the
 // sign-in screen. The value is compared, never followed: only `profile`
 // changes where Next goes, so the query string cannot send anyone to a path
 // of its choosing.
-describe('FE-101-T6 the language screen returns to the profile it was opened from', () => {
+//
+// T6 and T7 are the two directions of that one rule, split because one id on
+// both was satisfied by either case (AGENTS.md registration rule 3). The
+// describe title carries neither: it would lend each case the other's id.
+describe('the language screen returns to the profile only when opened from it', () => {
   it('FE-101-T6 goes back to the profile, in the language just chosen', async () => {
     const user = userEvent.setup();
     renderAt('/language?from=profile');
@@ -561,7 +566,7 @@ describe('FE-101-T6 the language screen returns to the profile it was opened fro
     );
   });
 
-  it('FE-101-T6 continues onboarding for any other return target', async () => {
+  it('FE-101-T7 continues onboarding for any other return target', async () => {
     const user = userEvent.setup();
     renderAt('/language?from=%2Ffeed');
     await user.click(await screen.findByRole('button', { name: copy['language.next'] }));

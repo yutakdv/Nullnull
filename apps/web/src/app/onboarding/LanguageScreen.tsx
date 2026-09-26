@@ -62,7 +62,7 @@ export function LanguageScreen() {
   // traveller switching KO/EN after onboarding should not be walked through
   // the intro and the sign-in screen again. The value is compared, never
   // navigated to, so the query string cannot choose a destination; anything
-  // but `profile` is the first-visit flow.
+  // but `profile` is the first-visit flow (FE-101-T7).
   const [searchParams] = useSearchParams();
   const continueTo = searchParams.get('from') === 'profile' ? '/profile' : '/intro';
   // The locale the owner record is known to hold, so Next does not send a

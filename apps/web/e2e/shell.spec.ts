@@ -650,6 +650,8 @@ test.describe('onboarding and profile in a real browser', () => {
 // the profile rather than walking on through the intro and sign-in. The unit
 // tests prove each half; this proves the halves meet, over the actual
 // `?from=profile` URL and the actual PATCH the language screen sends.
+// FE-101-T7, the other direction (any other `from` goes on to the intro), is
+// the unit test's alone: this walk only ever opens the screen from the profile.
 //
 // en-US on purpose, so choosing 한국어 is a change the page has to show.
 test.describe('FE-105-T6 FE-101-T6 the profile reopens the language choice', () => {
