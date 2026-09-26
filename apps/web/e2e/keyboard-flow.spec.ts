@@ -29,18 +29,25 @@ import { createSeededTrip, FIRST_ITEM, SECOND_ITEM } from './seeded-trip.js';
 /**
  * Opens a screen with a session already in hand.
  *
- * The app bootstraps exactly once, on the splash screen: `useSessionBootstrap`
- * is called by SplashScreen and nowhere else, deliberately, because an
- * unauthenticated POST that repeats itself creates duplicate anonymous owners.
- * So a test that navigates straight to /trip or /feed never gets a session, and
- * every request it makes comes back 401 with the screen showing "Your session
- * ended" — which is what these tests were reading as a keyboard failure.
+ * When this was written only the splash bootstrapped, so a test that went
+ * straight to /trip or /feed never got a session: every request came back 401
+ * with "Your session ended", which is what these tests were reading as a
+ * keyboard failure. That stopped being true with #240 (ecad7070): the shell
+ * also bootstraps when a deep link's CSRF reissue says no cookie was sent at
+ * all (AppShell.tsx `noCookieSent`), under the splash's own query key, so a
+ * page load still mints at most one session.
  *
- * Going through `/` is not a workaround; it is the route a person takes.
- * shell.spec.ts already does the same thing. The walks over SCREENS
- * (responsive.spec, location-off.spec) used to visit these screens directly,
- * on the grounds that an error screen also reflows and asks for no location -
- * which is why, in the gate, they only ever measured the error screen. They
+ * Going through `/` stays, and not as a workaround: it is the route a person
+ * takes, and the splash redirects only on the bootstrap's success branch, so
+ * the wait below ends once the session exists. A deep link gets its session
+ * while the screen's first reads are already out, and how those reads wait or
+ * are asked again is the shell's first-visit path, which
+ * live-session.integration.spec.ts measures - not something a keyboard test
+ * should lean on. shell.spec.ts already does the same thing. The walks over
+ * SCREENS (responsive.spec, location-off.spec) used to visit every entry
+ * directly, on the grounds that an error screen also reflows and asks for no
+ * location - which is why, in the gate, every /trip/… entry measured "We can't
+ * find that trip": the fixture id is nobody's trip there (seeded-trip.ts). They
  * now go through open-screen.ts, which reaches a trip screen the same way and
  * then waits for something only that screen draws.
  */

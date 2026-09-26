@@ -41,8 +41,14 @@ const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
 /**
  * Opens `/` and waits for the session bootstrap, the way a person arrives.
  *
- * The splash is the only screen that bootstraps (keyboard-flow.spec.ts has why), so a test
- * that needs the real API to know who it is goes through it first.
+ * Not because nothing else bootstraps. Since #240 (ecad7070) the shell also starts a session
+ * when a deep link's CSRF reissue answers 401 with `missingCredential: SESSION_COOKIE`
+ * (AppShell.tsx `noCookieSent`; live-session.integration.spec.ts measures it on /live). What
+ * a deep link does not give is a moment to wait for: the splash redirects to /language or
+ * /feed only on the bootstrap's success branch, so the wait below ends once the session
+ * exists, while a deep link's URL does not move when it lands. The helpers below need that
+ * moment - a trip is its creator's (invariant 11), so the session has to exist before
+ * createTrip, and the page opened afterwards has to carry that same session.
  */
 export async function startSession(page: Page): Promise<void> {
   await page.goto('/');
