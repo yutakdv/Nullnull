@@ -41,7 +41,7 @@ tags:
 | CMP-SUB-002 | 공식/EXCLUSION | 참가 신청 계정, 이메일 인증, 팀/서비스 선택으로 제출 | 제출 입력 전에 대표 계정과 팀원 계정을 확인 | 콘텐츠랩 팀원 화면·인증 상태의 비공개 확인 기록 | 공동 / 공동 |
 | CMP-SUB-003 | 공식/EXCLUSION | 최종 팀원, 팀명·서비스명·개요·부문/유형·지정과제 1개를 정확히 입력 | 부문을 포함한 exact label과 값을 서비스/PDF/제출처의 한 표에서 대조 | 3개 위치의 값과 2인 확인 시각 | 공동 / 공동 |
 | CMP-SUB-004 | 공식/REQUIRED | 외부에서 접속 가능한 웹 URL 또는 승인된 앱스토어 링크 | 웹 URL만 제출하고 PWA를 앱스토어 앱으로 주장하지 않음 | 외부망·새 browser profile HTTPS smoke | BE·AI / FE |
-| CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결. 앱의 로그인 표현은 `A-075`(오너 2026-09-25)대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기다 | 신규 session E2E, 제출 화면 선택값 | FE / BE·AI |
+| CMP-SUB-005 | 공식/REQUIRED | 로그인 방식은 로그인 불필요/SNS/테스트 계정 중 선택 | `로그인 불필요`; anonymous session에서 저장 포함 핵심 흐름 완결. 앱의 로그인 표현은 `A-075`(오너 2026-09-25)대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기다 | 최종 release 배포 URL을 새 익명창에서 사람이 직접 밟은 녹화(`EV-URL-01`, `FE-604` step 1 — Playwright를 배포 URL에 겨누지 않는다. 로컬·게이트의 `session.spec.ts`는 뼈대이고 이 행의 증거가 아니다), 제출 화면 선택값 | FE / BE·AI |
 | CMP-SUB-006 | 공식/EXCLUSION | 공식 기능설명서 양식과 필수 항목을 유지해 PDF 제출 | 양식의 표·순서·필수 field를 임의 변경하지 않음 | 원본 version/checksum, PDF render, field checklist | 공동 / 공동 |
 | CMP-SUB-007 | 공식/REQUIRED | 대표 이미지 1장, 상세 이미지 3~5장 등 공식 구성 준수 | 실제 배포 화면만 사용하고 mock/P1 screenshot 제외. 촬영은 FE지만 선행 조건이 전부 FE 밖이다 — **BA-006(배포 URL) · BA-021-T3(catalog 게이트) · [#183](https://github.com/yutakdv/Nullnull/issues/183)(게시물 3~5건)**. 촬영 목록은 [runbook](SUBMISSION_RUNBOOK.md)에 사전 확정했고, 남은 것은 그 셋이 열리는 날 찍는 것뿐이다 | image ledger, URL/release ID, alt/caption, PDF 확인 | FE / BE·AI |
 | CMP-SUB-008 | 공식/REQUIRED | 기능설명서에는 최종 서비스에서 실제 구현·사용한 내용만 기재 | disabled·준비 중·mock-only·계획 기능 제외 | PDF 기능 목록 ↔ release journey/test 대조 | 공동 / 공동 |
@@ -94,7 +94,7 @@ AI 도구 사용을 별도 가점이나 구현 완료 증거로 주장하지 않
 | --- | --- | --- | --- | --- | --- |
 | CMP-LOC-001 | 공식/주의 | 개인 위치를 서버로 전송하면 저장 여부와 무관하게 위치기반서비스 신고 대상일 수 있음 | 제출 profile의 위치 capability OFF | environment/startup readiness · 계약 고정: `LocationInputContractTest` (openapi.yaml의 모든 요청 body·parameter와 events.schema.json의 event property에 좌표가 없다. 예외는 Live coarse viewport 하나이고 `multipleOf: 0.001`로 고정된다) | BE/AI / FE |
 | CMP-LOC-002 | 팀 결정/INTERNAL | 제출 build에서 위치 데이터 흐름 자체를 제거 | geolocation API/permission prompt/좌표 request 0 | Playwright permission spy, network/log scan | FE / BE·AI |
-| CMP-LOC-003 | 팀 결정/INTERNAL | 위치 없이 핵심 기능 사용 가능 | 지역·장소 직접 선택과 다음 일정 기반 | external judge E2E | FE / BE·AI |
+| CMP-LOC-003 | 팀 결정/INTERNAL | 위치 없이 핵심 기능 사용 가능 | 지역·장소 직접 선택과 다음 일정 기반 | 외부망 익명창에서 사람이 밟은 judge walk 녹화(`EV-URL-01`, `FE-604` step 1 — Playwright를 배포 URL에 겨누지 않는다. 로컬·게이트의 `location-off.spec.ts`는 `CMP-LOC-002`의 증거이고 이 행의 배포 URL 증거가 아니다) | FE / BE·AI |
 | CMP-PRV-001 | 팀 결정/INTERNAL | raw itinerary·cookie/token·key를 저장/로그하지 않음 | browser-first parser와 allowlisted telemetry | DB/log/artifact canary scan | BE/AI / FE |
 | CMP-ACC-001 | 공식/REQUIRED | 심사자가 서비스 기능을 실제 확인할 수 있음 | 운영자 seed 조작 없이 새 anonymous session 사용 | 외부망 360px judge journey recording | FE / BE·AI |
 
