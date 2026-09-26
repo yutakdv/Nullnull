@@ -453,7 +453,7 @@
           "assertion": "데이터 안내는 배포 UI에 없는 되돌리기를 약속하지 않는다(A-074)"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-ATT-004 행(기준시각과 source state를 숨기지 않음)을 FE 쪽에서 이 카드가 소유한다 — 매트릭스 행이 FE 소유 카드를 FE-404로 적으므로 이 카드에도 같은 사실을 적어 양쪽에 남긴다. 지금 그 절을 재는 test는 FE-404-T1(data-guide.test.tsx, 여섯 state를 구분하고 결측을 채우지 않는다)과 FE-403-T1(live.test.tsx와 게이트의 live-replay-matrix.spec.ts, REPLAY를 live로 쓰지 않고 관측 시각을 서울 시각으로 표시한다)이다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
