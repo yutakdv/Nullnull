@@ -453,7 +453,7 @@
           "assertion": "데이터 안내는 배포 UI에 없는 되돌리기를 약속하지 않는다(A-074)"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-ATT-004 행(기준시각과 source state를 숨기지 않음)을 FE 쪽에서 이 카드가 소유한다 — 매트릭스 행이 FE 소유 카드를 FE-404로 적으므로 이 카드에도 같은 사실을 적어 양쪽에 남긴다. 지금 그 절을 재는 test는 FE-404-T1(data-guide.test.tsx, 여섯 state를 구분하고 결측을 채우지 않는다)과 FE-403-T1(live.test.tsx와 게이트의 live-replay-matrix.spec.ts, REPLAY를 live로 쓰지 않고 관측 시각을 서울 시각으로 표시한다)이다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-ATT-004 행(기준시각과 source state를 숨기지 않음)을 FE 쪽에서 이 카드가 소유한다 — 매트릭스 행이 FE 소유 카드를 FE-404로 적으므로 이 카드에도 같은 사실을 적어 양쪽에 남긴다. 지금 그 절을 재는 test는 FE-404-T1(data-guide.test.tsx, 여섯 state를 구분하고 결측을 채우지 않는다)과 FE-403-T1(live.test.tsx와 게이트의 live-replay-matrix.spec.ts, REPLAY를 live로 표시하지 않는다)이다. 기준시각 쪽인 '관측 시각을 서울 시각으로 표시'는 FE-403-T1을 단 testcase가 함께 단언하지만 FE-403-T1의 절('REPLAY를 live로 표시하지 않고 degraded 상태를 명시한다')이 아니고, 그것을 소유한 FE 절 ID가 없다 — 알려진 구멍이다(#195의 빌린 ID 모양). 서울 시간대를 실제로 재는 것은 reference-time.test.ts의 FE-403-T1 case와, 고정 문자열('오후 2:00'·'2:00 PM')과 대조하는 게이트의 live-replay-matrix.spec.ts다. live.test.tsx의 두 case는 기대값을 같은 formatReferenceTime으로 만들므로 시간대를 UTC로 바꿔도 초록이다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
