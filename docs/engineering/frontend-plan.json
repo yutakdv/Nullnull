@@ -410,7 +410,8 @@
         "438:3199"
       ],
       "designRequests": [
-        "FCR-029"
+        "FCR-029",
+        "FCR-038"
       ],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",

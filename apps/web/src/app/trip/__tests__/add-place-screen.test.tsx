@@ -435,7 +435,7 @@ describe('FE-305-T3 the screen is reachable and named', () => {
 
 describe('#54 the results continue past the first page', () => {
   it('lists the next page under the first and batches its crowd reading alone', async () => {
-    // The continuation itself is proven by FE-103-T5..T14 (place-search.test.tsx,
+    // The continuation itself is proven by FE-103-T5..T21 (place-search.test.tsx,
     // must-visit.test.tsx). This is the wiring of this screen's own list and
     // its own crowd batch.
     const served = servePlaceSearchPages();

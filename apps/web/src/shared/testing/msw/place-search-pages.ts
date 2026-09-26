@@ -1,4 +1,4 @@
-// Test-only: searchPlaces answered as two cursor pages (#54, FE-103-T5..T14).
+// Test-only: searchPlaces answered as two cursor pages (#54, FE-103-T5..T21).
 //
 // The approved `places` fixture is a single page (`hasMore: false`), so no
 // screen could show what happens after it. The pages here are the fixture's
