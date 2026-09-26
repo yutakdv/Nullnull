@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { messages } from '../src/i18n/messages.js';
+import { overflow } from './overflow.js';
 import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
 
 // Keyboard and focus through the itinerary editor and the judged walk-through.
@@ -658,5 +660,67 @@ test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () =>
     // "Add a place" was the first choice and it is a <Link>, not a button — a
     // reminder that the role belongs to the element, not to how the thing reads.
     await expect(page.getByRole('button', { name: 'Day 1' })).toBeVisible();
+  });
+});
+
+test.describe('FE-306 the dates form is reached and left by keyboard', () => {
+  // The trip's dates are edited at /trip/:id/settings, which nothing linked to
+  // until the view's settings control (FE-306-T4). The unit test measures the
+  // focus moves in happy-dom, which does not implement <dialog>'s focus
+  // semantics; leaving a changed form goes through the discard ConfirmDialog,
+  // so where focus ends up after it is only observable here.
+  const EN = messages['en-US'];
+
+  test('FE-306-T4 FE-306-T5 FE-306-T6 the view opens the dates form, and leaving it returns focus', async ({
+    page,
+  }) => {
+    const path = await createSeededTrip(page);
+    await page.goto(path);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { level: 1 })).not.toHaveText(/loading/i);
+
+    /** Tabs until `name` holds focus; the count bounds a walk, it does not guess the order. */
+    const tabTo = async (name: string) => {
+      for (let i = 0; i < 60; i += 1) {
+        const here = await page.evaluate(
+          () =>
+            document.activeElement?.getAttribute('aria-label') ??
+            document.activeElement?.textContent?.trim() ??
+            '',
+        );
+        if (here === name) return true;
+        await page.keyboard.press('Tab');
+      }
+      return false;
+    };
+
+    // T4: a named control on the view, reached by Tab, and the page it opens
+    // holds the date fields.
+    expect(await tabTo(EN['trip.settingsOpen']), 'the settings control by Tab').toBe(
+      true,
+    );
+    // 360px (the config's viewport): the control fits the title row.
+    expect((await overflow(page)).spilling).toEqual([]);
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByLabel(EN['trip.field.startDate'])).toBeVisible();
+
+    // T5: focus is in the form, on its first field.
+    await expect(page.getByLabel(EN['trip.field.title'])).toBeFocused();
+
+    // T6: leave a changed form the long way — Cancel, then the discard
+    // confirm's Leave — and focus comes back to the control.
+    await page.keyboard.type('!');
+    expect(await tabTo(EN['trip.editCancel']), 'Cancel by Tab').toBe(true);
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    expect(await tabTo(EN['trip.discard.leave']), 'Leave by Tab').toBe(true);
+    await page.keyboard.press('Enter');
+    // Back on a trip view. Not `path` itself: the mock run's created trip and
+    // the detail it serves carry different ids, and the form returns to the
+    // trip it showed.
+    await expect(page).toHaveURL(/\/trip\/[^/]+$/);
+    await expect(page.getByRole('link', { name: EN['trip.settingsOpen'] })).toBeFocused();
   });
 });

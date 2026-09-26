@@ -682,6 +682,13 @@
 }
 
 @media (max-width: 240px) {
+  /* 200% zoom: the title row carries two 44px controls (rename, settings)
+     beside the D-day, which leaves the title no width at all on one line.
+     It wraps instead, the title keeping the first line. */
+  .viewHeadRow {
+    flex-wrap: wrap;
+  }
+
   .itemHead {
     flex-wrap: wrap;
   }

@@ -18,8 +18,10 @@ import {
   IconEdit,
   IconPinVisitFilled,
   IconReservation,
+  IconSettings,
   IconTimeLock,
 } from '../../shared/ui/icons/index.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
@@ -131,6 +133,31 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
     restoreTitleFocus.current = false;
     titleEditButton.current?.focus();
   }, [editingTitle]);
+
+  // FE-306-T5, T6: where focus goes when the dates form opens and closes. The
+  // view and /settings are one TripScreen that changes mode, and the settings
+  // control is not drawn in the form's mode, so pressing it would drop focus
+  // on the document, and so would closing the form. Opening lands on the
+  // form's first field; closing, by save or cancel, lands back on the control.
+  //
+  // Each move waits for its target to be drawn rather than spending itself on
+  // the mode change: while the trip is still loading neither exists, and
+  // focusing then fell back to <main> (measured in a browser, where the mock's
+  // created trip and its detail carry different ids, so /settings loaded anew).
+  const settingsEntry = useRef<HTMLAnchorElement>(null);
+  const settingsFocus = useRef<'form' | 'entry' | null>(null);
+  useEffect(() => {
+    // TripEditForm's first field; its id is what the label points at.
+    const target =
+      settingsFocus.current === 'form' && mode === 'details'
+        ? document.getElementById('trip-title')
+        : settingsFocus.current === 'entry' && mode === 'view'
+          ? settingsEntry.current
+          : null;
+    if (target === null) return;
+    settingsFocus.current = null;
+    restoreFocusTo(target);
+  }, [mode, trip]);
 
   if (query.isPending) {
     return (
@@ -289,6 +316,26 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
               <IconEdit size={18} />
             </button>
           ) : null}
+          {/* FE-306: the only way to the dates form at /settings (FR-TRP-05).
+              Beside the rename pencil because both change the trip itself, and
+              in the view only: routes.tsx keeps metadata out of the S07-2
+              schedule editor. No Figma node draws it; the hero's actions row
+              is Figma's two pills (462:3402), so it takes the pencil's form
+              rather than a third pill. Hidden while the title is being edited,
+              as the pencil is, so leaving cannot drop a typed name unasked. */}
+          {mode === 'view' && !editingTitle ? (
+            <Link
+              aria-label={t('trip.settingsOpen')}
+              className={`${styles.titleIconButton} ${styles.titleEditButton}`}
+              onClick={() => {
+                settingsFocus.current = 'form';
+              }}
+              ref={settingsEntry}
+              to={`/trip/${trip.id}/settings`}
+            >
+              <IconSettings size={18} />
+            </Link>
+          ) : null}
           {/* Once the trip is under way there is no countdown to show, so it
               says which it is rather than falling back to D-0. */}
           <span className={styles.dday}>
@@ -363,6 +410,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         <TripEditForm
           etag={query.data.etag}
           onClose={() => {
+            settingsFocus.current = 'entry';
             void navigate(`/trip/${trip.id}`);
           }}
           trip={trip}

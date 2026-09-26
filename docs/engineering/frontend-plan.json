@@ -1021,6 +1021,18 @@
         {
           "id": "FE-306-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-306-T4",
+          "assertion": "여행 보기 화면에는 날짜 범위 편집 form(/trip/:id/settings)을 여는 이름 붙은 control이 있다"
+        },
+        {
+          "id": "FE-306-T5",
+          "assertion": "그 control로 form을 열면 focus가 form의 첫 field로 들어간다"
+        },
+        {
+          "id": "FE-306-T6",
+          "assertion": "form을 저장·취소·버리고 나가며 닫으면 focus가 그 control로 돌아온다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
