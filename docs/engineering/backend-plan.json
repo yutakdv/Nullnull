@@ -580,11 +580,11 @@
       "steps": [
         "KO/EN 선택·저장·재조회와 지원하지 않는 locale validation을 구현한다",
         "onboarding 완료와 active trip은 owner 범위로 갱신한다",
-        "guest/login 준비 중·데이터 안내에 필요한 projection을 제공한다",
+        "익명 session과 데이터 안내에 필요한 projection을 제공한다. 로그인 화면은 A-075에 따라 FE 안에서만 동작하고(공모전 테스트 계정 prefill, 브라우저 안 대조) 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로)",
         "09-06 PM 검토 PM-001, PM-002, PM-006, PM-017의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다",
         "#10 D5의 getCurrentOwner 최소 읽기를 B01에 인계하고 locale/profile 전체 완료는 B02에서 검증한다"
       ],
-      "safety": "JA/ZH·정식 계정 로그인은 P0 요청을 보내지 않는 비활성 상태다. 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.",
+      "safety": "JA/ZH는 P0 요청을 보내지 않는 비활성 상태다. 로그인은 A-075에 따라 `/sign-in` 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조)만 있고 그 계정으로 서버 인증 요청을 보내지 않는다(정식 계정 로그인은 P1, `FEATURE_ACCOUNT_LOGIN` OFF). 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.",
       "tests": [
         {
           "id": "BA-011-T1",
@@ -2315,7 +2315,7 @@
           "assertion": "다른 trip의 revision을 가리키는 run이 있으면 그 revision이 속한 trip의 삭제가 거절된다"
         }
       ],
-      "handoff": "undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. **staging rc.6에서 나온 결함(V036):** 최적화 이력이 있는 trip의 `DELETE /trips/{tripId}`가 500이었다. `trips` 삭제가 `trip_revisions`로 cascade하는데 `optimization_decisions.before_revision_id`·`after_revision_id`와 `optimization_runs.input_revision_id` 셋이 그 revision을 ON DELETE 없이 가리켰고, PostgreSQL이 revision 삭제의 NO ACTION 검사를 decision·run cascade보다 먼저 돌려 statement 전체가 실패했다(`update or delete on table \"trip_revisions\" violates foreign key constraint \"optimization_decisions_before_revision_id_fkey\"`). KEEP만 있는 run은 revision id를 저장하지 않아 무사했고(V030 shape CHECK), `T3`의 cascade 단언이 초록이던 것도 그 run에 결정이 없었기 때문이다 — **절은 맞았고 fixture가 그 경우를 만들지 않았다.** V036은 셋을 `DEFERRABLE INITIALLY DEFERRED`로 바꾼다 — 검사를 COMMIT으로 미루면 trip 전체 삭제는 그때 참조 행이 이미 cascade로 사라진 뒤라 통과한다. **CASCADE가 아닌 이유는 측정이다:** schema에는 run의 revision이 그 run의 trip 것이라는 제약이 없어서, CASCADE면 어긋난 행 하나가 \"B trip 삭제가 A trip의 run·proposal·decision을 지운다\"가 된다(Codex 적대적 검토 지적). 지금은 그 경우가 fail-closed이고 그대로 둬야 한다. `T13`이 그 차이를 고정한다 — CASCADE로 바꾸면 `T12`는 초록인 채 `T13`만 빨갛다(측정함). SET NULL은 shape CHECK가 APPLY·REVERT에 두 id를 요구하므로 애초에 불가다. 카탈로그를 전수 조회해 trip 삭제를 막을 수 있는 FK가 이 셋뿐임을 확인했다. **계정 삭제는 깨지지 않았는데 그 이유가 이름 순서였다** — `DeleteOwnerDataHandler`가 eraser를 이름순으로 돌아 `optimization-runs`가 `trip-owned-aggregates`보다 먼저 지운다. 양방향 측정: V036 없이 그 eraser를 뒤로 밀면 삭제 job이 실패하고, V036이 있으면 같은 rename이 무해하다. `OwnerDataErasureIT`에 applied run 행을 심어 그 자리를 고정했다(BA-012-T2 절 안, 새 ID 없음).",
+      "handoff": "S14 이력 empty/failed/expired examples와 새 ETag. 여행 화면의 되돌리기(undo) 진입점은 A-074로 퇴역해 undo 가능/만료/후속 변경 상태는 FE에 인계하지 않는다. revert API와 그 검증은 그대로다. **staging rc.6에서 나온 결함(V036):** 최적화 이력이 있는 trip의 `DELETE /trips/{tripId}`가 500이었다. `trips` 삭제가 `trip_revisions`로 cascade하는데 `optimization_decisions.before_revision_id`·`after_revision_id`와 `optimization_runs.input_revision_id` 셋이 그 revision을 ON DELETE 없이 가리켰고, PostgreSQL이 revision 삭제의 NO ACTION 검사를 decision·run cascade보다 먼저 돌려 statement 전체가 실패했다(`update or delete on table \"trip_revisions\" violates foreign key constraint \"optimization_decisions_before_revision_id_fkey\"`). KEEP만 있는 run은 revision id를 저장하지 않아 무사했고(V030 shape CHECK), `T3`의 cascade 단언이 초록이던 것도 그 run에 결정이 없었기 때문이다 — **절은 맞았고 fixture가 그 경우를 만들지 않았다.** V036은 셋을 `DEFERRABLE INITIALLY DEFERRED`로 바꾼다 — 검사를 COMMIT으로 미루면 trip 전체 삭제는 그때 참조 행이 이미 cascade로 사라진 뒤라 통과한다. **CASCADE가 아닌 이유는 측정이다:** schema에는 run의 revision이 그 run의 trip 것이라는 제약이 없어서, CASCADE면 어긋난 행 하나가 \"B trip 삭제가 A trip의 run·proposal·decision을 지운다\"가 된다(Codex 적대적 검토 지적). 지금은 그 경우가 fail-closed이고 그대로 둬야 한다. `T13`이 그 차이를 고정한다 — CASCADE로 바꾸면 `T12`는 초록인 채 `T13`만 빨갛다(측정함). SET NULL은 shape CHECK가 APPLY·REVERT에 두 id를 요구하므로 애초에 불가다. 카탈로그를 전수 조회해 trip 삭제를 막을 수 있는 FK가 이 셋뿐임을 확인했다. **계정 삭제는 깨지지 않았는데 그 이유가 이름 순서였다** — `DeleteOwnerDataHandler`가 eraser를 이름순으로 돌아 `optimization-runs`가 `trip-owned-aggregates`보다 먼저 지운다. 양방향 측정: V036 없이 그 eraser를 뒤로 밀면 삭제 job이 실패하고, V036이 있으면 같은 rename이 무해하다. `OwnerDataErasureIT`에 applied run 행을 심어 그 자리를 고정했다(BA-012-T2 절 안, 새 ID 없음).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-053"
@@ -2394,7 +2394,7 @@
           "assertion": "decisions에서 최초 APPLY·KEEP은 REVERT보다 먼저 나온다"
         }
       ],
-      "handoff": "applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다.",
+      "handoff": "applied/expired/reverted 상태의 서버 근거(`revertAvailability` 생산자와 그 IT)는 그대로다. 여행 화면의 undo 진입점은 A-074로 퇴역해 FE 인계 대상이 아니고, FCR-015는 FE가 A-074에 맞춰 정리했다(#403).",
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-054"
@@ -2858,7 +2858,7 @@
       "designRequests": [],
       "entities": "contest evidence ledger · release manifest · actual KTO operation set",
       "steps": [
-        "익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP/REVERT를 검수한다",
+        "익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP을 검수한다. REVERT는 A-074로 앱 진입점이 퇴역해 verifier API 경로(`staging-flows.mjs --optimize-item`)에서만 확인한다",
         "실제 KTO call과 화면 attribution·source state·PDF 기능 목록을 같은 release에 연결한다",
         "Live 이전에는 핵심 흐름 준비만 판정하고 전체 P0·최종 제출 검수는 BA-092 뒤 다시 수행한다",
         "09-06 PM 검토 PM-001, PM-014, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
@@ -2983,7 +2983,7 @@
       "owner": "BE_AI_DRI",
       "reviewer": "FE_DRI",
       "note": "docs/roles/BACKEND_AI_PLAYBOOK.md#ba-081",
-      "reason": "A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다."
+      "reason": "A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0의 `/sign-in`은 A-075에 따라 공모전 테스트 계정을 미리 채우고 브라우저 안에서만 대조하며, 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로)."
     },
     {
       "id": "BA-082",

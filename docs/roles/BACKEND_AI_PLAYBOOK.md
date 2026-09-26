@@ -477,11 +477,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. KO/EN 선택·저장·재조회와 지원하지 않는 locale validation을 구현한다
 2. onboarding 완료와 active trip은 owner 범위로 갱신한다
-3. guest/login 준비 중·데이터 안내에 필요한 projection을 제공한다
+3. 익명 session과 데이터 안내에 필요한 projection을 제공한다. 로그인 화면은 A-075에 따라 FE 안에서만 동작하고(공모전 테스트 계정 prefill, 브라우저 안 대조) 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로)
 4. 09-06 PM 검토 PM-001, PM-002, PM-006, PM-017의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 5. #10 D5의 getCurrentOwner 최소 읽기를 B01에 인계하고 locale/profile 전체 완료는 B02에서 검증한다
 
-실패·안전 경계: JA/ZH·정식 계정 로그인은 P0 요청을 보내지 않는 비활성 상태다. 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.
+실패·안전 경계: JA/ZH는 P0 요청을 보내지 않는 비활성 상태다. 로그인은 A-075에 따라 `/sign-in` 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조)만 있고 그 계정으로 서버 인증 요청을 보내지 않는다(정식 계정 로그인은 P1, `FEATURE_ACCOUNT_LOGIN` OFF). 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.
 
 필수 검증:
 
@@ -498,7 +498,7 @@ BA-011 구현 증거 (local·full Docker Java 276 / 121 / 13 / 19, 0 fail/error/
 - `OwnerPreferencesIT.mergePatchAndRepeat/malformedAndAtomic`, `OwnerPreferencesConcurrencyIT.lockedReadPreservesConcurrentChange`: null/absent, unknown/type/content-type, 실패 원자성, owner 잠금 뒤 최신 필드 보존, 반복 onboarding의 owner row version 불변을 검사한다.
 - `OwnerContractTest.schemas/mediaType`는 OwnerProfile·Problem과 merge-patch 415를 검사한다. `SessionContractTest.securityParity`가 실제 route/operation/security를 함께 검사한다.
 - report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.OwnerPreferencesIT.xml`, `TEST-io.nullnull.identity.OwnerPreferencesConcurrencyIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.OwnerContractTest.xml`. Playwright는 `apps/web/e2e/session.spec.ts`의 BA-011 transport 검사이며 shell keyboard/focus와 함께 실행한다.
-- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·비활성 CTA·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
+- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·로그인 CTA(A-075 뒤 `/sign-in` 흉내, 프로필 `TEST` 표기)·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-002, PM-006, PM-017.
 
@@ -1813,7 +1813,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - **`T9`는 안전 경계 문장(*"KEEP/REVERT를 다시 되돌리지 않는다"*)의 절이다.** 그 동작을 재던 case가 `T2` ID를 달고 있었는데 `T2`의 문구에는 그 절이 없었고, 이름은 KEEP과 REVERT를 말하면서 본문은 KEEP만 쟀다. REVERT를 되돌리는 case를 더했고, 종류 검사를 끈 변이에서 둘 다 빨갛다.
 - **`T10`.** history cursor의 수명은 `OptimizationCursorProperties`의 15분이고 만료는 `SignedCursorCodec`이 410 `CURSOR_EXPIRED`로 답한다. 같은 cursor가 신선할 때 받아들여지는 것을 대조군으로 둔다. 만료 검사를 끈 변이에서 `T10`만 빨갛다.
 
-FE 인계·완료 증거: undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: S14 이력 empty/failed/expired examples와 새 ETag. 여행 화면의 되돌리기(undo) 진입점은 A-074로 퇴역해 undo 가능/만료/후속 변경 상태는 FE에 인계하지 않는다. revert API와 그 검증은 그대로다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-009, PM-015, PM-016.
 
@@ -1829,7 +1829,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - Figma: `724:4858`; FCR: `FCR-015`
 - 데이터·정책: 저장하지 않는 응답 시점 투영 · APPLY decision의 revertUntil·resultingTripVersion · run 상태
 
-새 operation이 없다. 계약 `getOptimization`이 precedence까지 완결해 둔 선택 필드에 **생산자가 없어서**, FE는 만료를 지속 표시할 서버 근거 없이 `README.md` §5의 "기기 시계로 undo를 켜지 않는다"만 지키고 있다. 금지는 있는데 대안이 없는 상태다.
+새 operation이 없다. 계약 `getOptimization`이 precedence까지 완결해 둔 선택 필드에 **생산자가 없어서**, FE는 만료를 지속 표시할 서버 근거 없이 `README.md` §5의 "기기 시계로 undo를 켜지 않는다"만 지키고 있었다. 금지는 있는데 대안이 없는 상태였다. 이 카드가 그 생산자를 만들었다. 그 뒤 여행 화면의 undo 진입점이 A-074로 퇴역해, 지금 앱은 이 필드를 읽지 않는다. 필드와 생산자는 그대로다.
 
 구현 순서:
 
@@ -1861,7 +1861,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 `T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033에 닿기 전에 transaction 안에서 trip을 새로 읽는 version 검사가 두 번째 undo를 막는다 — 두 undo가 모두 쓰기 전에 읽는 경쟁에서도 그렇고, BA-053-T7이 그것을 동시에 보내 잰다. 그래서 그 index의 증명은 SQL 층에서 BA-053-T8이 한다.
 
-FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: applied/expired/reverted 상태의 서버 근거(`revertAvailability` 생산자와 그 IT)는 그대로다. 여행 화면의 undo 진입점은 A-074로 퇴역해 FE 인계 대상이 아니고, FCR-015는 FE가 A-074에 맞춰 정리했다(#403). 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ## B07 · 붙여넣기 import
 
@@ -2056,7 +2056,7 @@ FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status
 
 구현 순서:
 
-1. 익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP/REVERT를 검수한다
+1. 익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP을 검수한다. REVERT는 A-074로 앱 진입점이 퇴역해 verifier API 경로(`staging-flows.mjs --optimize-item`)에서만 확인한다
 2. 실제 KTO call과 화면 attribution·source state·PDF 기능 목록을 같은 release에 연결한다
 3. Live 이전에는 핵심 흐름 준비만 판정하고 전체 P0·최종 제출 검수는 BA-092 뒤 다시 수행한다
 4. 09-06 PM 검토 PM-001, PM-014, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -2120,7 +2120,7 @@ FE 인계·완료 증거: 새 계약 승인 후 생성 client·필터 examples·
 
 **계정 인증·익명 승계·follow graph** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
 
-보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다.
+보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0의 `/sign-in`은 A-075에 따라 공모전 테스트 계정을 미리 채우고 브라우저 안에서만 대조하며, 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로).
 
 - 선행: [BA-010](#ba-010), [BA-012](#ba-012), [BA-031](#ba-031), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-AUT-01`, `FR-FOL-01`

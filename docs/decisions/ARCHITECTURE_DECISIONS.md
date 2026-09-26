@@ -138,7 +138,7 @@ ADR-0003: 익명 소유권, 일정 version, 승인형 변경
 - apply/revert는 transaction 하나와 새 revision으로 처리한다.
 - 첫 session bootstrap에서 owner와 session을 한 transaction으로 만들고 mutation 전에 idempotency owner scope가 존재해야 한다.
 - session revoke/사용자 삭제 요청은 즉시 접근을 차단하고, 비동기 삭제 receipt 상태와 tombstone을 추적해 backup restore 뒤에도 삭제를 재적용한다.
-- 공모전 제출은 `로그인 불필요` 방식을 사용하고 운영자 seed·개인 계정 없이 anonymous owner가 핵심 흐름을 완결한다.
+- 공모전 제출은 `로그인 불필요` 방식을 사용하고 운영자 seed·개인 계정 없이 anonymous owner가 핵심 흐름을 완결한다. A-075에 따라 앱의 `/sign-in`은 공모전 테스트 계정을 미리 채우고 브라우저 안에서만 대조하며 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로). 제출 화면의 로그인 방식 선택값은 `CMP-SUB-005`([준수 매트릭스](../contest/COMPETITION_COMPLIANCE_MATRIX.md))와 [제출 runbook](../contest/SUBMISSION_RUNBOOK.md)의 제출 화면 입력을 따른다.
 
 ### ADR-0003 · Consequences
 

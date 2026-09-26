@@ -59,7 +59,7 @@ tags:
 | 병렬 구현 | 생성 client, MSW mock, query/form 상태 | controller/application/DB/adapter, AI validator | 같은 spec hash 사용 |
 | 오류 처리 | `code`→번역/CTA, ETag/cursor/token 운반 | stable Problem, transaction, owner scope, Retry-After | contract + Playwright |
 | 데이터 진실성 | provenance/state/비교 불가 표시 | source registry/snapshot/pair policy | mixed-source fixture 통과 |
-| 변경 승인 | preview diff, APPLY/KEEP/REVERT UX | immutable proposal, apply-time 재검증 | 승인 전 trip mutation 0건 |
+| 변경 승인 | preview diff, APPLY/KEEP UX(REVERT 진입점은 A-074로 퇴역, API는 유지) | immutable proposal, apply-time 재검증 | 승인 전 trip mutation 0건 |
 
 FE는 response type을 재선언하거나 unknown field에 의존하지 않는다. Backend/AI는 합의 없이 enum/nullable/error code를 바꾸지 않는다. 계약 변경 PR은 상대 담당 승인이 필요하다.
 
@@ -74,7 +74,7 @@ FE는 response type을 재선언하거나 unknown field에 의존하지 않는�
 | S02 여행 생성 | `POST /places/search` | `/trips` | validation, idempotency conflict |
 | S02 붙여넣기 | `POST /places/search` | `/trip-imports/parse`, remap, confirm | expired, unresolved, draft conflict |
 | S07 내 여행 | `/trips/{id}`, candidates/matches | trip/item/constraint endpoints | `TRIP_CHANGED`, `LOCK_CONFLICT` |
-| S09 최적화 | `/optimizations/{runId}` | create/decision/revert | 6개 Figma error code |
+| S09 최적화 | `/optimizations/{runId}` | create/decision(revert API는 있으나 A-074로 앱 진입점이 없다) | 6개 Figma error code |
 | S11 Live | `/live/areas`, area places, live place, related | 후보 저장만 | replay/stale/unavailable/none |
 | S14 profile | `/me`, `/optimizations` | preferences | P0 상태-only optimization history |
 | S15 data | demo readiness, deletion status | session delete | revoke, async deletion |
@@ -132,7 +132,7 @@ Import draft도 ETag/If-Match를 사용한다. stale remap/confirm은 409 `IMPOR
 - KEEP은 revision/revert field를 반환하지 않는다. REVERT는 `revertedDecisionId`와
   transaction 전후 revision을 반환한다. Frontend는 optional field 조합을 추론하지 않고
   생성된 union을 exhaustive하게 처리한다.
-- `getOptimization.revertAvailability`가 AVAILABLE일 때만 undo를 활성화한다. EXPIRED/REVERTED/NOT_APPLICABLE이면 사유에 맞는 상태를 표시한다. 선택 필드가 없는 응답은 지원 미확인이므로 기기 시계만으로 활성화하지 않는다. 서버의 410 `REVERT_WINDOW_EXPIRED`는 만료 표시로 처리하고 현재 run을 재조회한다.
+- 여행 화면의 undo 진입점은 A-074로 퇴역했다. 앱은 `getOptimization.revertAvailability`로 undo를 켜지 않고 revert를 부르지 않는다. 필드와 410 `REVERT_WINDOW_EXPIRED`는 서버에 그대로 있다. 진입점을 되살리면 다음 규칙을 따른다: AVAILABLE일 때만 undo를 활성화하고, EXPIRED/REVERTED/NOT_APPLICABLE이면 사유에 맞는 상태를 표시한다. 선택 필드가 없는 응답은 지원 미확인이므로 기기 시계만으로 활성화하지 않는다. 410은 만료 표시로 처리하고 현재 run을 재조회한다.
 - `decideOptimization` 200은 `InitialOptimizationDecision`(APPLY/KEEP)만 반환한다. run/history의 `OptimizationDecision`은 REVERT를 포함하며 revert endpoint는 `RevertOptimizationDecision`만 반환한다.
 - APPLIED/REVERTED run의 읽기는 미결정 preview TTL로 차단하지 않는다. 기존 owner/보존 정책 안에서 decision 상태를 읽으며 snapshot 보존을 늘리지 않는다.
 - [#11 계약 제안/예시](../contracts/review-2026-09-06/README.md)는 0.2.1-rc.1이며 FE 검토 전이다. 상태 계산 우선순위·동시성·구버전 복구를 함께 확인한다.
@@ -234,7 +234,7 @@ Constraint는 임의 `value` object가 아니라 `type` discriminator를 가진 
 | `IMPORT_DRAFT_EXPIRED` | 410 | 다시 붙여넣기 | 금지 |
 | `IMPORT_DRAFT_CHANGED` | 409 | 최신 draft 표시·사용자 수정 보존 | 금지 |
 | `PREVIEW_EXPIRED` | 410 | 새 최적화 실행 | 금지 |
-| `REVERT_WINDOW_EXPIRED` | 410 | 적용 결과 유지·되돌리기 만료 표시 | 금지 |
+| `REVERT_WINDOW_EXPIRED` | 410 | 앱에서 닿지 않음(A-074로 되돌리기 진입점 퇴역). 되살리면 적용 결과 유지·되돌리기 만료 표시 | 금지 |
 | `DELETION_STATUS_EXPIRED` | 410 | 완료 여부 지원 안내 | 금지 |
 | `SOURCE_UNAVAILABLE` | 503 | stale/replay/empty fallback | endpoint별 |
 | `RATE_LIMITED` | 429 | Retry-After 표시/대기 | header 이후 |
@@ -255,7 +255,7 @@ Backend는 stack trace, SQL, 외부 API body, secret을 detail에 넣지 않는�
 | create preflight | `TRIP_CHANGED`, `LOCK_CONFLICT` | 없음 | 최신 trip/잠금 표시 |
 | async run | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `ROUTE_UNAVAILABLE`, `NO_IMPROVEMENT`, `DATA_INSUFFICIENT`, `RECOMMENDATION_UNAVAILABLE`, `INTERNAL_ERROR` | 없음 | run failure 화면과 허용 CTA |
 | APPLY | `TRIP_CHANGED`, `DATA_CHANGED`, `LOCK_CONFLICT`, `NO_IMPROVEMENT`, `ROUTE_UNAVAILABLE`, `APPLY_FAILED` | 실패 시 없음 | 동일 action 결과 조회 후 재시도/재계산 |
-| REVERT | `TRIP_CHANGED`, `REVERT_WINDOW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지·만료 상태 고정 |
+| REVERT(API만, A-074로 앱 진입점 퇴역) | `TRIP_CHANGED`, `REVERT_WINDOW_EXPIRED`, `APPLY_FAILED` | 실패 시 없음 | 현재 trip 유지·만료 상태 고정 |
 
 HTTP와 run failure가 같은 code 의미를 사용한다. exception 종류나 provider message를 새 code처럼 노출하지 않는다.
 
