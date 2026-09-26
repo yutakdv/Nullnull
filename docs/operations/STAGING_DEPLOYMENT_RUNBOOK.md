@@ -279,6 +279,8 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 모든 alarm은 기존 `AlarmTopicArn` topic으로 발행한다. **수신자는 `staging-alarm-subscribe.sh`가 정한다**(A-037). 구독을 돌리지 않으면 이 alarm들은 발화하고도 아무에게도 닿지 않는다.
 
+**현재 운영 상태(A-069)**: 오너 결정으로 SNS를 재구독하지 않았다. alarm이 울려도 이메일은 가지 않으므로 `/api/v1/health/ready`의 KTO source 상태와 예보·detail의 `KTO_DEMO_REFRESH_DONE` 로그를 사람이 확인한다. 구독 확인을 통과한 것으로 기록하지 않는다.
+
 ### 예보·detail 재적재 schedule (A-044)
 
 심사 기간 내내 두 schedule이 돈다. **그래서 KTO 승인 변수 둘이 각 schedule 안에서 상시 승인이다**: `staging_operator.py`는 호출자 환경의 승인 변수와 `--owner-approval` 기록을 둘 다 요구하지만(*"Neither alone runs"*) schedule에는 호출자가 없다. 오너가 상시 형태를 승인했고(A-044, detail 쪽은 2026-09-20 오너 확인), 값은 schedule 정의 안에 그대로 보인다. task definition에는 들어가지 않으므로 operator의 gate는 그대로다.
@@ -292,6 +294,18 @@ primary 이메일은 확정됐지만 Git에는 쓰지 않는다. local operator�
 
 여유(창 − 주기)가 덮어야 하는 늦음은 두 가지다. Scheduler의 전달은 `maxEventAge`(1시간)가 묶는다. 그보다 오래된 호출은 늦게 보내지 않고 버린다. 그 뒤의 Fargate 기동과 앞 장소 처리는 분 단위로 보지만, 여기서 막는 장치는 없고 재지도 않았다. 위 test는 여유를 전달 한도와만 대조한다.
 
+**정기 실행 시각은 고정값이 아니라 마지막 `Migration` stack 갱신 시각 + n×주기다**([#361 측정](https://github.com/yutakdv/Nullnull/issues/361#issuecomment-5848942868)). 두 schedule은 `rate` 식이고 `StartDate`가 없다. 배포와 rollback은 schedule target을 새 revision으로 다시 가리키므로(아래 표의 release binding) 매번 `Migration` stack이 schedule을 갱신한다. 그러면 두 schedule이 약 2분 뒤 한 번 바로 돌고, 주기를 그 시각부터 다시 센다. R4(`v0.1.0-rc.24`)에서 잰 값은 다음과 같다.
+
+- 두 schedule의 `LastModificationDate`는 2026-09-26 20:35:23~25 KST였다. R4 `Migration` stack 갱신 시각이다.
+- 20:37:23에 예보, 20:37:30에 detail이 돌았다.
+- 그 전 주기로 기대했던 09-27 03:33 KST 실행은 없었다. 그 뒤 예보는 약 08:37·20:37 KST에 돈다.
+
+R4 계획의 변경 분류는 `infra`, 발견 항목은 `template-changed-Migration` 하나였다. `Migration` template에서 바뀐 값은 두 schedule의 `EndDate`(10-25 → 10-31)와 `NULLNULL_DEMO_PLACES`(2곳 → 18곳)다. 이는 schedule 설정 변경이며 Flyway schema 변경은 없다.
+
+지금 주기는 `aws scheduler get-schedule`의 `LastModificationDate`나 MigrationLogs의 마지막 `KTO_DEMO_REFRESH_DONE` 줄에서 센다.
+
+배포 직후 실행도 정기 실행과 같은 규칙으로 돈다. 갱신 창 안의 장소만 KTO에 묻는다(`DETAIL_RENEW_BEFORE` 6일, `FORECAST_RENEW_BEFORE` 18시간). R4에서는 detail이 2곳을 갱신했고(`refreshed=2 current=16 calls=2`), 예보는 부르지 않았다(`current=18 calls=0`). detail snapshot 수명이 7일이라, 마지막 detail 적재 뒤 하루가 지나 배포하면 그 장소들은 배포 직후 실행에서 다시 불린다. 이 호출은 새 release의 호출 목록에 잡힌다. 사람이 없는 호출이라 아래의 격리 위험도 배포 순간에 진다.
+
 KTO 호출은 목록(`FORECAST_DEMO_PLACES`)의 장소가 N곳일 때 예보 하루 약 2N건(12시간마다 장소마다 1건), detail 5일에 약 N건이다. A-070·A-071의 후보를 모두 넣어도 N은 20이라 예보는 하루 약 40건이고, 등록된 quota(source당 하루 1000건, `V007`의 `perDay`)의 4% 안이다. 지금 N은 `infra/src/staging.ts`의 그 상수에서 센다.
 
 **무인 호출의 위험 하나를 그대로 적는다**: provider 응답이 validator에 거절되면 그 source의 최신 collector run이 `QUARANTINED`가 되고, 그 뒤 모든 호출이 `SOURCE_QUARANTINED`로 막힌다(`KtoPlaceDetailGateway.requireHealthySource`). 사람이 돌릴 때와 같은 동작이지만 새벽에 일어날 수 있다. `DemoRefreshFailed`가 그때 울린다. 해제는 사람이 원인을 확인한 뒤 ops task `release-source-quarantine`으로 한다(§11).
@@ -301,7 +315,7 @@ KTO 호출은 목록(`FORECAST_DEMO_PLACES`)의 장소가 N곳일 때 예보 하
 | operator가 하던 것 | schedule에서 | 메우는 것 |
 | --- | --- | --- |
 | release binding | **있다** | schedule이 app stack(`Migration`) 안에 있어 배포가 target을 새 revision으로 다시 가리킨다. 고정 ARN이면 조용히 어긋나므로 infra test가 두 schedule 모두 `Ref`인지 검사한다 |
-| 배포 lock(DynamoDB) | **없다** | **메우지 못한다.** 배포와 schedule 실행이 겹칠 수 있다. 특히 `Migration` stack이 schedule을 새 revision으로 다시 가리킨 뒤 Flyway가 돌기 전 몇 분 동안 tick이 들어오면 **새 image가 옛 schema에 붙는다**(ops task는 Flyway가 꺼져 있고 Hibernate `validate`만 남는다). 그 run은 실패하고 `DemoRefreshFailed`가 울리며 다음 tick은 정상이다. schedule은 lock을 잡지 않으므로 실패해도 lock을 남기지 않는다 |
+| 배포 lock(DynamoDB) | **없다** | **메우지 못한다.** 배포와 schedule 실행은 **매번** 겹친다. `Migration` stack 갱신 약 2분 뒤 두 schedule이 바로 도는데(위), `execute`는 `Migration` stack 뒤에 Flyway task를 돌린다. 그래서 새 migration이 있는 release에서는 그 run이 Flyway보다 먼저 **새 image로 옛 schema에 붙을 수 있다**(ops task는 Flyway가 꺼져 있고 Hibernate `validate`만 남는다). 그러면 그 run은 실패하고 `DemoRefreshFailed`가 울리며, 다음 주기 실행은 정상이다. R4의 배포 직후 두 run은 `failed=0`이었다. schedule은 lock을 잡지 않으므로 실패해도 lock을 남기지 않는다 |
 | `NULLNULL_OPERATIONS_TARGET` 사전 대조 | **부분** | schedule이 같은 endpoint로 값을 만들고, task 안 `OperationsContext`가 자기 datasource와 대조해 다르면 연결 전에 거절한다. RDS에 먼저 물어보는 operator의 사전 검사만 없다 |
 | 로그 allowlist 증거 수집 | **없다** | **메우지 못한다.** 줄은 CloudWatch에 남고 operator가 하던 선별·증거 파일이 없다. ops main들은 이미 allowlist 모양으로만 찍는다 |
 | task 종료까지 대기와 판정 | **없다** | 위 alarm들이 대신한다. 부재 alarm이 "돌지 않았다"와 "돌고 죽었다"를 함께 덮는다 |
