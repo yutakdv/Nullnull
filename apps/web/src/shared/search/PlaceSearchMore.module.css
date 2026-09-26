@@ -1,0 +1,43 @@
+/* No Figma node draws a result list past its first page, so this reuses the
+   secondary pill the trip hero uses (462:3402): quiet enough to sit under any
+   of the five result lists, and a full-width 44px target. Post authoring is
+   the exception on purpose: its `.screen button` rule outranks this one, so
+   there the control wears that screen's button like every other on it. */
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.button[aria-busy='true'] {
+  color: var(--color-text-secondary);
+  cursor: progress;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}

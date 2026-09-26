@@ -14,6 +14,7 @@ import {
   SearchField,
 } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
+import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
 import styles from './PostCreateScreen.module.css';
 
 type Ticket = components['schemas']['UploadTicket'];
@@ -35,6 +36,7 @@ export function PostCreateScreen() {
   const [alt, setAlt] = useState('');
   const [query, setQuery] = useState('');
   const search = usePlaceSearch(query, locale);
+  const resultList = useRef<HTMLUListElement>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -330,7 +332,9 @@ export function PostCreateScreen() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            {search.isError ? (
+            {/* A failed first page. A failed later page keeps these results and
+                reports beside its own control. */}
+            {search.isError && !search.isFetchNextPageError ? (
               <p role="alert">
                 {t('author.searchFailed')}{' '}
                 <button
@@ -346,7 +350,7 @@ export function PostCreateScreen() {
             {query.trim() && search.isSuccess && search.data.items.length === 0 ? (
               <p role="status">{t('author.emptySearch')}</p>
             ) : null}
-            <ul className={styles.places}>
+            <ul className={styles.places} ref={resultList}>
               {search.data?.items.map((place) => (
                 <li key={place.id}>
                   <label>
@@ -370,6 +374,7 @@ export function PostCreateScreen() {
                 </li>
               ))}
             </ul>
+            <PlaceSearchMore list={resultList} search={search} />
             {places.length ? (
               <ul className={styles.places}>
                 {places.map((place) => (

@@ -21,6 +21,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 
 const copy = messages['en-US'];
@@ -468,5 +473,155 @@ describe('FE-103 a place shows an image only when it can be credited', () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole('presentation', { hidden: true })).toBeNull();
+  });
+});
+
+// #54 §4: the results past the first page. The contract pages searchPlaces by
+// cursor and this screen used to render page one only, so a place past the
+// 20th could not be kept here. The two pages are the fixture's own places
+// (servePlaceSearchPages); the crowd handler at the top of this file answers
+// each batch in its own order.
+describe('FE-103-T7 the continuation goes once the last page is in', () => {
+  it('FE-103-T7 offers no control after a page that says there is no more', async () => {
+    servePlaceSearchPages();
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await addButton(searchPages.next[0].name);
+
+    // The last page: the control is gone rather than offering nothing.
+    expect(
+      screen.queryByRole('button', { name: copy['placeSearch.more'] }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('FE-103-T8 a continuation that fails keeps what was already received', () => {
+  it('FE-103-T8 leaves the first page listed', async () => {
+    servePlaceSearchPages({ failNext: 1 });
+    const user = await searchFor('서울');
+    const [a, b] = searchPages.first;
+    await addButton(a.name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    expect(await addButton(a.name)).toBeInTheDocument();
+    expect(await addButton(b.name)).toBeInTheDocument();
+  });
+});
+
+describe('FE-103-T9 a failed continuation says so beside its control and retries there', () => {
+  it('FE-103-T9 announces the failure and the same control brings the page', async () => {
+    servePlaceSearchPages({ failNext: 1 });
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    await addButton(searchPages.first[0].name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy['placeSearch.moreFailed'],
+    );
+    // The same control is the retry, and the retry is what brings the page.
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.retryMore'] }));
+    expect(await addButton(c.name)).toBeInTheDocument();
+    expect(screen.queryByText(copy['placeSearch.moreFailed'])).not.toBeInTheDocument();
+  });
+});
+
+describe('FE-103-T10 a continuation pressed by keyboard lands on the first new result', () => {
+  it('FE-103-T10 moves focus to the first result the page added', async () => {
+    servePlaceSearchPages();
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    await addButton(searchPages.first[0].name);
+
+    const more = screen.getByRole('button', { name: copy['placeSearch.more'] });
+    more.focus();
+    await user.keyboard('{Enter}');
+
+    // The result itself, not its 담기: the card is what a reader moves
+    // between, and it is where the next Tab from the old last card would go.
+    const added = (await addButton(c.name)).closest('li');
+    await waitFor(() => {
+      expect(added).toHaveFocus();
+    });
+  });
+});
+
+describe('FE-103-T11 a page past the first asks for its own crowd batch', () => {
+  it('FE-103-T11 batches each page on its own', async () => {
+    servePlaceSearchPages();
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await addButton(c.name);
+
+    const firstIds = searchPages.first.map((place) => place.id);
+    await waitFor(() => {
+      expect(crowdBodies.at(-1)?.placeIds).toEqual([c.id]);
+    });
+    // No batch spans two pages: page two was asked for on its own, and page
+    // one was not asked for again with it.
+    for (const body of crowdBodies) {
+      expect([firstIds, [c.id]]).toContainEqual(body.placeIds);
+    }
+  });
+});
+
+describe("FE-103-T12 a page's crowd answer is joined by the index within that page", () => {
+  it('FE-103-T12 gives the first card of page two the first answer of its batch', async () => {
+    servePlaceSearchPages();
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+
+    // The top handler answers index 0 of any batch with the forecast. Joined
+    // by the index within page two, the new card gets it; joined by its index
+    // in the whole list, it would get nothing.
+    const card = (await addButton(c.name)).closest('li') as HTMLElement;
+    await waitFor(() => {
+      expect(card).toHaveTextContent('Relative concentration 72.5');
+    });
+  });
+});
+
+describe('FE-103-T13 a continuation in flight says so', () => {
+  it('FE-103-T13 names the control as loading until the page arrives', async () => {
+    const served = servePlaceSearchPages({ hold: true });
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    const busy = await screen.findByRole('button', {
+      name: copy['placeSearch.loadingMore'],
+    });
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+
+    served.release();
+    expect(await addButton(searchPages.next[0].name)).toBeInTheDocument();
+  });
+});
+
+describe('FE-103-T14 a second press while loading sends nothing', () => {
+  it('FE-103-T14 asks for the next page once however often it is pressed', async () => {
+    const served = servePlaceSearchPages({ hold: true });
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    const busy = await screen.findByRole('button', {
+      name: copy['placeSearch.loadingMore'],
+    });
+    await user.click(busy);
+    await user.click(busy);
+
+    served.release();
+    await addButton(searchPages.next[0].name);
+    expect(served.bodies.filter((body) => body.cursor === NEXT_CURSOR)).toHaveLength(1);
   });
 });

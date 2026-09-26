@@ -24,6 +24,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 
 const copy = messages['en-US'];
@@ -886,6 +891,36 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     expect(
       await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
     ).toBeInTheDocument();
+  });
+
+  it('reaches a place past the first page of results (#54)', async () => {
+    // This step's list is its own markup, so the continuation FE-103-T5..T14
+    // prove (place-search.test.tsx, must-visit.test.tsx) is wired here separately: a place on page two
+    // becomes a stop like any other.
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: copy['manual.addNamed'].replace('{place}', next.name),
+      }),
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: copy['manual.removeNamed'].replace('{place}', next.name),
+      }),
+    ).toBeInTheDocument();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
   });
 });
 

@@ -21,6 +21,7 @@ import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
 } from '../../shared/crowd/CrowdForecastReading.js';
+import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
 import styles from './AddPlaceScreen.module.css';
 import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.js';
 
@@ -40,9 +41,9 @@ import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.j
 // MOCK DATA: searchPlaces and addTripItem have no approved example (BA-022,
 // BA-040). The screen calls the real generated client.
 //
-// The crowd reading is fetched in one ordered batch for the visible results.
-// The response is joined by index as the contract requires; cards are never
-// sorted by KTO's per-place relative value. Replace is FR-ITM-08 and needs the
+// The crowd reading is fetched in one ordered batch per page of results. Each
+// response is joined to its page by index as the contract requires; cards are
+// never sorted by KTO's per-place relative value. Replace is FR-ITM-08 and needs the
 // comparison sheet (`414:2347`), which is a separate slice.
 
 export function AddPlaceScreen() {
@@ -63,6 +64,7 @@ export function AddPlaceScreen() {
   const busy = addItem.isPending || addCandidate.isPending;
   /** The key for the add in flight, held across retries of that same add. */
   const addKey = useRef<{ for: string; key: string } | null>(null);
+  const resultList = useRef<HTMLUListElement>(null);
 
   function dayLabel(date: AddTarget) {
     if (date === null) return t('addPlace.someday');
@@ -131,7 +133,7 @@ export function AddPlaceScreen() {
   const results = search.data?.items ?? [];
   const dates = days.map((day) => day.date).sort();
   const forecasts = usePlaceCrowdForecasts(
-    results.map((place) => place.id),
+    (search.data?.pages ?? []).map((page) => page.map((place) => place.id)),
     dates[0] ?? null,
     dates.at(-1) ?? null,
   );
@@ -187,7 +189,9 @@ export function AddPlaceScreen() {
           </p>
         ) : null}
 
-        {search.isError ? (
+        {/* A failed first page; a failed later page reports beside its own
+            control and leaves these results standing. */}
+        {search.isError && !search.isFetchNextPageError ? (
           <p className={styles.state} role="alert">
             {t('addPlace.searchError')}
           </p>
@@ -206,7 +210,7 @@ export function AddPlaceScreen() {
         ) : null}
 
         {results.length > 0 ? (
-          <ul className={styles.results}>
+          <ul className={styles.results} ref={resultList}>
             {results.map((place, index) => {
               const taken = alreadyOnDay(days, place.id, target);
               const meta = [place.categoryName, place.regionName, place.address]
@@ -227,7 +231,7 @@ export function AddPlaceScreen() {
                     <PlaceAttribution compact place={place} />
                     <CrowdForecastCardReading
                       alongside={unitCredits([place])}
-                      series={forecasts.data?.items[index]}
+                      series={forecasts.items[index]}
                     />
                   </span>
                   <button
@@ -251,6 +255,7 @@ export function AddPlaceScreen() {
             })}
           </ul>
         ) : null}
+        <PlaceSearchMore list={resultList} search={search} />
 
         {/* The frame's own footnote, and the only place the two destinations are
           spelled out for the user. */}

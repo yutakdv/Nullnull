@@ -19,6 +19,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 import { formatReferenceTime } from '../../../shared/crowd/reference-time.js';
 
@@ -439,6 +444,30 @@ describe('FE-401 Live area list', () => {
       `/live/places/${placeFixtures.searchPage.items[0]?.id}`,
     );
     expect(result).not.toHaveTextContent('›');
+  });
+
+  it('reaches a place past the first page of results (#54)', async () => {
+    // The continuation itself is proven by FE-103-T5..T14 (place-search.test.tsx,
+    // must-visit.test.tsx); this is the wiring of Live's own result list.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    expect(
+      await screen.findByRole('link', {
+        name: messages['en-US']['live.searchOpen'].replace('{name}', next.name),
+      }),
+    ).toBeVisible();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
   });
 
   it('FE-603-T5 credits each place a search returns', async () => {

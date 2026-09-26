@@ -23,6 +23,7 @@ import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { readLiveReturn } from './live-return.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
+import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
 
@@ -47,6 +48,7 @@ export function LiveScreen() {
   const selectedPlace = usePlaceDetail(selectedPlaceId);
   const places = useLiveAreaPlaces(selectedAreaId);
   const search = usePlaceSearch(query, locale);
+  const searchList = useRef<HTMLUListElement>(null);
   const selectArea = useCallback((areaId: string) => {
     setSelectedAreaId((current) => (current === areaId ? null : areaId));
   }, []);
@@ -122,9 +124,11 @@ export function LiveScreen() {
         {query.trim().length > 0 ? (
           <div className={styles.searchPanel}>
             {search.isPending ? <p role="status">{t('live.searching')}</p> : null}
-            {search.isError ? (
+            {search.isError && !search.isFetchNextPageError ? (
               // Figma 684:4402 pairs the failure with a retry: the query is the
               // traveller's own words, so they should not have to retype it.
+              // A failed later page is not this: the results stay, and the
+              // continuation below reports and retries it.
               <p role="alert">
                 {t('live.searchError')}{' '}
                 <button
@@ -140,7 +144,7 @@ export function LiveScreen() {
               <p>{t('live.searchEmpty')}</p>
             ) : null}
             {search.data && search.data.items.length > 0 ? (
-              <ul className={styles.searchResults}>
+              <ul className={styles.searchResults} ref={searchList}>
                 {search.data.items.map((place) => (
                   <li key={place.id}>
                     <Link
@@ -170,6 +174,7 @@ export function LiveScreen() {
                 ))}
               </ul>
             ) : null}
+            <PlaceSearchMore list={searchList} search={search} />
           </div>
         ) : null}
       </header>

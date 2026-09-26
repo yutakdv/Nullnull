@@ -11,6 +11,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 import { imageChecksum, uploadPostImage } from '../authoring.js';
 
@@ -85,6 +90,23 @@ describe('FE-603-T5 a chosen place keeps its credit', () => {
       'href',
       credit.officialUrl ?? '',
     );
+  });
+});
+
+describe('#54 the place checklist continues past the first page', () => {
+  it('offers a place from the next page to link', async () => {
+    // The continuation itself is proven by FE-103-T5..T14 (place-search.test.tsx,
+    // must-visit.test.tsx); this is the wiring of this screen's own checklist.
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    const user = userEvent.setup();
+    mount();
+    await user.type(await screen.findByLabelText(copy['author.search']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    expect(await screen.findByRole('checkbox', { name: next.name })).toBeInTheDocument();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
   });
 });
 

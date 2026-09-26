@@ -19,6 +19,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 
 const copy = messages['en-US'];
@@ -425,5 +430,29 @@ describe('FE-305-T3 the screen is reachable and named', () => {
     const credit = firstResult?.sourceAttribution?.attribution ?? '';
     expect(credit).not.toBe('');
     expect(screen.getAllByText(credit).length).toBeGreaterThan(0);
+  });
+});
+
+describe('#54 the results continue past the first page', () => {
+  it('lists the next page under the first and batches its crowd reading alone', async () => {
+    // The continuation itself is proven by FE-103-T5..T14 (place-search.test.tsx,
+    // must-visit.test.tsx). This is the wiring of this screen's own list and
+    // its own crowd batch.
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    const user = await searchFor('서울');
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+
+    expect(
+      await screen.findByRole('button', { name: addNamed(next.name) }),
+    ).toBeInTheDocument();
+    // Page one is still listed above it.
+    expect(
+      screen.getByRole('button', { name: addNamed(searchPages.first[1].name) }),
+    ).toBeInTheDocument();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
+    await waitFor(() => {
+      expect(crowdBodies.at(-1)?.placeIds).toEqual([next.id]);
+    });
   });
 });
