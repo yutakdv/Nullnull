@@ -24,8 +24,17 @@ import { PARTICLES } from './particles.js';
 // Nothing reads the owner record's locale back into the UI. This comment used
 // to say getCurrentOwner did, and no code does. The record starts at ko-KR, so
 // it cannot tell a choice from the default: applying it at bootstrap would
-// turn an English browser Korean on its first visit. When to trust it is not
-// decided yet.
+// turn an English browser Korean on its first visit. It starts there only
+// because the bootstrap names no locale — session.ts posts an empty body and
+// ko-KR is the server's default for that — not because the contract forces it.
+//
+// When to trust it is not decided yet. The options: (a) apply it only once
+// onboarding is complete and nothing is stored locally, (b) have the contract
+// say whether the value was chosen, (c) never read it and keep localStorage
+// alone (what the code does today), (d) send the detected locale when the
+// session is created, so the record matches the screen from the start.
+// (d) needs no contract change: `CreateDemoSessionRequest.locale` is already
+// accepted.
 //
 // Only ko-KR and en-US ever reach this state. Japanese and Chinese are shown
 // as disabled `준비 중` and are never selected, stored, or sent (CLAUDE.md P0).
