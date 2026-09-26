@@ -357,7 +357,8 @@ describe('DecisionBar', () => {
 // Inside the app the words are the chosen locale's, whether or not the caller
 // passed its own. A caller that forgot one key - the feed's state list had no
 // PROVIDER_INCIDENT - used to fall through to the Korean defaults below,
-// which only a page with no I18nProvider (a bare story or test) should see.
+// which only a render with no I18nProvider (a bare unit test; the Storybook
+// stories run inside one) should see.
 describe('inside the app, crowd words come from the locale', () => {
   afterEach(() => {
     localStorage.removeItem('nullnull.locale');

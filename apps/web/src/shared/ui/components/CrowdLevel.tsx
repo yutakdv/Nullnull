@@ -94,7 +94,8 @@ export function CrowdLevel({
       : null;
 
   // Words and name come from the locale inside the app, and from the Korean
-  // defaults only with no provider (a bare story or test).
+  // defaults only with no provider at all - a bare unit test; the Storybook
+  // stories run inside one (.storybook/preview.tsx).
   const stageWords = (n: CrowdOrdinal) =>
     levelLabels?.[n] ??
     (i18n
