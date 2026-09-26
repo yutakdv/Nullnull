@@ -521,7 +521,8 @@ for (const [name, path] of [
     const seen = await watch.report();
     expect(seen.asked, 'the geolocation wrapper was not installed').not.toBeNull();
     expect(seen.asked, `${name} called the geolocation API`).toEqual([]);
-    expect(seen.dialogs, `${name} opened a permission prompt`).toEqual([]);
+    // A JS dialog, not the browser's permission prompt (location-watch.ts).
+    expect(seen.dialogs, `${name} opened a JS dialog`).toEqual([]);
     expect(seen.leaked, `${name} sent something shaped like a coordinate`).toEqual([]);
     expect(unexpected, 'calls this file does not serve').toEqual([]);
   });

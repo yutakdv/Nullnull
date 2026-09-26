@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { COORDINATE, COORDINATE_FIELD, COORDINATE_PARAM } from './location-watch.js';
+import { watchLocation } from './location-watch.js';
 import { SCREENS } from './screens.js';
 
 // CMP-LOC-002: the submission build asks for no location, anywhere.
@@ -17,11 +17,19 @@ import { SCREENS } from './screens.js';
 //
 // Three things are watched on every screen, because they fail differently:
 //   - the geolocation API, wrapped so a call throws AND is recorded
-//   - the browser permission dialog, which would mean something reached the
-//     API through a path the wrapper did not cover
+//   - JS dialogs (alert/confirm/prompt), which is where an app-made "use your
+//     location?" pre-prompt would appear. NOT the browser's own permission
+//     prompt: this comment used to say it caught that, and Playwright reports
+//     no such event (measured - location-watch.ts has the numbers). The
+//     wrapper is what closes that path, since only the Geolocation API raises
+//     the prompt and the wrapper records the call first.
 //   - the wire, because a coordinate can be collected without navigator (a
 //     map SDK, an IP lookup) and sending one is the thing the rule protects
 //     against, whatever produced it
+//
+// The three live in location-watch.ts, shared with live-replay-matrix.spec.ts.
+// This file kept its own copy after they moved there, and the copy was the one
+// without the guard that the wrapper was installed at all.
 //
 // On the wire, three shapes count as a coordinate, because a position reaches a
 // server in more than one form: a comma-joined pair (`37.5665,126.9780`), a
@@ -35,50 +43,9 @@ for (const screen of SCREENS) {
   test(`FE-603-T1 BA-073-T5 BA-092-T18 ${screen.name} asks for no location`, async ({
     page,
   }) => {
-    const dialogs: string[] = [];
-    const leaked: string[] = [];
-
     // Installed before any app code runs, so a call during module evaluation
     // is caught too.
-    await page.addInitScript(() => {
-      const record = (name: string) => {
-        (window as unknown as { __geo: string[] }).__geo.push(name);
-        throw new Error(`geolocation.${name} must not be called`);
-      };
-      (window as unknown as { __geo: string[] }).__geo = [];
-      Object.defineProperty(navigator, 'geolocation', {
-        configurable: true,
-        value: {
-          getCurrentPosition: () => record('getCurrentPosition'),
-          watchPosition: () => record('watchPosition'),
-          clearWatch: () => undefined,
-        },
-      });
-    });
-
-    // A prompt would mean the API was reached some other way.
-    page.on('dialog', (dialog) => {
-      dialogs.push(dialog.type());
-      void dialog.dismiss();
-    });
-
-    page.on('request', (request) => {
-      const url = request.url();
-      if (!url.includes('/api/')) return;
-      const body = request.postData() ?? '';
-      // COORDINATE_PARAM is applied to the body as well as the URL: a
-      // form-encoded POST carries `lat=37.5665` in exactly the same shape, and
-      // checking only the URL would let the same value through by changing verb.
-      if (
-        COORDINATE.test(url) ||
-        COORDINATE.test(body) ||
-        COORDINATE_FIELD.test(body) ||
-        COORDINATE_PARAM.test(url) ||
-        COORDINATE_PARAM.test(body)
-      ) {
-        leaked.push(`${request.method()} ${url}`);
-      }
-    });
+    const watch = await watchLocation(page);
 
     await page.goto(screen.path);
     await page.waitForLoadState('networkidle');
@@ -135,11 +102,17 @@ for (const screen of SCREENS) {
     }
     await page.waitForLoadState('networkidle').catch(() => undefined);
 
-    const asked = await page.evaluate(
-      () => (window as unknown as { __geo: string[] }).__geo ?? [],
-    );
+    const { asked, dialogs, leaked } = await watch.report();
+    // Before the "no calls" below can mean anything, the wrapper has to have
+    // been there. This read `__geo ?? []`, so a wrapper that never installed
+    // came back as an empty list and every screen passed having watched
+    // nothing; live-replay-matrix.spec.ts already guarded this.
+    expect(
+      asked,
+      `${screen.name}: the geolocation wrapper was not installed`,
+    ).not.toBeNull();
     expect(asked, `${screen.name} called the geolocation API`).toEqual([]);
-    expect(dialogs, `${screen.name} opened a permission prompt`).toEqual([]);
+    expect(dialogs, `${screen.name} opened a JS dialog`).toEqual([]);
     expect(leaked, `${screen.name} sent something shaped like a coordinate`).toEqual([]);
   });
 }
