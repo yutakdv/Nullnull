@@ -14,7 +14,7 @@ import styles from './NavBar.module.css';
 // the user wherever they were before — or on a blank tab. Each screen names its
 // own destination instead.
 
-/** Only for a render with no I18nProvider (a story); the app takes `nav.back`. */
+/** Only with no I18nProvider at all (a bare unit test); the app takes `nav.back`. */
 const DEFAULT_BACK_LABEL = '뒤로';
 
 export interface NavBarProps {

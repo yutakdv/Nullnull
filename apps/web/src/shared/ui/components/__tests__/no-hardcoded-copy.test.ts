@@ -6,8 +6,9 @@
 // of the feed's add button.
 //
 // The rule is not "no Korean in this folder". Comments explain Figma wording
-// and quote the catalogue, and each component keeps a Korean DEFAULT so the
-// Storybook stories can mount it without an I18nProvider. What is forbidden is
+// and quote the catalogue, and each component keeps a Korean DEFAULT for a
+// render with no I18nProvider at all (a bare unit test; the Storybook stories
+// run inside one, .storybook/preview.tsx). What is forbidden is
 // a Korean string that reaches the user inside the app: a component with
 // defaults takes a caller's words through a prop, and with none it reads the
 // selected locale (useOptionalI18n) before it ever reaches its defaults.

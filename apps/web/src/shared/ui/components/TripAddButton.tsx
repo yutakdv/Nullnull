@@ -28,9 +28,9 @@ export interface TripAddButtonProps
 /**
  * Korean names for each state; the glyph alone is ambiguous.
  *
- * Only for a render with no I18nProvider, which is how the Storybook stories
- * mount the button. Inside the app a state the caller leaves out takes the
- * locale's `tripAdd.*` word (FE-001-T4).
+ * Only for a render with no I18nProvider at all - a bare unit test; the app and
+ * every Storybook story run inside one (.storybook/preview.tsx). There a state
+ * the caller leaves out takes the locale's `tripAdd.*` word (FE-001-T4).
  */
 const DEFAULT_LABELS: Record<TripAddState, string> = {
   idle: '내 여행에 담기',

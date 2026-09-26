@@ -6,7 +6,7 @@ import styles from './MustVisitBadge.module.css';
 // The lock itself is independent of DATE/TIME/RESERVATION and is never
 // released automatically (CLAUDE.md invariant 7); this only displays it.
 
-/** Only for a render with no I18nProvider (a story); the app takes `mustVisit.badge`. */
+/** Only with no I18nProvider at all (a bare unit test); the app takes `mustVisit.badge`. */
 const DEFAULT_LABEL = '꼭 가요';
 
 export function MustVisitBadge({ label }: { label?: string }) {

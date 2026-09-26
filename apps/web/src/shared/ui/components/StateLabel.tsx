@@ -19,9 +19,10 @@ export type StateWording = SourceState | 'PROVIDER_INCIDENT';
 /**
  * Korean wording, matching the Figma variants and the S15 data guide.
  *
- * A default, not the only copy: a caller inside the app passes the selected
- * locale's words through `labels`. The default keeps this renderable without
- * an I18nProvider, which is how the Storybook stories mount it.
+ * A default, not the only copy: inside the app the words come from the caller's
+ * `labels` or the locale. The default keeps this renderable with no
+ * I18nProvider at all - a bare unit test; the Storybook stories run inside one
+ * (.storybook/preview.tsx).
  */
 const LABELS: Record<SourceState, string> = {
   LIVE: '실시간 관측',

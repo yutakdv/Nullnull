@@ -1,8 +1,9 @@
 // FE-001-T4: inside the app, a shared component that keeps Korean defaults
 // speaks the chosen locale even when its caller passes no words.
 //
-// Each of these components keeps a Korean DEFAULT so a Storybook story can
-// mount it with no I18nProvider. Until this clause, that default was also what
+// Each of these components keeps a Korean DEFAULT for a render with no
+// I18nProvider at all (a bare unit test - the Storybook stories run inside
+// one, .storybook/preview.tsx). Until this clause, that default was also what
 // the app got whenever a caller left a label out: the defaults were reachable
 // from an English screen, and the only thing standing between them and the
 // user was every caller remembering every key. OptimizationRunScreen carried a
@@ -132,9 +133,9 @@ describe('a caller that passes words still gets its own words', () => {
   });
 });
 
-// With no provider at all - a Storybook story, a bare unit test - the Korean
-// defaults are still what renders. This is the reason they exist; the cases
-// above only move them out of the app's reach.
+// With no provider at all - a bare unit test - the Korean defaults are still
+// what renders. This is the reason they exist; the cases above only move them
+// out of the app's reach.
 describe('with no I18nProvider the Korean defaults still render', () => {
   it('draws the Figma Korean wording for a bare render', () => {
     const { container } = render(

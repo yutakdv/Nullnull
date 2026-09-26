@@ -21,7 +21,7 @@ import styles from './DataAttribution.module.css';
 //     the scheme. A refused credit URL draws the words unlinked, exactly as a
 //     null one does, because the credit itself is still owed (CMP-ATT-001).
 
-/** Only for a render with no I18nProvider (a story); the app takes `license.terms`. */
+/** Only with no I18nProvider at all (a bare unit test); the app takes `license.terms`. */
 const DEFAULT_TERMS_LABEL = '이용조건';
 
 type Provenance = components['schemas']['DataProvenance'];

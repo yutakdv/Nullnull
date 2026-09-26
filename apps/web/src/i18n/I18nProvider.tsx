@@ -128,7 +128,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
 /**
  * The provider's value, or null outside one. For the shared data components
- * that must also render bare (a story, a unit test): inside the app they take
+ * that must also render bare (a unit test; the Storybook stories run inside a
+ * provider, .storybook/preview.tsx): inside the app they take
  * the chosen locale's words rather than their own Korean defaults, so a caller
  * that passes an incomplete label map cannot put Korean on an English screen.
  */

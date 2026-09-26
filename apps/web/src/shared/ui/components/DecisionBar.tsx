@@ -30,10 +30,11 @@ export interface DecisionBarLabels {
 /**
  * Korean wording, matching the Figma variants (C03).
  *
- * Only for a render with no I18nProvider, which is how the Storybook stories
- * mount it. Inside the app an omitted label takes the locale's word (the
- * `decision.*` keys below), so a caller that leaves one out cannot put Korean
- * on an English screen (FE-001-T4).
+ * Only for a render with no I18nProvider at all - a bare unit test; the app and
+ * every Storybook story run inside one (.storybook/preview.tsx). There an
+ * omitted label takes the locale's word (the `decision.*` keys below), so a
+ * caller that leaves one out cannot put Korean on an English screen
+ * (FE-001-T4).
  */
 const DEFAULT_LABELS: DecisionBarLabels = {
   apply: '이 변경 적용',
