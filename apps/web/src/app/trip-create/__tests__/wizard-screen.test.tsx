@@ -894,7 +894,7 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
   });
 
   it('reaches a place past the first page of results (#54)', async () => {
-    // This step's list is its own markup, so the continuation FE-103-T5..T21
+    // This step's list is its own markup, so the continuation FE-103-T5..T23
     // prove (place-search.test.tsx, must-visit.test.tsx) is wired here separately: a place on page two
     // becomes a stop like any other.
     const served = servePlaceSearchPages();

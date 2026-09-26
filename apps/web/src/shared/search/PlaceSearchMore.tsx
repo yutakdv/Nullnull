@@ -11,7 +11,7 @@ import {
 import { restoreFocusTo } from '../ui/components/focus-restore.js';
 import styles from './PlaceSearchMore.module.css';
 
-// The continuation under a place-search result list (#54 §4, FE-103-T5..T21).
+// The continuation under a place-search result list (#54 §4, FE-103-T5..T23).
 //
 // A button rather than the feed's scroll trigger. The feed loads as the anchor
 // nears the viewport; here the results sit above the screen's own controls
@@ -98,7 +98,7 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
   // The press that restarts from page one, until that refetch settles. Only
   // this press can say so: a refetch is not a next-page fetch, so the query's
   // own flags would read idle, and a second press would cancel the restart
-  // for a next-page request with the refused cursor.
+  // for a next-page request with the refused cursor (FE-103-T23).
   const [restarting, setRestarting] = useState(false);
   const data = search.data;
 

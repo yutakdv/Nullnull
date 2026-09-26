@@ -446,7 +446,7 @@ export const messages = {
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
 
     // Every place-search list's continuation past its first page (#54,
-    // FE-103-T5..T21). No Figma node draws it (FCR-038).
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
     'placeSearch.more': '검색 결과 더 보기',
     'placeSearch.loadingMore': '결과를 더 불러오는 중이에요',
     'placeSearch.moreFailed': '결과를 더 불러오지 못했어요. 받은 결과는 그대로예요.',
@@ -1530,7 +1530,7 @@ export const messages = {
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
 
     // Every place-search list's continuation past its first page (#54,
-    // FE-103-T5..T21). No Figma node draws it (FCR-038).
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
     'placeSearch.more': 'Show more results',
     'placeSearch.loadingMore': 'Loading more results',
     'placeSearch.moreFailed':

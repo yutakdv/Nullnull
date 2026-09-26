@@ -95,7 +95,7 @@ describe('FE-603-T5 a chosen place keeps its credit', () => {
 
 describe('#54 the place checklist continues past the first page', () => {
   it('offers a place from the next page to link', async () => {
-    // The continuation itself is proven by FE-103-T5..T21 (place-search.test.tsx,
+    // The continuation itself is proven by FE-103-T5..T23 (place-search.test.tsx,
     // must-visit.test.tsx); this is the wiring of this screen's own checklist.
     const served = servePlaceSearchPages();
     const [next] = searchPages.next;

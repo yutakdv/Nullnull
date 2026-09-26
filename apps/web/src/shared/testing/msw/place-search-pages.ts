@@ -1,4 +1,4 @@
-// Test-only: searchPlaces answered as two cursor pages (#54, FE-103-T5..T21).
+// Test-only: searchPlaces answered as two cursor pages (#54, FE-103-T5..T23).
 //
 // The approved `places` fixture is a single page (`hasMore: false`), so no
 // screen could show what happens after it. The pages here are the fixture's
@@ -37,6 +37,10 @@ export interface ServedSearch {
   bodies: PlaceSearchRequest[];
   /** Resolves the held second page, when `hold` was asked for. */
   release: () => void;
+  /** Settles once the held restart has reached the server, when `holdRestart` was asked for. */
+  restartRequested: Promise<void>;
+  /** Resolves the held restart, when `holdRestart` was asked for. */
+  releaseRestart: () => void;
 }
 
 export function servePlaceSearchPages(
@@ -50,6 +54,12 @@ export function servePlaceSearchPages(
     failWith?: ProblemCode;
     /** Keep page two pending until `release()`, to observe the loading state. */
     hold?: boolean;
+    /**
+     * Keep a query's second request for page one pending until
+     * `releaseRestart()`. That request is the restart after a refused cursor
+     * (FE-103-T20), held to observe the screen while it runs.
+     */
+    holdRestart?: boolean;
   } = {},
 ): ServedSearch {
   const bodies: PlaceSearchRequest[] = [];
@@ -60,12 +70,28 @@ export function servePlaceSearchPages(
         release = resolve;
       })
     : Promise.resolve();
+  let requested: () => void = () => undefined;
+  const restartRequested = new Promise<void>((resolve) => {
+    requested = resolve;
+  });
+  let releaseRestart: () => void = () => undefined;
+  const restartHeld = new Promise<void>((resolve) => {
+    releaseRestart = resolve;
+  });
+  // Per query, because typing sends a page one for every prefix on the way.
+  const pageOnes = new Map<string, number>();
 
   server.use(
     http.post(`${API_BASE}/places/search`, async ({ request }) => {
       const body = (await request.json()) as PlaceSearchRequest;
       bodies.push(body);
       if (body.cursor !== NEXT_CURSOR) {
+        const asked = (pageOnes.get(body.query) ?? 0) + 1;
+        pageOnes.set(body.query, asked);
+        if (options.holdRestart && asked === 2) {
+          requested();
+          await restartHeld;
+        }
         const page: PlaceSearchPage = {
           items: [...searchPages.first],
           page: { nextCursor: NEXT_CURSOR, hasMore: true },
@@ -90,6 +116,10 @@ export function servePlaceSearchPages(
     bodies,
     release: () => {
       release();
+    },
+    restartRequested,
+    releaseRestart: () => {
+      releaseRestart();
     },
   };
 }

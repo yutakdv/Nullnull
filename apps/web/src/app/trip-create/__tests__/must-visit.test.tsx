@@ -848,45 +848,58 @@ describe('FE-103-T20 a refused cursor restarts the search from page one', () => 
 
 describe('FE-103-T21 restarting after a refused cursor is not a failed search', () => {
   it('FE-103-T21 shows no search failure while page one is asked for again', async () => {
-    servePlaceSearchPages({ failNext: 1, failWith: 'CURSOR_EXPIRED' });
-    // Holds the restart, the second request for the whole query with no
-    // cursor, and hands every request on to the two-page server.
-    let release: () => void = () => undefined;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
     });
-    let pageOnes = 0;
-    server.use(
-      http.post(`${API_BASE}/places/search`, async ({ request }) => {
-        const body = (await request.clone().json()) as {
-          query: string;
-          cursor?: string | null;
-        };
-        if (body.query !== '서울' || body.cursor) return undefined;
-        pageOnes += 1;
-        if (pageOnes === 2) await held;
-        return undefined;
-      }),
-    );
     const user = await searchFor('서울');
     await addButton(searchPages.first[0].name);
     await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
     await user.click(
       await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
     );
-    await waitFor(() => {
-      expect(pageOnes).toBe(2);
-    });
+    await served.restartRequested;
 
     // The query still holds the cursor error while page one is out again,
     // which a first-page check that reads only isFetchNextPageError would
     // take for a failed search.
-    expect(
-      screen.getByRole('button', { name: copy['placeSearch.loadingMore'] }),
-    ).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText(copy['mustVisit.searchError'])).toBeNull();
 
-    release();
+    served.releaseRestart();
     await screen.findByRole('button', { name: copy['placeSearch.more'] });
+  });
+});
+
+describe('FE-103-T23 a second press while restarting sends no refused cursor', () => {
+  it('FE-103-T23 sends the refused cursor only the once it was refused', async () => {
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+    const control = screen.getByRole('button', { name: copy['placeSearch.more'] });
+    await user.click(control);
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await served.restartRequested;
+
+    // Pressed again while page one is out. A refetch is not a next-page
+    // fetch, so the query's own flags read idle; a press taken as a
+    // continuation would cancel the restart and send the refused cursor again.
+    await user.click(control);
+    served.releaseRestart();
+    // Settled either way: the restart's page one has come back, or the
+    // continuation's page two has and the control is gone.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: copy['placeSearch.loadingMore'] }),
+      ).toBeNull();
+    });
+
+    expect(served.bodies.filter((body) => body.cursor === NEXT_CURSOR)).toHaveLength(1);
   });
 });

@@ -447,7 +447,7 @@ describe('FE-401 Live area list', () => {
   });
 
   it('reaches a place past the first page of results (#54)', async () => {
-    // The continuation itself is proven by FE-103-T5..T21 (place-search.test.tsx,
+    // The continuation itself is proven by FE-103-T5..T23 (place-search.test.tsx,
     // must-visit.test.tsx); this is the wiring of Live's own result list.
     const user = userEvent.setup();
     server.use(
