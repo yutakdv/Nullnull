@@ -289,7 +289,9 @@ describe('FE-103-T1 results and the kept list', () => {
   });
 });
 
-describe('FE-103-T2 the card shows only what the contract supplies', () => {
+// No acceptance ID. These once carried the card's six-state clause, which is
+// not what they render; they check the card against FCR-029 and CMP-ATT-003.
+describe('the card shows only what the contract supplies', () => {
   it('renders the ordered crowd response without deriving a stage', async () => {
     await searchFor('서울');
     await screen.findByText(first?.name ?? '');
