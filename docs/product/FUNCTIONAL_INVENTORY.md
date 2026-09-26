@@ -109,7 +109,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-OPT-01 | P0 | item scope와 대상 선택 | `415:2268` | `createOptimization` | P0 ITEM만 활성, 후보 포함 OFF |
 | FR-OPT-02 | P1 | DAY/TRIP scope | `439:3104` | same enum, capability flag | route matrix/안전 gate 후 |
 | FR-OPT-03 | P0 | 비동기 계산/loading/poll | `415:2413` | `getOptimization` | Retry-After/backoff/refresh 복구 |
-| FR-OPT-04 | P0 | ITEM before/after 변경 목록 | `FCR-004` 대상 P0 preview | `OptimizationChange` | item/date/time/position 명시, 실제 Figma node 연결 전 FE 착수 금지 |
+| FR-OPT-04 | P0 | ITEM before/after 변경 목록 | `655:4067` (`FCR-004`의 P0 ITEM preview) | `OptimizationChange` | item/date/time/position 명시 |
 | FR-OPT-05 | P0 | 혼잡/이동 delta 표시 | preview | `OptimizationMetrics` | eligible일 때만 수치 |
 | FR-OPT-06 | P0 | lock 보존 validation 표시 | preview | `ValidationSummary` | 모든 constraint pass |
 | FR-OPT-07 | P0 | 사용자가 proposal apply | decision bar | `decideOptimization` APPLY | version/fingerprint 재검증, 원자 적용 |
@@ -153,7 +153,7 @@ P0 feed에서는 계약이 없는 `팔로잉`/`최신`, 전역 검색, 알림, �
 | FR-NOT-01 | P1 | 알림 목록/unread/deep link와 개별 읽음 | `442:3344` | `listNotifications`, `markNotificationRead` | 내부 route allowlist, 멱등 unread count |
 | FR-NOT-02 | P1 | `모두 읽음` 단일 mutation | `442:3344` | `markAllNotificationsRead` | N개 개별 호출 금지, 재시도해도 결과 동일 |
 | FR-NBY-01 | P1 | 주변 장소 | `442:3370` | 위치 privacy review | 명시적 동의·denied fallback |
-| FR-PUB-01 | P1 | 게시물 작성/미디어 | `/posts/new` | moderation/license/S3 | upload 취소·실패·권리 상태 |
+| FR-PUB-01 | P1 | 게시물 작성/미디어 | `/posts/new` | `createPostImageUpload`, `createPost` | upload 취소·실패, 체크박스 없는 권리 문구(#312), 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기 상태 없음(A-058) |
 | FR-LOC-01 | P1 | 영어 POI 명칭·설명 coverage/번역 QA 강화 | language/profile | EngService/소스별 언어 fallback | 원문·번역 출처 표시 |
 | FR-AUT-01 | P1 | 정식 계정 login·익명 owner 데이터 승계 | `422:2925` | **인증/승계 계약 추가 필요** | 중복 owner merge·session fixation·소유권 검증 |
 | FR-RTE-01 | P1 | route matrix/time window | optimization | provider/쿼터/약관 | 이동 불가를 성공 경로로 오인하지 않음 |

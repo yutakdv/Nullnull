@@ -1655,9 +1655,9 @@
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "post-create.test.tsx의 '#312' case를 본문과 대조해 증명하는 절의 ID(T2·T4~T8)를 단다. 이름만 옮기지 않는다. T1(권리 문구)을 재는 case는 아직 없으므로 새로 쓴다",
+        "post-create.test.tsx의 '#312' case 여섯을 본문과 대조해 ID를 단다. 이름만 옮기지 않는다. 본문 대조로 그대로 증명되는 것은 넷이다: 여행 없는 feed의 진입점 부재(T6, 진입점이 보이는 case가 그 대조군), 직접 진입의 여행 만들기 링크(T7), 여행 조회 실패(T8), 모호한 게시 실패의 같은 key·body 재시도(T5). T4는 업로드 실패 case가 실패만 재므로 업로드 중·취소 case를 더한다. T2는 재시도 case가 실패 뒤 작성 화면에 남는 것을 암묵적으로만 보므로 201 전 이동·'게시됨' 표시가 없음을 직접 단언하는 case를 더한다. T1(권리 문구)을 재는 case는 아직 없으므로 새로 쓴다",
         "브라우저 증거가 게이트에서 제외되는 post-create.mock.spec.ts뿐이므로 composed spec을 만들지, mock spec을 게이트에서 돌릴지 정한다",
-        "FR-PUB-01을 P0로 올리려면 FUNCTIONAL_INVENTORY와 BA-082 priority를 같은 PR에서 바꾼다. validate_backend_plan이 카드와 inventory의 우선순위 불일치를 거절한다"
+        "FR-PUB-01을 P0로 올리려면 FUNCTIONAL_INVENTORY와 BA-082 priority를 같은 PR에서 바꾼다. validate_docs.py가 부르는 validate_backend_plan이 카드와 inventory의 우선순위 불일치를 거절한다(inventory만 P0로 바꾸면 'BA-082: feature priority differs from inventory: FR-PUB-01')"
       ],
       "safety": "여행이 없거나 여행 조회가 실패하면 작성 입력을 그리지 않는다. 표지는 표준 파일 입력 하나이고(capture 없음, 계약 형식 JPEG·PNG) 카메라를 직접 열지 않는다(A-057). 권리 동의는 체크박스가 아니라 문구로 알린다(#312). createPost가 201로 답하기 전에는 게시됐다고 표시하지 않고, 결과를 모르는 실패는 같은 Idempotency-Key와 body로만 다시 보낸다. 서버가 주지 않은 거절 사유를 만들어내지 않는다.",
       "tests": [
@@ -1694,7 +1694,7 @@
           "assertion": "여행 조회 실패를 여행 없음으로 읽지 않는다"
         }
       ],
-      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다 — 넣으면 validate_docs.py가 'unverified Figma node'로 거절하므로, node를 확인해 FIGMA_HANDOFF에 먼저 등록해야 한다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
