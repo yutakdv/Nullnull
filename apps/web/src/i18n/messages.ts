@@ -375,6 +375,17 @@ export const messages = {
     'tripAdd.toast.error': '저장하지 못했어요',
     'tripAdd.toast.view': '보기',
     'tripAdd.toast.retry': '다시 시도',
+    // Card/Candidate (C01) and Card/TripItem (C38). No screen mounts either card
+    // yet (TripScreen and CandidatesScreen draw rows of their own); the words
+    // are here so the first one that does is not Korean-only. The locks, the
+    // time, the reservation note and the row menu reuse the trip screen's keys.
+    'candidateCard.schedule': '일정에 넣기',
+    'candidateCard.scheduled': '일정에 넣었어요',
+    'candidateCard.unscheduled': '날짜·시간 없이 담아둔 장소예요',
+    'candidateCard.remove': '담기 취소',
+    'tripItemCard.badge.changed': '변경됨',
+    'tripItemCard.badge.conflict': '시간 겹침',
+    'tripItemCard.badge.optimized': '최적화 반영',
     // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
     // same component can serve the feed and the post detail without knowing
     // which one opened it.
@@ -1449,6 +1460,13 @@ export const messages = {
     'tripAdd.toast.error': "Couldn't save it",
     'tripAdd.toast.view': 'View',
     'tripAdd.toast.retry': 'Try again',
+    'candidateCard.schedule': 'Add to itinerary',
+    'candidateCard.scheduled': 'On your itinerary',
+    'candidateCard.unscheduled': 'Saved with no date or time yet',
+    'candidateCard.remove': 'Unsave',
+    'tripItemCard.badge.changed': 'Changed',
+    'tripItemCard.badge.conflict': 'Time overlap',
+    'tripItemCard.badge.optimized': 'From optimization',
     'tripPicker.title': 'Which trip should it go in?',
     'tripPicker.cancel': 'Cancel',
     'tripPicker.loading': 'Loading your trips',

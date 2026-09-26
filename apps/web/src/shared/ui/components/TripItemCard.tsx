@@ -1,4 +1,6 @@
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
+import type { MessageKey } from '../../../i18n/messages.js';
 import { CrowdLevel } from './CrowdLevel.js';
 import { PlaceAttribution } from './PlaceAttribution.js';
 import { LockControl, type LockKind } from './LockControl.js';
@@ -18,6 +20,50 @@ type CrowdMetric = components['schemas']['CrowdMetric'];
 
 export type TripItemCardState = 'view' | 'editing' | 'changed' | 'conflict' | 'optimized';
 
+type Lock = Exclude<ConstraintType, 'MUST_VISIT'>;
+type BadgeState = 'changed' | 'conflict' | 'optimized';
+
+/**
+ * Every string this card owns but the row menu's name, which carries the
+ * place name and so is `menu` on the props. Locks by constraint type, badges
+ * by card state.
+ */
+export type TripItemCardWords = Record<Lock | BadgeState, string> & {
+  reservationNote: string;
+  timeUnset: string;
+};
+
+/**
+ * Korean wording, matching the Figma card (C38) and the trip screen's lock row.
+ *
+ * Only for a render with no I18nProvider at all - a bare unit test; the app and
+ * every Storybook story run inside one (.storybook/preview.tsx). There an
+ * omitted label takes the locale's word: the trip screen's `trip.lock.*`,
+ * `trip.timeUnset` and `trip.item.actions`, and `tripItemCard.badge.*`
+ * (FE-001-T4).
+ */
+const DEFAULT_WORDS: TripItemCardWords = {
+  DATE: '날짜 고정',
+  TIME: '시간 고정',
+  RESERVATION: '예약 고정',
+  reservationNote: '예약에서 관리해요',
+  timeUnset: '시간 미정',
+  changed: '변경됨',
+  conflict: '시간 겹침',
+  optimized: '최적화 반영',
+};
+
+const MESSAGE_KEYS: Record<keyof TripItemCardWords, MessageKey> = {
+  DATE: 'trip.lock.DATE',
+  TIME: 'trip.lock.TIME',
+  RESERVATION: 'trip.lock.RESERVATION',
+  reservationNote: 'trip.lock.reservationNote',
+  timeUnset: 'trip.timeUnset',
+  changed: 'tripItemCard.badge.changed',
+  conflict: 'tripItemCard.badge.conflict',
+  optimized: 'tripItemCard.badge.optimized',
+};
+
 export interface TripItemCardProps {
   item: TripItem;
   state?: TripItemCardState;
@@ -26,13 +72,12 @@ export interface TripItemCardProps {
   /** Called with the constraint the user asked to change, never a batch. */
   onToggleConstraint?: (type: ConstraintType) => void;
   onOpenMenu?: () => void;
+  /**
+   * The caller's own wording; each omitted one takes the locale's word.
+   * `menu` is the row menu's whole accessible name, place name included.
+   */
+  labels?: Partial<TripItemCardWords> & { menu?: string };
 }
-
-const LOCK_LABELS: Record<Exclude<ConstraintType, 'MUST_VISIT'>, string> = {
-  DATE: '날짜 고정',
-  TIME: '시간 고정',
-  RESERVATION: '예약 고정',
-};
 
 const LOCK_KINDS: Record<Exclude<ConstraintType, 'MUST_VISIT'>, LockKind> = {
   DATE: 'date',
@@ -40,12 +85,10 @@ const LOCK_KINDS: Record<Exclude<ConstraintType, 'MUST_VISIT'>, LockKind> = {
   RESERVATION: 'reservation',
 };
 
-/** Badge wording per state; a changed row must say so in words, not colour. */
-const STATE_BADGES: Partial<Record<TripItemCardState, string>> = {
-  changed: '변경됨',
-  conflict: '시간 겹침',
-  optimized: '최적화 반영',
-};
+/** A changed row must say so in words, not colour. */
+function isBadgeState(state: TripItemCardState): state is BadgeState {
+  return state === 'changed' || state === 'conflict' || state === 'optimized';
+}
 
 export function TripItemCard({
   item,
@@ -53,9 +96,17 @@ export function TripItemCard({
   crowd,
   onToggleConstraint,
   onOpenMenu,
+  labels,
 }: TripItemCardProps) {
+  const i18n = useOptionalI18n();
+  const word = (key: keyof TripItemCardWords) =>
+    labels?.[key] ?? i18n?.t(MESSAGE_KEYS[key]) ?? DEFAULT_WORDS[key];
   const present = new Set(item.constraints.map((c) => c.type));
-  const badge = STATE_BADGES[state];
+  const badge = isBadgeState(state) ? word(state) : null;
+  const menuLabel =
+    labels?.menu ??
+    i18n?.t('trip.item.actions', { name: item.place.name }) ??
+    `${item.place.name} 항목 메뉴`;
 
   return (
     <article className={styles.card} data-state={state}>
@@ -63,12 +114,12 @@ export function TripItemCard({
         {present.has('MUST_VISIT') ? <MustVisitBadge /> : null}
         <h3 className={styles.name}>{item.place.name}</h3>
         {badge ? <span className={styles.badge}>{badge}</span> : null}
-        <span className={styles.time}>{item.startTime ?? '시간 미정'}</span>
+        <span className={styles.time}>{item.startTime ?? word('timeUnset')}</span>
         <button
           type="button"
           className={styles.menu}
           onClick={onOpenMenu}
-          aria-label={`${item.place.name} 항목 메뉴`}
+          aria-label={menuLabel}
         >
           ⋯
         </button>
@@ -90,7 +141,7 @@ export function TripItemCard({
             <LockControl
               key={type}
               kind={LOCK_KINDS[type]}
-              label={LOCK_LABELS[type]}
+              label={word(type)}
               state={
                 type === 'RESERVATION'
                   ? 'reservation-locked'
@@ -98,7 +149,9 @@ export function TripItemCard({
                     ? 'user-locked'
                     : 'unlocked'
               }
-              disabledReason={type === 'RESERVATION' ? '예약에서 관리해요' : undefined}
+              disabledReason={
+                type === 'RESERVATION' ? word('reservationNote') : undefined
+              }
               onClick={() => onToggleConstraint?.(type)}
             />
           );

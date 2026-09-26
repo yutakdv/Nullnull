@@ -47,21 +47,17 @@ const DEFAULTS_WITH_OVERRIDE: Record<string, string> = {
   'NavBar.tsx': 'backLabel',
   'MustVisitBadge.tsx': 'label',
   'DecisionBar.tsx': 'labels',
+  'CandidateCard.tsx': 'labels',
+  'TripItemCard.tsx': 'labels',
 };
 
-/**
- * Components that still hardcode copy with no override.
- *
- * Every entry is a known defect, not an exemption: these render Korean for an
- * English user. They are listed so the guard can protect the components that
- * are fixed while the rest are worked through, and the list may only shrink —
- * a component removed from here can never come back.
- */
-const KNOWN_UNFIXED = new Set([
-  'CandidateCard.tsx',
-  'MetricDelta.tsx',
-  'TripItemCard.tsx',
-]);
+// There was a KNOWN_UNFIXED list here - components that hardcoded Korean with
+// no override, allowed to shrink but never grow. Its last three left it
+// together (#310 FE follow-up 6): CandidateCard and TripItemCard now take
+// labels and read the locale, and MetricDelta's only Korean was a fallback
+// reason that is now required by type instead. With no list, every component
+// in this folder is held to the rule below; bringing the list back is a
+// visible edit, not a quiet one.
 
 function componentFiles(): string[] {
   return readdirSync(COMPONENTS).filter(
@@ -104,24 +100,21 @@ function screenFiles(): { name: string; path: string }[] {
 }
 
 describe('shared components do not lock the user into one language', () => {
-  it.each(componentFiles().filter((name) => !KNOWN_UNFIXED.has(name)))(
-    '%s has no unreachable Korean string',
-    (name) => {
-      const body = code(readFileSync(join(COMPONENTS, name), 'utf8'));
-      if (!HANGUL.test(body)) return;
-      // It has Korean, so it must be a default with a documented override.
-      const prop = DEFAULTS_WITH_OVERRIDE[name];
-      expect(
-        prop,
-        `${name} contains Korean but is not listed in DEFAULTS_WITH_OVERRIDE. ` +
-          'Either take the copy as a prop, or add it to KNOWN_UNFIXED with a reason.',
-      ).toBeDefined();
-      expect(
-        body,
-        `${name} keeps Korean defaults but never reads its "${prop}" prop.`,
-      ).toContain(prop as string);
-    },
-  );
+  it.each(componentFiles())('%s has no unreachable Korean string', (name) => {
+    const body = code(readFileSync(join(COMPONENTS, name), 'utf8'));
+    if (!HANGUL.test(body)) return;
+    // It has Korean, so it must be a default with a documented override.
+    const prop = DEFAULTS_WITH_OVERRIDE[name];
+    expect(
+      prop,
+      `${name} contains Korean but is not listed in DEFAULTS_WITH_OVERRIDE. ` +
+        'Take the copy as a prop and fall back to the locale (useOptionalI18n).',
+    ).toBeDefined();
+    expect(
+      body,
+      `${name} keeps Korean defaults but never reads its "${prop}" prop.`,
+    ).toContain(prop as string);
+  });
 
   it('every component promising an override declares the prop and reads the locale', () => {
     // The prop alone was the old promise, and it left the default one caller's
@@ -139,20 +132,6 @@ describe('shared components do not lock the user into one language', () => {
         code(source),
         `${name} keeps Korean defaults but never reads the locale (useOptionalI18n)`,
       ).toMatch(/\buseOptionalI18n\(\)/);
-    }
-  });
-
-  it('the unfixed list only shrinks', () => {
-    // A guard whose exemption list can grow protects nothing. This pins the
-    // count: fixing a component means deleting its entry and lowering this
-    // number, and adding a new offender fails here.
-    expect(KNOWN_UNFIXED.size).toBeLessThanOrEqual(3);
-    for (const name of KNOWN_UNFIXED) {
-      const body = code(readFileSync(join(COMPONENTS, name), 'utf8'));
-      expect(
-        HANGUL.test(body),
-        `${name} no longer has hardcoded Korean — remove it from KNOWN_UNFIXED.`,
-      ).toBe(true);
     }
   });
 });

@@ -167,7 +167,10 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip/useTripDragReorder.ts :: item.place': { sites: 2, credits: 0 },
   'shared/ui/components/CandidateCard.tsx :: candidate.place': { sites: 1, credits: 1 },
   'shared/ui/components/FeedPostCard.tsx :: primaryPlace': { sites: 1, credits: 1 },
-  'shared/ui/components/TripItemCard.tsx :: item.place': { sites: 2, credits: 1 },
+  // 3: the heading, and the row menu's name in two spellings (the locale's
+  // `trip.item.actions`, and the Korean one with no provider) - all in the
+  // one card its single credit covers.
+  'shared/ui/components/TripItemCard.tsx :: item.place': { sites: 3, credits: 1 },
 };
 
 /**

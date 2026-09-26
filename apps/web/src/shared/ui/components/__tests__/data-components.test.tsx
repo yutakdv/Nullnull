@@ -7,6 +7,7 @@ import {
   DataAttribution,
   DecisionBar,
   MetricDelta,
+  type MetricDeltaProps,
   StateLabel,
   type SourceState,
 } from '../index.js';
@@ -317,6 +318,17 @@ describe('MetricDelta', () => {
       />,
     );
     expect(screen.getByText('4 · 혼잡 → 1 · 매우 여유')).toBeInTheDocument();
+  });
+
+  it('cannot be told a pair is not comparable without being told why', () => {
+    // A type-level check, run by `tsc` (this file is in the typecheck
+    // program): with `eligible: false` the reason is required. It used to be
+    // optional behind a Korean fallback no caller reached, which any caller
+    // that forgot it would have put on an English screen. If the reason
+    // becomes optional again this directive is unused and `tsc` fails.
+    // @ts-expect-error -- a refused comparison must carry its reason
+    const refused: MetricDeltaProps = { label: 'Crowd', eligible: false };
+    expect(refused.eligible).toBe(false);
   });
 });
 
