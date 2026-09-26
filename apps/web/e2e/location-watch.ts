@@ -59,8 +59,10 @@ export const COORDINATE_PARAM =
  * Geolocation` and no `dialog` event fired, while a `confirm()` in the same page
  * did fire one. The browser prompt
  * is closed off by the wrapper instead - the Geolocation API is the only thing
- * that raises it, and a call is recorded before the browser could ask - and the
- * Permissions API is watched by location-off.spec.ts's own last test.
+ * that raises it, and a call is recorded before the browser could ask. The
+ * Permissions API is not watched here. location-off.spec.ts's last test watches
+ * it on the /feed screen only, as that screen loads, so no screen-wide claim
+ * rests on it.
  *
  * Calls are recorded outside the page as well as in it. A record kept only in
  * `window` belongs to one document, and a full navigation replaces it: measured,

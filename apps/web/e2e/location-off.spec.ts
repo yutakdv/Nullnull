@@ -128,24 +128,45 @@ test('FE-603-T1 BA-073-T5 no screen registers a geolocation permission at all', 
   page,
 }) => {
   // The capability is OFF, so even querying it is a signal the feature is
-  // half-wired. Checked once rather than per screen: the Permissions API is
-  // global, and a query anywhere would show up here.
-  const queried: string[] = [];
+  // half-wired. What this covers is the /feed screen as it loads, and nothing
+  // else: it opens that one screen and presses nothing, and the per-screen walk
+  // above does not watch this API. The title is wider than that. An earlier
+  // comment said a query anywhere would show up here; a query made on another
+  // screen, or behind a control, would not.
   await page.addInitScript(() => {
-    (window as unknown as { __perm: string[] }).__perm = [];
+    const view = window as unknown as { __perm?: string[]; __permWrapper?: unknown };
     const original = navigator.permissions?.query?.bind(navigator.permissions);
+    // No list without the wrapper. This used to set `__perm = []` first and
+    // then return when the API was missing, so an unwatched page read as "no
+    // query" and passed - the vacuous pass that watchLocation's `asked: null`
+    // prevents on the geolocation side.
     if (!original) return;
-    navigator.permissions.query = ((descriptor: { name: string }) => {
-      (window as unknown as { __perm: string[] }).__perm.push(descriptor.name);
+    view.__perm = [];
+    const wrapper = ((descriptor: { name: string }) => {
+      view.__perm?.push(descriptor.name);
       return original(descriptor as never);
     }) as typeof navigator.permissions.query;
+    navigator.permissions.query = wrapper;
+    view.__permWrapper = wrapper;
   });
 
   await page.goto('/feed');
   await page.waitForLoadState('networkidle');
-  const names = await page.evaluate(
-    () => (window as unknown as { __perm: string[] }).__perm,
-  );
-  queried.push(...names.filter((name) => name === 'geolocation'));
-  expect(queried).toEqual([]);
+  const watched = await page.evaluate(() => {
+    const view = window as unknown as { __perm?: unknown; __permWrapper?: unknown };
+    return {
+      names: Array.isArray(view.__perm) ? (view.__perm as string[]) : null,
+      // Still ours when read: a query made through a function that replaced
+      // the wrapper would not reach the list.
+      installed:
+        view.__permWrapper !== undefined &&
+        navigator.permissions?.query === view.__permWrapper,
+    };
+  });
+  expect(
+    watched.names,
+    'navigator.permissions.query is missing, so nothing was watched',
+  ).not.toBeNull();
+  expect(watched.installed, 'the Permissions API wrapper was not installed').toBe(true);
+  expect(watched.names?.filter((name) => name === 'geolocation')).toEqual([]);
 });
