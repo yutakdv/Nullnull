@@ -42,7 +42,7 @@ node는 기존 Figma 핸드오프 기준이다. 추천용 내부 test ID는 이 
 | FR-FED-04 | feed interaction, FCR-002 확인 | `recordFeedFeedback` / FeedFeedbackRequest | feedback dedup, HIDE | REC-FBK-01~04 | BE/AI → FE |
 | FR-CAN-02~04 | `399:843`, `399:1011`, `399:1179` | `addTripCandidate` | ACTIVE 생성/duplicate, 일정 미변경 | REC-INT-01 | BE/AI → FE |
 | FR-CAN-07 | `412:1912`, NONE/CHECKING/UNKNOWN | `getCandidateTripMatches` / CandidateMatchResult | query only | REC-SLOT-01~03 | BE/AI → FE |
-| FR-LIV-04~06 | `420:2821`, `420:2950` | `listRelatedPlaces` / RelatedPlaceResult | relation query only | REC-REL-01~03 | BE/AI → FE |
+| FR-LIV-04~06 | `420:2821`, `420:2950` | `getLivePlace`의 `related` / RelatedPlaceResult(Live 상세가 읽는다. `listRelatedPlaces`와 같은 `CatalogRelationProjectionService.relatedPlaces` 투영) | relation query only | REC-REL-01~03 | BE/AI → FE |
 | FR-DAT-02~04 | 공통 provenance/비교 불가 | DataProvenance / CrowdComparison | snapshot pair eligibility | REC-DATA-01~06 | BE/AI → FE |
 | FR-OPT-01,03~06 | `415:2268`, `415:2413`, FCR-004 미해결 preview | `createOptimization`, `getOptimization` | QUEUED→RUNNING→READY | REC-OPT-01~05 | BE/AI → FE |
 | FR-OPT-07~16 | `417:2412`, `417:2567`, `485:3517` | `decideOptimization`, `revertOptimizationDecision` | APPLY/KEEP/REVERT 또는 실패(REVERT는 API만, A-074로 앱 진입점 퇴역) | REC-INT-02~06 | BE/AI → FE |
