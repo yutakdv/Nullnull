@@ -242,16 +242,23 @@ test('FE-103-T32 FE-103-T33 FE-103-T39 a place that fails is named, and the retr
   expect(sent[2]?.tripId).toBe(sent[1]?.tripId);
 });
 
+// 390px Korean is here because it failed where the others passed: the message
+// was already inside the scroll box, just under the fixed bar, and a
+// 'nearest' scroll left it hidden there.
 for (const [locale, width] of [
   ['ko-KR', 180],
   ['en-US', 360],
+  ['ko-KR', 390],
 ] as const) {
   test(`FE-103-T40 FE-103-T41 the partial-failure state holds at ${String(width)}px in ${locale}`, async ({
     page,
   }) => {
     // 180px is 360px at 200% zoom, the way the other reflow checks emulate it.
     const copy = COPY[locale];
-    await page.setViewportSize({ width, height: width === 180 ? 400 : 800 });
+    await page.setViewportSize({
+      width,
+      height: { 180: 400, 360: 800, 390: 844 }[width],
+    });
     await interceptWrites(page, INSADONG.id);
     await keepBothAndFill(page, locale);
 

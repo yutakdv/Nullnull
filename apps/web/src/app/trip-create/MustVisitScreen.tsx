@@ -132,11 +132,16 @@ export function MustVisitStep({
   // Brings the message into view and focus back to the CTA, which is 다시
   // 시도 now. The CTA was disabled while the writes ran, and Chromium drops
   // focus from a disabled control to <body> (focus-restore.ts records the same
-  // measurement), so without this the next Tab starts from the top of the page
-  // and the message can sit scrolled out of sight above a long result list.
+  // measurement), so without this the next Tab starts from the top of the page.
+  //
+  // `block: 'end'`, not 'nearest', so the message lands just above the fixed
+  // bar (its scroll-margin-bottom is the bar's height). Measured in Chromium at
+  // 390px in Korean: the message sat inside the scroll box but UNDER the bar,
+  // and 'nearest' left it there — it counts the element as already in view and
+  // does not scroll for the margin alone.
   useEffect(() => {
     if (!showUnsaved) return;
-    unsavedRef.current?.scrollIntoView({ block: 'nearest' });
+    unsavedRef.current?.scrollIntoView({ block: 'end' });
     restoreFocusTo(retryRef.current);
   }, [showUnsaved]);
 

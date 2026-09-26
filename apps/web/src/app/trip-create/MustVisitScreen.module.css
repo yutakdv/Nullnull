@@ -127,6 +127,14 @@
   cursor: pointer;
 }
 
+/* 담기 on a place already kept, and 담기·빼기 once the picks are being sent or
+   a created trip holds some unsaved (#185): the same disabled look the other
+   wizard steps give their row actions (ManualStopsStep `.add`). */
+.action:disabled {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
 .state {
   margin: var(--space-3) 0 0;
   color: var(--color-text-secondary);
