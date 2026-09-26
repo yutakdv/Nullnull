@@ -14,7 +14,7 @@ import {
   SearchField,
 } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
-import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './PostCreateScreen.module.css';
 
 type Ticket = components['schemas']['UploadTicket'];
@@ -332,9 +332,9 @@ export function PostCreateScreen() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            {/* A failed first page. A failed later page keeps these results and
-                reports beside its own control. */}
-            {search.isError && !search.isFetchNextPageError ? (
+            {/* A failed search. A failed later page keeps these results and
+                reports beside its own control (searchFailed). */}
+            {searchFailed(search) ? (
               <p role="alert">
                 {t('author.searchFailed')}{' '}
                 <button

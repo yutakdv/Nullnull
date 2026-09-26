@@ -23,7 +23,7 @@ import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { readLiveReturn } from './live-return.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
-import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 
 const EMPTY_AREAS: components['schemas']['LiveArea'][] = [];
 
@@ -124,7 +124,7 @@ export function LiveScreen() {
         {query.trim().length > 0 ? (
           <div className={styles.searchPanel}>
             {search.isPending ? <p role="status">{t('live.searching')}</p> : null}
-            {search.isError && !search.isFetchNextPageError ? (
+            {searchFailed(search) ? (
               // Figma 684:4402 pairs the failure with a retry: the query is the
               // traveller's own words, so they should not have to retype it.
               // A failed later page is not this: the results stay, and the

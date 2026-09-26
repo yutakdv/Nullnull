@@ -21,7 +21,7 @@ import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
 } from '../../shared/crowd/CrowdForecastReading.js';
-import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './AddPlaceScreen.module.css';
 import { type AddTarget, addTargets, alreadyOnDay, planAdd } from './add-place.js';
 
@@ -189,9 +189,9 @@ export function AddPlaceScreen() {
           </p>
         ) : null}
 
-        {/* A failed first page; a failed later page reports beside its own
-            control and leaves these results standing. */}
-        {search.isError && !search.isFetchNextPageError ? (
+        {/* A failed search; a failed later page reports beside its own
+            control and leaves these results standing (searchFailed). */}
+        {searchFailed(search) ? (
           <p className={styles.state} role="alert">
             {t('addPlace.searchError')}
           </p>

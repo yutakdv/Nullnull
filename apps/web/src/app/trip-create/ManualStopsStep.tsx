@@ -9,7 +9,7 @@ import {
   PlaceThumbnail,
   SearchField,
 } from '../../shared/ui/index.js';
-import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import wizard from './TripWizardScreen.module.css';
 import styles from './ManualStopsStep.module.css';
 import {
@@ -205,9 +205,10 @@ export function ManualStopsStep({
                           {t('manual.searching')}
                         </p>
                       ) : null}
-                      {/* A failed first page. A failed later page leaves the
-                          results standing and reports beside its own control. */}
-                      {search.isError && !search.isFetchNextPageError ? (
+                      {/* A failed search. A failed later page leaves the results
+                          standing and reports beside its own control
+                          (searchFailed). */}
+                      {searchFailed(search) ? (
                         <p className={styles.state} role="alert">
                           {t('manual.searchError')}
                         </p>

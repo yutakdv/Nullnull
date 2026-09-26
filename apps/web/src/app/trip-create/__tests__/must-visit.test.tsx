@@ -748,3 +748,76 @@ describe('FE-103-T15 a continuation that settles after its search changed moves 
     expect(box).toHaveFocus();
   });
 });
+
+// CURSOR_EXPIRED (410) and CURSOR_INVALID (400) refuse the cursor itself, so
+// the plain retry, which resends it, could never succeed: a dead end found by a
+// reviewer's probe. The contract's UI mapping for both is 첫 page부터 다시 조회.
+describe('FE-103-T20 a refused cursor restarts the search from page one', () => {
+  it.each(['CURSOR_EXPIRED', 'CURSOR_INVALID'] as const)(
+    'FE-103-T20 answers %s by asking for page one again, without the cursor',
+    async (code) => {
+      const served = servePlaceSearchPages({ failNext: 1, failWith: code });
+      const user = await searchFor('서울');
+      await addButton(searchPages.first[0].name);
+      await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+
+      // The control offers the contract's recovery, named by its CTA.
+      await user.click(
+        await screen.findByRole('button', { name: copy[`error.${code}.cta`] }),
+      );
+      await screen.findByRole('button', { name: copy['placeSearch.more'] });
+
+      // Typing sent a request per keystroke; these are the whole query's.
+      expect(served.bodies.filter((body) => body.query === '서울')).toEqual([
+        { query: '서울', locale: 'en-US' },
+        { query: '서울', locale: 'en-US', cursor: NEXT_CURSOR },
+        { query: '서울', locale: 'en-US' },
+      ]);
+    },
+  );
+});
+
+describe('FE-103-T21 restarting after a refused cursor is not a failed search', () => {
+  it('FE-103-T21 shows no search failure while page one is asked for again', async () => {
+    servePlaceSearchPages({ failNext: 1, failWith: 'CURSOR_EXPIRED' });
+    // Holds the restart, the second request for the whole query with no
+    // cursor, and hands every request on to the two-page server.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let pageOnes = 0;
+    server.use(
+      http.post(`${API_BASE}/places/search`, async ({ request }) => {
+        const body = (await request.clone().json()) as {
+          query: string;
+          cursor?: string | null;
+        };
+        if (body.query !== '서울' || body.cursor) return undefined;
+        pageOnes += 1;
+        if (pageOnes === 2) await held;
+        return undefined;
+      }),
+    );
+    const user = await searchFor('서울');
+    await addButton(searchPages.first[0].name);
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await waitFor(() => {
+      expect(pageOnes).toBe(2);
+    });
+
+    // The query still holds the cursor error while page one is out again,
+    // which a first-page check that reads only isFetchNextPageError would
+    // take for a failed search.
+    expect(
+      screen.getByRole('button', { name: copy['placeSearch.loadingMore'] }),
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText(copy['mustVisit.searchError'])).toBeNull();
+
+    release();
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
+  });
+});

@@ -14,7 +14,7 @@ import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
 } from '../../shared/crowd/CrowdForecastReading.js';
-import { PlaceSearchMore } from '../../shared/search/PlaceSearchMore.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './MustVisitScreen.module.css';
 
 type PlaceSummary = components['schemas']['PlaceSummary'];
@@ -155,9 +155,9 @@ export function MustVisitStep({
                 {t('mustVisit.searching')}
               </p>
             ) : null}
-            {/* A failed first page. A failed later page leaves the results
-                standing and reports beside its own control. */}
-            {search.isError && !search.isFetchNextPageError ? (
+            {/* A failed search. A failed later page leaves the results
+                standing and reports beside its own control (searchFailed). */}
+            {searchFailed(search) ? (
               <p className={styles.state} role="alert">
                 {t('mustVisit.searchError')}
               </p>

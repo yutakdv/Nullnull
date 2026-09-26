@@ -8,7 +8,8 @@
 import { http, HttpResponse } from 'msw';
 import type { components } from '@nullnull/api-client';
 import { placeFixtures } from '@nullnull/contracts';
-import { API_BASE } from './handlers.js';
+import type { ProblemCode } from '../../api/index.js';
+import { API_BASE, problemResponse } from './handlers.js';
 import { server } from './server.js';
 
 type PlaceSearchPage = components['schemas']['PlaceSearchPage'];
@@ -42,6 +43,11 @@ export function servePlaceSearchPages(
   options: {
     /** How many requests for page two fail before one succeeds. */
     failNext?: number;
+    /**
+     * What those failures answer: this Problem, or with none named a network
+     * error, which has no status and no code.
+     */
+    failWith?: ProblemCode;
     /** Keep page two pending until `release()`, to observe the loading state. */
     hold?: boolean;
   } = {},
@@ -69,7 +75,9 @@ export function servePlaceSearchPages(
       await held;
       if (failures > 0) {
         failures -= 1;
-        return HttpResponse.error();
+        return options.failWith === undefined
+          ? HttpResponse.error()
+          : problemResponse(options.failWith);
       }
       const page: PlaceSearchPage = {
         items: [...searchPages.next],

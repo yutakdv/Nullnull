@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { UseInfiniteQueryResult } from '@tanstack/react-query';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import type { PlaceSearchResults, Problem } from '../api/index.js';
+import {
+  PROBLEM_POLICY,
+  isProblem,
+  problemPresentation,
+  type PlaceSearchResults,
+  type Problem,
+} from '../api/index.js';
 import { restoreFocusTo } from '../ui/components/focus-restore.js';
 import styles from './PlaceSearchMore.module.css';
 
-// The continuation under a place-search result list (#54 §4, FE-103-T5..T14).
+// The continuation under a place-search result list (#54 §4, FE-103-T5..T21).
 //
 // A button rather than the feed's scroll trigger. The feed loads as the anchor
 // nears the viewport; here the results sit above the screen's own controls
@@ -20,14 +26,41 @@ import styles from './PlaceSearchMore.module.css';
 //     and fetchNextPage cancels and re-sends a page already in flight by
 //     default, so a second press is ignored here instead.
 //   - failed: the results already received stay; the button becomes the retry
-//     and the reason is announced beside it.
+//     and the reason is announced beside it. When the server refused the
+//     cursor itself (CURSOR_EXPIRED, CURSOR_INVALID), sending it again cannot
+//     work, so the retry becomes the contract's recovery instead: 처음부터 다시
+//     보기, which asks again from page one (FE-103-T20). A press, not an
+//     automatic refetch: PROBLEM_POLICY gives both codes `retry: 'none'`, and
+//     the button is already where the reader is. The feed restarts on its own
+//     because its scroll trigger has no control to put the recovery on.
 //   - done: focus moves to the first new result, which is where the next Tab
 //     from the old last result would have gone. Leaving it on the button
 //     would put the new results behind it; and on the last page the button
 //     unmounts, dropping focus on the document.
 
+type PlaceSearch = UseInfiniteQueryResult<PlaceSearchResults, Problem | Error>;
+
+/** A refusal of the cursor itself: resending it cannot succeed. */
+function cursorRefused(error: unknown): error is Problem {
+  return isProblem(error) && PROBLEM_POLICY[error.code].recovery === 'reset-cursor';
+}
+
+/**
+ * Whether the search itself failed, which is the screen's own alert to show.
+ *
+ * Not a failed continuation: the control below the results reports that, and
+ * the results stay. Nor the restart that follows a refused cursor: while page
+ * one is asked for again the query still holds the cursor error, but no longer
+ * as a next-page error, so `isFetchNextPageError` alone would call it a failed
+ * search for as long as the restart takes (FE-103-T21). Page one carries no
+ * cursor, so a cursor refusal is never the first page's own failure.
+ */
+export function searchFailed(search: PlaceSearch): boolean {
+  return search.isError && !search.isFetchNextPageError && !cursorRefused(search.error);
+}
+
 export interface PlaceSearchMoreProps {
-  search: UseInfiniteQueryResult<PlaceSearchResults, Problem | Error>;
+  search: PlaceSearch;
   /** The list the results render into, one child element per result, in order. */
   list: RefObject<HTMLElement | null>;
 }
@@ -56,6 +89,11 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
     from: number;
     first: PlaceSearchResults['pages'][number];
   } | null>(null);
+  // The press that restarts from page one, until that refetch settles. Only
+  // this press can say so: a refetch is not a next-page fetch, so the query's
+  // own flags would read idle, and a second press would cancel the restart
+  // for a next-page request with the refused cursor.
+  const [restarting, setRestarting] = useState(false);
   const data = search.data;
 
   useEffect(() => {
@@ -82,27 +120,46 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
 
   if (!search.hasNextPage || data === undefined) return null;
 
-  const busy = search.isFetchingNextPage;
+  const busy = search.isFetchingNextPage || restarting;
   const failed = search.isFetchNextPageError && !busy;
+  const refused = failed && cursorRefused(search.error) ? search.error : null;
+
+  async function restart(): Promise<PlaceSearch> {
+    setRestarting(true);
+    try {
+      // Every page received is asked for again from page one, the first with
+      // no cursor, each after it with the cursor the fresh page before it
+      // returned. The results stay listed meanwhile. The cast: refetch is
+      // typed with a plain query's result, but this observer is the infinite
+      // one and answers with its own, hasNextPage included.
+      return (await search.refetch()) as PlaceSearch;
+    } finally {
+      setRestarting(false);
+    }
+  }
 
   async function more() {
     if (busy || data === undefined) return;
     const pressed = { from: data.items.length, first: data.pages[0] ?? [] };
-    const result = await search.fetchNextPage();
-    // fetchNextPage resolves with the observer's CURRENT result. If the query
-    // changed while the page loaded (typed, or the panel closed), that result
-    // is another search's, and nothing below is about the page pressed for:
-    // acting on it moved focus out of the search box mid-typing (FE-103-T15).
-    // The landing effect makes the same test, but the branch at the end moves
-    // focus at once, not through that effect.
+    const result = refused ? await restart() : await search.fetchNextPage();
+    // fetchNextPage (and refetch) resolves with the observer's CURRENT result.
+    // If the query changed while the page loaded (typed, or the panel closed),
+    // that result is another search's, and nothing below is about the page
+    // pressed for: acting on it moved focus out of the search box mid-typing
+    // (FE-103-T15). The landing effect makes the same test, but the branch at
+    // the end moves focus at once, not through that effect. After a restart
+    // whose page one came back changed this also stops, erring towards moving
+    // nothing: the button is still there unless the results shrank.
     if (result.data?.pages[0] !== pressed.first) return;
     // On failure focus stays on the button, which now offers the retry.
     if (result.isError) return;
     const count = result.data?.items.length ?? 0;
-    if (count > pressed.from) {
+    if (!refused && count > pressed.from) {
       setLanding(pressed);
       return;
     }
+    // A restart adds no page, so the button stays and keeps the focus it has.
+    if (refused && result.hasNextPage) return;
     // A last page with nothing on it: the button is about to go, and the old
     // last result is the nearest place to leave the reader.
     restoreFocusTo(focusResult(list.current, count - 1) ?? button.current);
@@ -126,9 +183,11 @@ export function PlaceSearchMore({ search, list }: PlaceSearchMoreProps) {
       >
         {busy
           ? t('placeSearch.loadingMore')
-          : failed
-            ? t('placeSearch.retryMore')
-            : t('placeSearch.more')}
+          : refused
+            ? problemPresentation(refused, t).ctaLabel
+            : failed
+              ? t('placeSearch.retryMore')
+              : t('placeSearch.more')}
       </button>
     </div>
   );
