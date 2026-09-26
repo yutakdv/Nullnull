@@ -461,7 +461,7 @@
         },
         {
           "id": "FE-103-T11",
-          "assertion": "검색 결과의 혼잡 예보는 page마다 따로 batch로 요청하고 이미 받은 page를 다시 묻지 않는다"
+          "assertion": "검색 결과의 혼잡 예보는 page마다 따로 batch로 요청한다"
         },
         {
           "id": "FE-103-T12",
@@ -478,6 +478,10 @@
         {
           "id": "FE-103-T15",
           "assertion": "다음 page를 받는 사이 검색어가 바뀌면 그 요청이 끝나도 focus를 옮기지 않는다"
+        },
+        {
+          "id": "FE-103-T16",
+          "assertion": "다음 page가 와도 이미 받은 page의 혼잡 예보 batch를 다시 요청하지 않는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

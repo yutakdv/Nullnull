@@ -628,7 +628,7 @@ export interface PlaceCrowdForecastPages {
  * values, which are normalized independently for each place.
  *
  * One request per search page rather than one for the whole list, for two
- * reasons (FE-103-T11, T12). The batch takes at most 50 ids, and a search that
+ * reasons (FE-103-T11, T16). The batch takes at most 50 ids, and a search that
  * keeps going (#54) passes that on its third page of 20 — this used to be one
  * batch that disabled itself above 50, so every card would have lost its
  * reading at once, with no error to say why. And a page's batch keeps its own cache entry,

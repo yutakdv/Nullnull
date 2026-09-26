@@ -576,6 +576,35 @@ describe('FE-103-T11 a page past the first asks for its own crowd batch', () => 
   });
 });
 
+describe("FE-103-T16 a page's crowd batch is not asked for again when a later page arrives", () => {
+  it("FE-103-T16 sends page one's batch once across the continuation", async () => {
+    servePlaceSearchPages();
+    const user = await searchFor('서울');
+    const [c] = searchPages.next;
+    const firstIds = searchPages.first.map((place) => place.id);
+    const pageOneBatches = () =>
+      crowdBodies.filter(
+        (body) => JSON.stringify(body.placeIds) === JSON.stringify(firstIds),
+      );
+    await addButton(searchPages.first[0].name);
+    await waitFor(() => {
+      expect(pageOneBatches()).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole('button', { name: copy['placeSearch.more'] }));
+    // Page two's own batch has been answered and joined, so any batch that
+    // page two's arrival set off has been sent by now.
+    const card = (await addButton(c.name)).closest('li') as HTMLElement;
+    await waitFor(() => {
+      expect(card).toHaveTextContent('Relative concentration 72.5');
+    });
+
+    // Exactly one: a page's batch keeps its own cache entry, so a key that
+    // changed with the page count would send page one's ids again here.
+    expect(pageOneBatches()).toHaveLength(1);
+  });
+});
+
 describe("FE-103-T12 a page's crowd answer is joined by the index within that page", () => {
   it('FE-103-T12 gives the first card of page two the first answer of its batch', async () => {
     servePlaceSearchPages();
