@@ -127,15 +127,20 @@ for (const screen of SCREENS) {
   });
 }
 
-test('FE-603-T1 BA-073-T5 no screen registers a geolocation permission at all', async ({
+test('FE-603-T1 BA-073-T5 the feed, as it loads, queries no geolocation permission', async ({
   page,
 }) => {
   // The capability is OFF, so even querying it is a signal the feature is
   // half-wired. What this covers is the /feed screen as it loads, and nothing
   // else: it opens that one screen and presses nothing, and the per-screen walk
-  // above does not watch this API. The title is wider than that. An earlier
-  // comment said a query anywhere would show up here; a query made on another
-  // screen, or behind a control, would not.
+  // above does not watch this API. The title says so. It used to read "no
+  // screen registers a geolocation permission at all", and an earlier comment
+  // said a query anywhere would show up here; a query made on another screen,
+  // or behind a control, would not. The two ids stay because this still
+  // witnesses part of their clause: one screen, and a query rather than a
+  // prompt (only the Geolocation API raises the prompt, and the walk's wrapper
+  // closes that on every SCREENS entry). The gap is every other screen and
+  // every control - nothing watches the Permissions API there.
   await page.addInitScript(() => {
     const view = window as unknown as { __perm?: string[]; __permWrapper?: unknown };
     const original = navigator.permissions?.query?.bind(navigator.permissions);
