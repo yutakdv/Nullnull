@@ -477,3 +477,28 @@ describe('FE-103-T19 a failed next page is not a failed search here', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
   });
 });
+
+describe('FE-103-T21 restarting after a refused cursor is not a failed search here', () => {
+  it('FE-103-T21 adds no search failure while page one is asked for again', async () => {
+    // The query still holds the cursor error while the restart runs, no
+    // longer as a next-page error; the search itself has not failed.
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    const user = await searchFor('서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(copy['addPlace.searchError'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
+  });
+});

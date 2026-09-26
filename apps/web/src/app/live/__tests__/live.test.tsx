@@ -505,6 +505,39 @@ describe('FE-401 Live area list', () => {
     );
   });
 
+  it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {
+    // While page one is asked for again the query still holds the cursor
+    // error, no longer as a next-page error. This screen's alert is for a
+    // search that failed outright, and the search is still here.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', {
+        name: messages['en-US']['error.CURSOR_EXPIRED.cta'],
+      }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(messages['en-US']['live.searchError'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] });
+  });
+
   it('FE-603-T5 credits each place a search returns', async () => {
     // The result row named a catalogue place with no credit; the same place
     // chosen onto the map was credited under it. Each row is checked through

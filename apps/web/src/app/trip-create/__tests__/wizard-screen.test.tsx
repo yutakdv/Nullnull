@@ -950,6 +950,35 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
     expect(screen.getByRole('alert')).toHaveTextContent(copy['placeSearch.moreFailed']);
   });
+
+  it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {
+    // The query still holds the cursor error while the restart runs, no
+    // longer as a next-page error; the search itself has not failed.
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
+  });
 });
 
 describe('S02-5C the confirm step picks what must stay (FE-103, FR-TRC-05)', () => {
