@@ -655,8 +655,16 @@ test.describe('onboarding and profile in a real browser', () => {
 test.describe('FE-105-T6 FE-101-T6 the profile reopens the language choice', () => {
   test.use({ locale: 'en-US' });
 
-  /** Tabs until `selector` holds focus, with a bound so a missing target fails. */
+  /**
+   * Tabs until `selector` holds focus.
+   *
+   * Two failures, two guards. A target that is not in the page at all fails on
+   * the count first — without it, `evaluate` below waited for the element until
+   * the 30s test timeout (measured with the row's `?from=profile` dropped). The
+   * press bound is for a target that exists but that Tab never reaches.
+   */
   async function tabTo(page: Page, selector: string) {
+    await expect(page.locator(selector)).toHaveCount(1);
     for (let press = 0; press < 40; press += 1) {
       if (await page.locator(selector).evaluate((el) => el === document.activeElement))
         return;

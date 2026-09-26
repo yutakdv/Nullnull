@@ -653,6 +653,10 @@ describe('the profile reopens the language choice', () => {
       await screen.findByRole('heading', { level: 1, name: /Choose your language/ }),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/language');
+    // The return target rides on the link. Without it the language screen
+    // cannot tell it was opened from here and its Next walks on into the intro
+    // (FE-101-T6); a row that dropped it still reached /language above.
+    expect(router.state.location.search).toBe('?from=profile');
     // Opening a screen changes nothing: the choice is saved where it is made.
     expect(requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
   });
