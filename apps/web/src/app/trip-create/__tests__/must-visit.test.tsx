@@ -10,7 +10,7 @@
 //   - the separate crowd batch stays in search-result order and retains each
 //     selected point's date, state and provenance.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RouterProvider, createMemoryRouter } from 'react-router';
@@ -507,15 +507,31 @@ let saved: SavedCandidate[] = [];
 let patched: Record<string, unknown>[] = [];
 /** Place ids whose candidate write fails, until a case takes them out again. */
 let failing = new Set<string>();
+/** When set, createTrip waits for it before answering (it is counted first). */
+let createHeld: Promise<void> | null = null;
+/** When set, every candidate write waits for it before answering (recorded first). */
+let savesHeld: Promise<void> | null = null;
+
+/** A promise a handler can wait on, and the call that lets it through. */
+function hold() {
+  let release: () => void = () => undefined;
+  const wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { wait, release };
+}
 
 function answerWrites() {
   createdTrips = 0;
   saved = [];
   patched = [];
   failing = new Set();
+  createHeld = null;
+  savesHeld = null;
   server.use(
-    http.post(`${API_BASE}/trips`, () => {
+    http.post(`${API_BASE}/trips`, async () => {
       createdTrips += 1;
+      if (createHeld) await createHeld;
       return HttpResponse.json({ id: TRIP }, { status: 201 });
     }),
     http.patch(`${API_BASE}/me`, async ({ request }) => {
@@ -530,6 +546,7 @@ function answerWrites() {
         key: request.headers.get('Idempotency-Key'),
         body,
       });
+      if (savesHeld) await savesHeld;
       if (failing.has(String(body.placeId))) return HttpResponse.error();
       const place = placeFixtures.searchPage.items.find((p) => p.id === body.placeId);
       return HttpResponse.json(
@@ -669,8 +686,74 @@ describe('FE-103-T33 다시 시도 re-sends only the failed places, under their 
   });
 });
 
+const planningNothing = () =>
+  screen.queryByRole('button', {
+    name: new RegExp(copy['wizard.planning.NOTHING.title']),
+  });
+
+/**
+ * Keeps two places, then presses 이대로 채우기 and — before the wizard renders
+ * again — the back control, and waits until step 3 is on screen.
+ *
+ * This is the #185 review's path to a second trip: back pressed while the trip
+ * was being created. T45 now hides back from the press on, so an ordinary
+ * click can no longer take it. Two presses inside one tick still can: both
+ * handlers run before React renders the first one's update, and the back
+ * control is hidden only when createTrip's pending state has been published
+ * (TanStack Query publishes it on a zero-delay timer). That is the one road
+ * left onto the path, so it is how the layers behind T45 are measured. The
+ * step-3 wait is the proof that the road was taken, not assumed.
+ */
+async function fillThenBackInOneTick() {
+  const user = await searchFor('서울');
+  await user.click(await addButton(first?.name ?? ''));
+  await user.click(await addButton(second?.name ?? ''));
+  const fill = screen.getByRole('button', { name: copy['mustVisit.next'] });
+  const back = screen.getByRole('button', { name: copy['wizard.back'] });
+  act(() => {
+    fill.click();
+    back.click();
+  });
+  await waitFor(() => {
+    expect(planningNothing()).not.toBeNull();
+  });
+  return user;
+}
+
 describe('FE-103-T34 while a created trip is held, nothing creates a second one', () => {
   beforeEach(answerWrites);
+
+  it('keeps one trip when the traveller reached step 3 while it was being created', async () => {
+    // The #185 review's probe: back while createTrip is in flight, a pick
+    // then fails, and every create the screen offers is pressed. It made two
+    // trips. With T46 in place the held step is back on screen and step 3
+    // offers nothing, so the block below runs only if that layer is gone —
+    // and then it is submit()'s own refusal that keeps the count at one.
+    const create = hold();
+    createHeld = create.wait;
+    failing.add(second?.id ?? '');
+    const user = await fillThenBackInOneTick();
+    create.release();
+    await waitFor(() => {
+      expect(saved).toHaveLength(2);
+    });
+
+    const nothing = planningNothing();
+    if (nothing) {
+      await user.click(nothing);
+      await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+      const start = await screen.findByRole('button', {
+        name: copy['draftPreview.start'],
+      });
+      await waitFor(() => {
+        expect(start).toBeEnabled();
+      });
+      await user.click(start);
+      // Time for a second createTrip to reach the handler, if one was sent.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    }
+    expect(createdTrips).toBe(1);
+  });
 
   it('keeps one trip across a retry that fails again', async () => {
     failing.add(second?.id ?? '');
@@ -697,6 +780,98 @@ describe('FE-103-T34 while a created trip is held, nothing creates a second one'
     expect(screen.queryByRole('button', { name: copy['mustVisit.next'] })).toBeNull();
     expect(screen.queryByRole('button', { name: copy['mustVisit.skip'] })).toBeNull();
     expect(createdTrips).toBe(1);
+  });
+});
+
+describe('FE-103-T45 from the press of 이대로 채우기, the wizard offers no way back', () => {
+  beforeEach(answerWrites);
+
+  it('hides the back control while the trip is being created and while the picks are first sent', async () => {
+    // The #185 review's second trip started in these two windows. The held
+    // state already hid back; the time before it — createTrip in flight, then
+    // the first round of saves — did not, and step 3's CTA creates a trip.
+    const create = hold();
+    const saves = hold();
+    createHeld = create.wait;
+    savesHeld = saves.wait;
+    const user = await searchFor('서울');
+    await user.click(await addButton(first?.name ?? ''));
+    await user.click(await addButton(second?.name ?? ''));
+    // Offered up to the press, so the absence below is the press's doing and
+    // not a query that could never find it.
+    expect(screen.getByRole('button', { name: copy['wizard.back'] })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: copy['mustVisit.next'] }));
+
+    // createTrip in flight.
+    await waitFor(() => {
+      expect(createdTrips).toBe(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: copy['wizard.back'] })).toBeNull();
+    });
+    expect(screen.getByRole('searchbox')).toBeInTheDocument();
+
+    // The trip exists; the first save is in flight.
+    create.release();
+    await waitFor(() => {
+      expect(saved).toHaveLength(1);
+    });
+    expect(screen.queryByRole('button', { name: copy['wizard.back'] })).toBeNull();
+    expect(screen.getByRole('searchbox')).toBeInTheDocument();
+    saves.release();
+  });
+});
+
+describe('FE-103-T46 a held trip shows its partial failure whatever step the wizard was on', () => {
+  beforeEach(answerWrites);
+
+  it('brings back the kept places and names the one that failed', async () => {
+    // Reached step 3 while the trip was being created (see
+    // fillThenBackInOneTick). The review measured what followed: the trip
+    // arrived, a pick failed, and step 3 said nothing — the failed place was
+    // dropped without a word, which is #185 itself.
+    const create = hold();
+    createHeld = create.wait;
+    failing.add(second?.id ?? '');
+    await fillThenBackInOneTick();
+    create.release();
+
+    await unsavedState([second?.name ?? '']);
+    expect(
+      screen.getByRole('button', { name: copy['mustVisit.retry'] }),
+    ).toBeInTheDocument();
+    expect(planningNothing()).toBeNull();
+    expect(router.state.location.pathname).toBe('/start');
+  });
+});
+
+describe('FE-103-T47 a save that finishes after the wizard has gone does not open the trip', () => {
+  beforeEach(answerWrites);
+
+  it('leaves the traveller where they went and the active trip where it was', async () => {
+    const saves = hold();
+    savesHeld = saves.wait;
+    await keepTwoAndFill();
+    await waitFor(() => {
+      expect(saved).toHaveLength(1);
+    });
+
+    // Leaving /start mid-save, as browser Back does. The wizard unmounts;
+    // the loop sending the picks does not.
+    await act(async () => {
+      await router.navigate('/feed');
+    });
+    expect(document.getElementById('wizard-heading')).toBeNull();
+    saves.release();
+
+    // The loop may finish its requests — each is idempotent under its key.
+    await waitFor(() => {
+      expect(saved).toHaveLength(2);
+    });
+    // Time for the loop's tail, where the trip used to be opened.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(router.state.location.pathname).toBe('/feed');
+    expect(patched).toEqual([]);
   });
 });
 

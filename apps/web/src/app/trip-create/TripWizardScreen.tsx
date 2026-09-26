@@ -155,12 +155,34 @@ export function TripWizardScreen() {
   // are still being saved or some could not be (#185). createTrip and the N
   // candidate writes are not one transaction (invariant 5), so this is the
   // state between them. While it is set the wizard is no longer a draft: the
-  // step offers only to retry `unsaved` or to open the trip, and there is no
-  // way back to a step whose CTA would create a second trip.
+  // must-visit step is what shows (see `shownStep`), it offers only to retry
+  // `unsaved` or to open the trip, and there is no back control.
   const [heldTrip, setHeldTrip] = useState<{ id: string; unsaved: PendingPick[] } | null>(
     null,
   );
   const [savingPicks, setSavingPicks] = useState(false);
+  // The trip this wizard run has created, set in the same call that receives
+  // createTrip's answer. submit() refuses while it is set.
+  //
+  // A ref rather than `heldTrip` because state is only read back on the next
+  // render, and the gap between the answer and that render is exactly where a
+  // second submit would slip through. Defence in depth (#185 review): with
+  // the back control gone and the held step pinned, no screen should reach
+  // submit() once this is set.
+  const createdTrip = useRef<string | null>(null);
+  // Whether this wizard run is still mounted. savePicks awaits each write, and
+  // the promise outlives the component: leaving /start mid-save (browser
+  // Back, typing a URL) unmounts the wizard but not the loop.
+  const mounted = useRef(true);
+  useEffect(() => {
+    // Set here as well as in the initialiser: StrictMode runs this cleanup
+    // and the effect again on mount, and the second run must undo the first
+    // cleanup.
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -196,6 +218,11 @@ export function TripWizardScreen() {
     seedItems?: SeedTripItem[],
     picks: PlaceSummary[] = [],
   ) {
+    // This run already made its trip. Another createTrip would be a second
+    // trip, and the first one's unsaved picks would be dropped without a word
+    // (#185 review, measured: two trips). The held step is what the traveller
+    // should be looking at instead, and `shownStep` puts it there.
+    if (createdTrip.current !== null) return;
     // The browser's zone: the trip is planned where the user is, and the
     // contract defaults to Asia/Seoul only when nothing is supplied.
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -210,6 +237,7 @@ export function TripWizardScreen() {
       { request, idempotencyKey: submitKey.current.key },
       {
         onSuccess: (trip) => {
+          createdTrip.current = trip.id;
           submitKey.current = null;
           // The draft became a trip, so it stops being a draft. Without this,
           // starting a second trip would reopen the finished one and the new
@@ -263,6 +291,12 @@ export function TripWizardScreen() {
         unsaved.push(pick);
       }
     }
+    // Gone before the writes finished. They were let run: each is idempotent
+    // under its key, so finishing them only saves what it can. But opening the
+    // trip now would pull the traveller back from wherever they went, and the
+    // held state has no screen left to show on — so a pick that failed after
+    // the unmount is NOT announced. It is simply not on the trip.
+    if (!mounted.current) return;
     setSavingPicks(false);
     if (unsaved.length === 0) {
       enterTrip(tripId);
@@ -382,23 +416,39 @@ export function TripWizardScreen() {
     });
   }, [step]);
 
+  // A held trip pins the must-visit step, whatever `step` says (#185 review).
+  // The review reached step 3 while the trip was being created; the trip then
+  // arrived with a pick unsaved and step 3 had nothing to say about it — the
+  // place was dropped without a word, and step 3's CTA made a second trip.
+  // The back control is gone for that whole stretch now, but it goes only
+  // once createTrip's pending state is published, which TanStack Query does
+  // on a zero-delay timer after the press, so a second press in that moment
+  // still lands. `step` is left as it is: the held state ends only by leaving
+  // /start, and not moving it writes no snapshot after clearSnapshot().
+  const shownStep = heldTrip ? 4 : step;
+  const branch = heldTrip ? 'must-visit' : nextAfterPlanning(draft);
+
   return (
     <section className={styles.screen} aria-labelledby="wizard-heading">
       <NavBar
         backLabel={t('wizard.back')}
-        onBack={heldTrip ? undefined : goBack}
+        // Not offered from the press that creates the trip until the wizard
+        // leaves (#185 review): while createTrip is in flight, then while a
+        // trip is held — which starts with the first save. Every step behind
+        // this one ends in a createTrip.
+        onBack={createTrip.isPending || heldTrip ? undefined : goBack}
         actions={
           <span className={styles.navStep}>
-            {step === 6 || (step === 4 && draft.planningLevel === 'NOTHING')
+            {shownStep === 6 || (shownStep === 4 && branch === 'recommend')
               ? t('confirm.step')
-              : `${t('wizard.step')} ${String(step)}`}
+              : `${t('wizard.step')} ${String(shownStep)}`}
           </span>
         }
       />
       {/* The confirm step names itself 마지막 rather than STEP 6: the frame
           says so, and a number implies a seventh step that does not exist. */}
 
-      {step === 1 ? (
+      {shownStep === 1 ? (
         <>
           <div className={styles.datesFlow}>
             <div className={styles.datesHead}>
@@ -501,7 +551,7 @@ export function TripWizardScreen() {
         </>
       ) : null}
 
-      {step === 2 ? (
+      {shownStep === 2 ? (
         <>
           <div className={styles.stepBody}>
             <div className={styles.head}>
@@ -562,7 +612,7 @@ export function TripWizardScreen() {
         </>
       ) : null}
 
-      {step === 3 ? (
+      {shownStep === 3 ? (
         <>
           <div className={styles.stepBody}>
             <div className={styles.head}>
@@ -669,7 +719,7 @@ export function TripWizardScreen() {
           step rather than a route so the dates and interests collected above
           survive the choice — sending the traveller to `/start/import` would
           hand them a screen that starts from EMPTY_DRAFT. */}
-      {step === 4 && nextAfterPlanning(draft) === 'method' ? (
+      {shownStep === 4 && branch === 'method' ? (
         <InputMethodStep
           onManual={() => {
             setStep(5);
@@ -680,7 +730,7 @@ export function TripWizardScreen() {
         />
       ) : null}
 
-      {step === 4 && nextAfterPlanning(draft) === 'recommend' ? (
+      {shownStep === 4 && branch === 'recommend' ? (
         <RecommendedDraftStep
           preview={recommendedDraft}
           error={previewTripDraft.error}
@@ -716,7 +766,7 @@ export function TripWizardScreen() {
           Before this existed, InputMethodStep's 직접 입력 called setStep(5)
           and nothing rendered there, so choosing it landed on a blank
           screen — a reachable dead end of exactly the kind #185 is about. */}
-      {step === 5 ? (
+      {shownStep === 5 ? (
         <ManualStopsStep
           draft={draft}
           onAddStop={(date, place) => {
@@ -760,7 +810,7 @@ export function TripWizardScreen() {
       {/* S02-5C `438:3259`: read the itinerary back and pick what must stay.
           FIGMA_HANDOFF:154 describes this as a summary, which is how its Pick
           toggle went uncounted — it is an input screen. */}
-      {step === 6 ? (
+      {shownStep === 6 ? (
         <ConfirmStopsStep
           draft={draft}
           onTogglePick={(key) => {
@@ -779,7 +829,7 @@ export function TripWizardScreen() {
         />
       ) : null}
 
-      {step === 4 && nextAfterPlanning(draft) === 'must-visit' ? (
+      {shownStep === 4 && branch === 'must-visit' ? (
         <MustVisitStep
           endDate={draft.endDate}
           picked={draft.mustVisit}
