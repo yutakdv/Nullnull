@@ -76,10 +76,10 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 | 탐색/저장 | 피드, 게시물 상세, 여행 선택, 후보 저장, 중복/오류 상태 |
 | 내 여행 | 보기/편집, 날짜·시간 변경, 장소 검색·추가·삭제·교체, 후보 패널, 변경 취소 확인 |
 | 제약 | 필수 방문, 날짜, 시간, 예약 잠금의 독립 관리 |
-| 최적화 | 단일 장소의 더 한산한 날짜/시간 제안, preview, apply/keep, stale 재계산, revert |
+| 최적화 | 단일 장소의 더 한산한 날짜/시간 제안, preview, apply/keep, stale 재계산 (revert 진입점은 A-074로 퇴역, 서버 API만 남음) |
 | Live | 목록 필수, 승인된 provider가 있을 때 지도, 장소 상세, 대안, 후보 없음, replay/demo 상태 |
 | 신뢰 | 데이터 안내, 출처·관측시각·대상시각·신뢰도·상태 표시 |
-| 프로필 | guest 상태, 준비 중 login CTA, 내 여행 목록, AI 최적화 상태 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
+| 프로필 | `TEST` 계정 표기(A-075), 내 여행 목록, AI 최적화 상태 이력, 여행별 관심사, locale, 데이터 안내, session 삭제 |
 | 운영 | health/readiness, 외부 소스 상태, 구조화 로그, 기본 알림 |
 
 ### P1 — P0 안정화 후
@@ -107,7 +107,7 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 - 사용자의 승인 없는 일정 자동 변경
 - 백그라운드 정밀 위치 추적
 - 서로 다른 출처/범위의 혼잡 값을 하나의 숫자 순위로 임의 합성
-- P0 정식 계정 로그인·회원가입·소셜 login. S14의 login CTA는 P0에서 disabled `준비 중`으로 구현한다.
+- P0 정식 계정 로그인·회원가입·소셜 login. P0의 로그인 표현은 A-075(오너 2026-09-25)대로 /sign-in 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조, 로그인·인증 요청 0건)와 프로필 `TEST` 표기다.
 
 ### 공모전 제출 profile
 
@@ -115,7 +115,7 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 
 | 항목 | 제출 계약 | 출시 차단 조건 |
 | --- | --- | --- |
-| 접속 | 외부 HTTPS URL, 익명창, `로그인 불필요` | 핵심 흐름에 계정·운영자 조작이 필요함 |
+| 접속 | 외부 HTTPS URL, 익명창, `로그인 불필요`(로그인 표현은 A-075대로 /sign-in 흉내와 프로필 `TEST` 표기, 로그인·인증 요청 0건, 로그인 없이 쓰는 경로 유지) | 핵심 흐름에 계정·운영자 조작이 필요함 |
 | 구현 범위 | 배포본에서 끝까지 동작하는 P0만 기능설명서에 기재 | stub, dead CTA, mock-only 기능을 완료로 표기 |
 | KTO 데이터 | Backend가 한국관광공사 OpenAPI를 실제 호출하고 비밀값 없는 call-audit 보존 | 파일/전체 mirror/replay만 사용하거나 호출 이력 없음 |
 | 출처 | KTO 데이터가 보이는 화면과 상세 안내에 `출처: ⓒ한국관광공사` 또는 승인된 동등 문구 | 출처 누락, `TourAPI`만 표기, 승인 없는 CI·BI 로고 |
@@ -193,10 +193,10 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 - 후보 포함 옵션은 기본 OFF다.
 - preview에는 before/after, 개선 지표, 검증 가능한 경우에만 이동/경로 영향, 제약 영향, 데이터 출처·신선도를 표시한다. P0에 route provider가 없으면 지도 대신 동등한 목록/timeline을 제공하고 이동 수치를 추정하지 않는다.
 - apply/keep가 분명한 decision bar를 제공한다.
-- apply 후 응답의 `beforeRevisionId`, `afterRevisionId`, `revertUntil`로 대상 revision과
-  server `decidedAt` 기준 24시간의 되돌리기 가능 기간을 알려 준다.
-- 되돌리기 기간이 끝나면 `REVERT_WINDOW_EXPIRED`를 적용 결과의 persistent 만료 상태로
-  표시하고 현재 일정을 바꾸거나 자동 재시도하지 않는다.
+- (퇴역, A-074 2026-09-25) apply 후 `beforeRevisionId`, `afterRevisionId`, `revertUntil`로 대상 revision과
+  24시간의 되돌리기 가능 기간을 알리고, 기간이 끝나면 `REVERT_WINDOW_EXPIRED`를 persistent 만료 상태로
+  표시한다는 요구는 기록으로만 남긴다. 앱은 적용 뒤 `이 대안을 적용했어요`·`일정을 업데이트했어요`를
+  보여 주고 revision·되돌리기 기간·만료 상태는 표시하지 않는다.
 - 오류 코드는 Figma 핸드오프와 OpenAPI 공통 오류 모델을 따른다.
 
 ### Live
@@ -214,7 +214,7 @@ Nullnull은 발견한 장소를 **특정 여행의 후보**로 축적하고, 일
 
 ### 프로필
 
-- P0은 `ANONYMOUS` owner를 guest로 표시하고 login CTA에 `준비 중`을 명시한다. CTA는 disabled이며 login route/API를 호출하지 않는다.
+- P0은 `ANONYMOUS` owner를 A-075(오너 2026-09-25)대로 프로필에 `TEST` 계정으로 표기하고 프로필에는 login CTA를 두지 않는다. 로그인 흉내는 onboarding의 /sign-in이며 공모전 테스트 계정을 미리 채워 브라우저 안에서만 대조하고 로그인·인증 요청을 보내지 않는다.
 - `내 여행`에서 active trip과 전체 여행을 구분하고, row를 누르면 해당 여행으로 이동한다.
 - `AI 최적화 이력`은 최적화 run ID, 여행, scope, 상태, 요청/완료 시각, decision을 보여 준다. 이력을 위해 일정 before/after 본문을 별도 보존하지 않고 보존 중인 run의 상세만 기존 `getOptimization`으로 조회한다.
 - 이력 목록은 `listOptimizationHistory`의 cursor page를 사용하고 Frontend는 generated client로만 연결한다.
@@ -265,7 +265,7 @@ LLM은 사용자의 자연어 선호를 구조화하거나, 서버가 검증한 
 | 여행·후보·일정 | edit draft, form validation, mutation UX, generated client | owner/version/idempotency, transaction, constraint | OpenAPI 예시·contract·happy/failure E2E |
 | 최적화·AI | preview/decision/error UI, polling/backoff | deterministic optimizer, data validation, LLM 경계, audit | 승인 전 변경 0·apply 원자성 |
 | Live·데이터 | list-first, provenance/state/fallback, 기존 지도 복구(`FCR-012`) | connector, mapping, freshness, comparison eligibility | map OFF와 소스 장애·replay·stale rehearsal |
-| 프로필·알림 | guest/login-준비 중, 목록/편집/deep-link UI | owner query, history projection, interests, read mutation | 추가 API contract 먼저 merge |
+| 프로필·알림 | `TEST` 표기·/sign-in 흉내(A-075), 목록/편집/deep-link UI | owner query, history projection, interests, read mutation | 추가 API contract 먼저 merge |
 | 품질·운영 | component/unit/Playwright/a11y/RUM | unit/integration/contract/data quality/metrics | 수직 slice별 양쪽 required check |
 
 인계 순서는 `계약 이슈 확정 → OpenAPI 및 예시 수정 → Backend contract test 시나리오 확정 → Frontend client 재생성 → 양쪽 E2E`다. 실제 endpoint가 아직 없어도 mock은 확정된 OpenAPI example로만 만든다. Frontend는 `frontend`, Backend/AI는 `backend`에서 작업해 각각 `main`에 PR을 만들며, 교차 변경 순서는 [브랜치·Docker 통합 계약](../engineering/BRANCH_AND_INTEGRATION.md)을 따른다. 화면별 세부 책임은 [Figma 핸드오프](../design/FIGMA_HANDOFF.md)를 따른다.
@@ -295,7 +295,7 @@ LLM은 사용자의 자연어 선호를 구조화하거나, 서버가 검증한 
 - AWS staging에서 백업 복구, secret 주입, alert, rollback rehearsal를 마쳤다.
 - 결정 대장의 P0 blocker가 모두 닫혔다.
 - A-2의 KO/EN은 실제로 작동하고 JA/ZH는 준비 중으로만 표시된다.
-- S14의 guest/내 여행/최적화 상태 이력/여행별 관심사/데이터 안내가 완성됐고 login CTA는 준비 중 상태다.
+- S14의 `TEST` 계정 표기(A-075)/내 여행/최적화 상태 이력/여행별 관심사/데이터 안내가 완성됐고 로그인 표현은 A-075대로 /sign-in 흉내(로그인·인증 요청 0건)다.
 - 최적화 이력 목적으로 일정 본문을 추가 보존하지 않는다.
 - 외부망·익명창에서 핵심 심사 흐름이 동작하고 공모전 위치 flag가 OFF다.
 - 최종 배포본에서 실제 KTO OpenAPI 호출·call-audit·화면 출처를 검증했다.
