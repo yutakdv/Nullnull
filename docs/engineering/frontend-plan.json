@@ -98,6 +98,10 @@
         {
           "id": "FE-001-T3",
           "assertion": "쿠키 없는 첫 방문에서 세션 생성 전에 나가 쿠키 없음 401을 받은 활성 조회는 세션이 생긴 뒤 한 번 다시 부른다"
+        },
+        {
+          "id": "FE-001-T4",
+          "assertion": "한국어 기본값을 가진 공유 컴포넌트는 앱 안에서 caller가 문구를 넘기지 않아도 선택한 locale의 문구를 쓴다(한국어 기본값은 I18nProvider 없는 렌더에서만 쓰인다)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",

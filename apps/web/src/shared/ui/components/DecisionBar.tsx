@@ -1,3 +1,5 @@
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
+import type { MessageKey } from '../../../i18n/messages.js';
 import styles from './DecisionBar.module.css';
 
 // Figma: `Action / DecisionBar` (C03). state=preview|applying|applied|stale|
@@ -11,13 +13,7 @@ import styles from './DecisionBar.module.css';
 
 export type DecisionState = 'preview' | 'applying' | 'applied' | 'stale' | 'failed';
 
-/**
- * Korean wording, matching the Figma variants (C03).
- *
- * A default, not the only copy: a caller inside the app passes the selected
- * locale's words through `labels`. The default keeps this renderable without
- * an I18nProvider, which is how the Storybook stories mount it.
- */
+/** Every string this bar owns. */
 export interface DecisionBarLabels {
   apply: string;
   keep: string;
@@ -31,6 +27,14 @@ export interface DecisionBarLabels {
   groupLabel: string;
 }
 
+/**
+ * Korean wording, matching the Figma variants (C03).
+ *
+ * Only for a render with no I18nProvider, which is how the Storybook stories
+ * mount it. Inside the app an omitted label takes the locale's word (the
+ * `decision.*` keys below), so a caller that leaves one out cannot put Korean
+ * on an English screen (FE-001-T4).
+ */
 const DEFAULT_LABELS: DecisionBarLabels = {
   apply: '이 변경 적용',
   keep: '현재 일정 유지',
@@ -44,16 +48,24 @@ const DEFAULT_LABELS: DecisionBarLabels = {
   groupLabel: '최적화 결정',
 };
 
+const MESSAGE_KEYS: Record<keyof DecisionBarLabels, MessageKey> = {
+  apply: 'decision.apply',
+  keep: 'decision.keep',
+  applying: 'decision.applying',
+  applied: 'decision.applied',
+  staleMessage: 'decision.staleMessage',
+  staleAction: 'decision.staleAction',
+  failedMessage: 'decision.failedMessage',
+  failedAction: 'decision.failedAction',
+  groupLabel: 'decision.groupLabel',
+};
+
 export interface DecisionBarProps {
   state: DecisionState;
   /**
-   * Primary label, e.g. "이 변경 적용".
-   *
-   * @deprecated Use `labels.apply` instead. Kept so existing callers and
-   * Storybook stories do not break; `labels.apply` wins when both are given.
+   * The caller's own wording, for any string it wants to differ from the
+   * locale's. Each omitted one takes the locale's word.
    */
-  applyLabel?: string;
-  /** Localized wording for every string this bar owns, from the caller. */
   labels?: Partial<DecisionBarLabels>;
   onApply?: () => void;
   onKeep?: () => void;
@@ -64,29 +76,28 @@ export interface DecisionBarProps {
 
 export function DecisionBar({
   state,
-  applyLabel,
   labels,
   onApply,
   onKeep,
   onRecover,
   message,
 }: DecisionBarProps) {
-  const groupLabel = labels?.groupLabel ?? DEFAULT_LABELS.groupLabel;
+  const i18n = useOptionalI18n();
+  // The caller's words, else the locale's, else - only with no provider at all
+  // - the Korean defaults above.
+  const word = (key: keyof DecisionBarLabels) =>
+    labels?.[key] ?? i18n?.t(MESSAGE_KEYS[key]) ?? DEFAULT_LABELS[key];
+  const groupLabel = word('groupLabel');
 
   if (state === 'stale' || state === 'failed') {
     const staleOrFailed = state === 'stale';
     return (
       <div className={styles.bar} role="group" aria-label={groupLabel}>
         <p className={styles.message}>
-          {message ??
-            (staleOrFailed
-              ? (labels?.staleMessage ?? DEFAULT_LABELS.staleMessage)
-              : (labels?.failedMessage ?? DEFAULT_LABELS.failedMessage))}
+          {message ?? (staleOrFailed ? word('staleMessage') : word('failedMessage'))}
         </p>
         <button type="button" className={styles.primary} onClick={onRecover}>
-          {staleOrFailed
-            ? (labels?.staleAction ?? DEFAULT_LABELS.staleAction)
-            : (labels?.failedAction ?? DEFAULT_LABELS.failedAction)}
+          {staleOrFailed ? word('staleAction') : word('failedAction')}
         </button>
       </div>
     );
@@ -95,9 +106,7 @@ export function DecisionBar({
   if (state === 'applied') {
     return (
       <div className={styles.bar} role="group" aria-label={groupLabel}>
-        <p className={styles.message}>
-          {message ?? labels?.applied ?? DEFAULT_LABELS.applied}
-        </p>
+        <p className={styles.message}>{message ?? word('applied')}</p>
       </div>
     );
   }
@@ -112,14 +121,12 @@ export function DecisionBar({
         disabled={busy}
         aria-busy={busy || undefined}
       >
-        {busy
-          ? (labels?.applying ?? DEFAULT_LABELS.applying)
-          : (labels?.apply ?? applyLabel ?? DEFAULT_LABELS.apply)}
+        {busy ? word('applying') : word('apply')}
       </button>
       {/* Both actions lock while a decision is in flight; an already-sent
           APPLY or KEEP cannot be withdrawn from this bar. */}
       <button type="button" className={styles.secondary} onClick={onKeep} disabled={busy}>
-        {labels?.keep ?? DEFAULT_LABELS.keep}
+        {word('keep')}
       </button>
     </div>
   );

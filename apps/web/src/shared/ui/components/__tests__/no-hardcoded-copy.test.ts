@@ -8,8 +8,9 @@
 // The rule is not "no Korean in this folder". Comments explain Figma wording
 // and quote the catalogue, and each component keeps a Korean DEFAULT so the
 // Storybook stories can mount it without an I18nProvider. What is forbidden is
-// a Korean string that reaches the user with NO way for a caller to replace
-// it — the app passes the selected locale's words through props.
+// a Korean string that reaches the user inside the app: a component with
+// defaults takes a caller's words through a prop, and with none it reads the
+// selected locale (useOptionalI18n) before it ever reaches its defaults.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -33,8 +34,9 @@ function code(source: string): string {
  * Components allowed to hold Korean defaults, and the prop that overrides each.
  *
  * Being on this list is a promise: the component takes a prop that replaces
- * every user-visible string it owns. The test below checks that promise rather
- * than trusting it, so adding a name here without the prop still fails.
+ * every user-visible string it owns, and reads the locale when that prop is
+ * not given. The test below checks both rather than trusting them, so adding a
+ * name here without the prop or the locale fallback still fails.
  */
 const DEFAULTS_WITH_OVERRIDE: Record<string, string> = {
   'StateLabel.tsx': 'labels',
@@ -120,12 +122,22 @@ describe('shared components do not lock the user into one language', () => {
     },
   );
 
-  it('every component promising an override actually declares the prop', () => {
+  it('every component promising an override declares the prop and reads the locale', () => {
+    // The prop alone was the old promise, and it left the default one caller's
+    // omission away from an English screen: every screen had to remember every
+    // key. The locale fallback is what takes the default out of the app's reach
+    // (FE-001-T4, measured by render in locale-fallback.test.tsx); this pins
+    // that each listed component has it, so a new one cannot join the list
+    // with the prop alone.
     for (const [name, prop] of Object.entries(DEFAULTS_WITH_OVERRIDE)) {
       const source = readFileSync(join(COMPONENTS, name), 'utf8');
       expect(source, `${name} must declare the ${prop} prop`).toMatch(
         new RegExp(`${prop}\\??:`),
       );
+      expect(
+        code(source),
+        `${name} keeps Korean defaults but never reads the locale (useOptionalI18n)`,
+      ).toMatch(/\buseOptionalI18n\(\)/);
     }
   });
 

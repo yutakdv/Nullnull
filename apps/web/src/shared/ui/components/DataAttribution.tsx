@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
 import { isSafeUrl } from '../../url/safe-url.js';
 import { shownText, type AttributionSource } from './credits.js';
 import styles from './DataAttribution.module.css';
@@ -20,6 +21,9 @@ import styles from './DataAttribution.module.css';
 //     the scheme. A refused credit URL draws the words unlinked, exactly as a
 //     null one does, because the credit itself is still owed (CMP-ATT-001).
 
+/** Only for a render with no I18nProvider (a story); the app takes `license.terms`. */
+const DEFAULT_TERMS_LABEL = '이용조건';
+
 type Provenance = components['schemas']['DataProvenance'];
 type SourceAttribution = components['schemas']['SourceAttribution'];
 
@@ -33,7 +37,8 @@ export interface DataAttributionProps {
    * Localized text for the licence link, from the caller.
    *
    * The credit itself is never localized — it is the server's approved
-   * wording, shown verbatim (CMP-ATT-003). Only this link is our own label.
+   * wording, shown verbatim (CMP-ATT-003). Only this link is our own label,
+   * and an omitted one takes the locale's word (FE-001-T4).
    */
   termsLabel?: string;
   /**
@@ -53,13 +58,15 @@ export interface DataAttributionProps {
 
 export function DataAttribution({
   provenance,
-  termsLabel = '이용조건',
+  termsLabel: callerTermsLabel,
   compact = false,
   showLicense = false,
   context = null,
   nameWithContext = false,
 }: DataAttributionProps) {
   const contextId = useId();
+  const i18n = useOptionalI18n();
+  const termsLabel = callerTermsLabel ?? i18n?.t('license.terms') ?? DEFAULT_TERMS_LABEL;
   const officialUrl =
     provenance.officialUrl && isSafeUrl(provenance.officialUrl)
       ? provenance.officialUrl

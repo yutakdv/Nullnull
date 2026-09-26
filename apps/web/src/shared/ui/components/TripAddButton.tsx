@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react';
+import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
 import { IconCheck, IconClose, IconPlus } from '../icons/index.js';
 import styles from './TripAddButton.module.css';
 
@@ -27,9 +28,9 @@ export interface TripAddButtonProps
 /**
  * Korean names for each state; the glyph alone is ambiguous.
  *
- * A default, not the only copy — the app passes the selected locale's words
- * through `labels`. Keeping the default here lets the Storybook stories mount
- * the button without an I18nProvider.
+ * Only for a render with no I18nProvider, which is how the Storybook stories
+ * mount the button. Inside the app a state the caller leaves out takes the
+ * locale's `tripAdd.*` word (FE-001-T4).
  */
 const DEFAULT_LABELS: Record<TripAddState, string> = {
   idle: '내 여행에 담기',
@@ -41,12 +42,13 @@ const DEFAULT_LABELS: Record<TripAddState, string> = {
 };
 
 export function TripAddButton({ state, labels, ...rest }: TripAddButtonProps) {
+  const i18n = useOptionalI18n();
   return (
     <button
       type="button"
       className={styles.button}
       data-state={state}
-      aria-label={labels?.[state] ?? DEFAULT_LABELS[state]}
+      aria-label={labels?.[state] ?? i18n?.t(`tripAdd.${state}`) ?? DEFAULT_LABELS[state]}
       aria-busy={state === 'loading' || undefined}
       // Only the in-flight request blocks input. A failure must stay
       // retryable, and a duplicate must stay navigable to the existing one.
