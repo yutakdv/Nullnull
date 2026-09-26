@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { messages } from '../src/i18n/messages.js';
 import { overflow } from './overflow.js';
-import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
+import { createSeededTrip, FIRST_ITEM, SECOND_ITEM } from './seeded-trip.js';
 
 // Keyboard and focus through the itinerary editor and the judged walk-through.
 //
@@ -67,12 +67,53 @@ async function openTrip(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/edit$/);
 }
 
-async function openFirstItemActions(page: import('@playwright/test').Page) {
-  const trigger = page.getByRole('button', { name: `${FIRST_ITEM} item actions` });
+async function openItemActions(page: import('@playwright/test').Page, name: string) {
+  const trigger = page.getByRole('button', { name: `${name} item actions` });
   await expect(trigger).toBeVisible();
   await trigger.focus();
   await page.keyboard.press('Enter');
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}
+
+async function openFirstItemActions(page: import('@playwright/test').Page) {
+  await openItemActions(page, FIRST_ITEM);
+}
+
+/**
+ * Where focus settles once a day move is over: the stop sits under the new day, and focus is
+ * no longer on a control inside a closed <dialog>.
+ *
+ * The second wait is what makes this a measurement. When the sheet closes, the day button
+ * that was pressed keeps focus until Chromium's next focus fixup moves it to <body>, and a
+ * fast reorder lands inside that window. Read then, a restore that drops focus on <body>
+ * reads as "focus is on a button". Measured with MoveDaySheet's restore reverted to a bare
+ * `focus()`: the completed-move test below, which read focus as soon as the dialogs had
+ * closed, went red in 1 run of 6; a probe of the same flow found the closed sheet's day
+ * button in 5 reads of 6 at the moment the stop had moved, and <body> in 6 of 6 once the
+ * fixup had run. Waiting for the move alone is not enough for the same reason.
+ */
+async function focusAfterMove(
+  page: import('@playwright/test').Page,
+  name: string,
+  day: number,
+) {
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', {
+      level: 2,
+      name: new RegExp(`^Day ${String(day)}\\b`),
+    }),
+  });
+  await expect(
+    section.getByRole('button', { name: `${name} item actions` }),
+  ).toBeVisible();
+  await page.waitForFunction(() => {
+    const dialog = document.activeElement?.closest('dialog');
+    return !dialog || dialog.open;
+  });
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    return { onBody: el === document.body, connected: el?.isConnected ?? false };
+  });
 }
 
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
@@ -185,14 +226,14 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
-    // HALF OF THIS TITLE IS MEASURED, half is not, on purpose. "traps focus"
-    // is now the escape attempt above; "returns it to the trigger" stays
-    // unasserted for the reason below, and whether the title should drop that
-    // clause is BE's call, asked on #233. Left deliberately rather than
-    // overlooked.
+    // The title claims the trap and nothing else. It used to go on "and returns
+    // it to the trigger", a half that was never asserted, for the reason below.
+    // The title was narrowed (1c113059), and BA-040-T4's own wording in
+    // backend-plan.json now leaves that clause out and names the unit test that
+    // covers it. #233, where it was asked, is closed.
     //
     // NOT asserted here: "focus returns to the trigger". MoveDaySheet does
-    // restore it (restoreTo, :67-72) and a unit test covers that, but no
+    // restore it (its `restoreTo` ref) and a unit test covers that, but no
     // assertion I could write in a browser DISTINGUISHES it — deleting
     // target.focus() left this spec green both when closing with Escape (a
     // native <dialog> restores to its invoker on its own) and when closing with
@@ -262,14 +303,47 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
 
     // Both surfaces are gone and the move has landed.
     await expect(page.locator('dialog[open]')).toHaveCount(0);
+    const landed = await focusAfterMove(page, FIRST_ITEM, 3);
 
-    const landed = await page.evaluate(() => {
-      const el = document.activeElement as HTMLElement | null;
-      return {
-        onBody: el === document.body,
-        connected: el?.isConnected ?? false,
-      };
+    expect(
+      landed.onBody,
+      'focus fell to <body>: the next Tab restarts at the top of the page',
+    ).toBe(false);
+    expect(landed.connected, 'focus is on a node that is no longer in the page').toBe(
+      true,
+    );
+  });
+
+  test('BA-040-T4 FE-304-T4 moving a stop whose lock does not hold its date leaves focus in the page', async ({
+    page,
+  }) => {
+    // The path where MoveDaySheet's own restore is the only guard, in the gate as well
+    // as locally. The test above moves FIRST_ITEM, which in the gate carries a DATE lock,
+    // so picking a day hands over to the lock confirm and ConfirmDialog does the restore.
+    // SECOND_ITEM's only lock is MUST_VISIT, which does not hold a date (`moveBlock` in
+    // reorder.ts), so the sheet closes straight into the reorder - with the trigger that
+    // opened it hidden in the closed item menu and disabled while the request is in flight.
+    // A bare `focus()` on it does nothing, and focus falls to <body>.
+    await openItemActions(page, SECOND_ITEM);
+    const trigger = page.getByRole('button', {
+      name: `Move ${SECOND_ITEM} to another day`,
     });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole('button', { name: /Day 3/ }).first().focus();
+    await page.keyboard.press('Enter');
+
+    // No confirm in between: with one, this would be the test above again, measuring
+    // ConfirmDialog's restore instead of the sheet's.
+    await expect(
+      page.locator('dialog[open]'),
+      `a dialog is still open: ${SECOND_ITEM} should move without a confirm`,
+    ).toHaveCount(0);
+    const landed = await focusAfterMove(page, SECOND_ITEM, 3);
+
     expect(
       landed.onBody,
       'focus fell to <body>: the next Tab restarts at the top of the page',

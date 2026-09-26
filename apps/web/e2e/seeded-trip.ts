@@ -14,7 +14,8 @@ import type { Page } from '@playwright/test';
 // screen failing later as "We can't find that trip".
 
 /**
- * The first day holds 경복궁 then 인사동; 경복궁 carries a DATE lock and 인사동 a MUST_VISIT one.
+ * The first day holds 경복궁 then 인사동; 경복궁 carries a DATE lock and 인사동 a MUST_VISIT one
+ * (SECOND_ITEM below).
  *
  * The DATE lock is what makes a day change a question rather than a move
  * (`reorder.ts` `moveBlock` returns 'date-lock' for DATE and nothing else), so
@@ -25,6 +26,14 @@ import type { Page } from '@playwright/test';
  * is why this test passed locally while the gate never saw a confirm at all.
  */
 export const FIRST_ITEM = '경복궁';
+
+/**
+ * 인사동, whose only lock is MUST_VISIT - which does not stop a day change, so moving it goes
+ * straight from the move sheet to the reorder with no confirm in between. That is the one path
+ * where MoveDaySheet's own focus restore is the only thing keeping focus off <body>: moving
+ * FIRST_ITEM in the gate hands the restore to the DATE-lock confirm instead.
+ */
+export const SECOND_ITEM = '인사동';
 
 const GYEONGBOKGUNG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01';
 const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
