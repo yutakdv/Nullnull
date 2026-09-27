@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { messages } from '../src/i18n/messages.js';
 import { overflow } from './overflow.js';
-import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
+import { createSeededTrip, FIRST_ITEM, SECOND_ITEM } from './seeded-trip.js';
 
 // Keyboard and focus through the itinerary editor and the judged walk-through.
 //
@@ -29,19 +29,27 @@ import { createSeededTrip, FIRST_ITEM } from './seeded-trip.js';
 /**
  * Opens a screen with a session already in hand.
  *
- * The app bootstraps exactly once, on the splash screen: `useSessionBootstrap`
- * is called by SplashScreen and nowhere else, deliberately, because an
- * unauthenticated POST that repeats itself creates duplicate anonymous owners.
- * So a test that navigates straight to /trip or /feed never gets a session, and
- * every request it makes comes back 401 with the screen showing "Your session
- * ended" — which is what these tests were reading as a keyboard failure.
+ * When this was written only the splash bootstrapped, so a test that went
+ * straight to /trip or /feed never got a session: every request came back 401
+ * with "Your session ended", which is what these tests were reading as a
+ * keyboard failure. That stopped being true with #240 (ecad7070): the shell
+ * also bootstraps when a deep link's CSRF reissue says no cookie was sent at
+ * all (AppShell.tsx `noCookieSent`), under the splash's own query key, so a
+ * page load still mints at most one session.
  *
- * Going through `/` is not a workaround; it is the route a person takes.
- * shell.spec.ts already does the same thing. The other specs that visit these
- * screens directly are fine because they measure what survives ANY state:
- * responsive.spec checks reflow and screens.ts says so in as many words ("the
- * error state has to survive 360px"), and location-off.spec checks that nothing
- * asks for a location, which an error screen also satisfies.
+ * Going through `/` stays, and not as a workaround: it is the route a person
+ * takes, and the splash redirects only on the bootstrap's success branch, so
+ * the wait below ends once the session exists. A deep link gets its session
+ * while the screen's first reads are already out, and how those reads wait or
+ * are asked again is the shell's first-visit path, which
+ * live-session.integration.spec.ts measures - not something a keyboard test
+ * should lean on. shell.spec.ts already does the same thing. The walks over
+ * SCREENS (responsive.spec, location-off.spec) used to visit every entry
+ * directly, on the grounds that an error screen also reflows and asks for no
+ * location - which is why, in the gate, every /trip/… entry measured "We can't
+ * find that trip": the fixture id is nobody's trip there (seeded-trip.ts). They
+ * now go through open-screen.ts, which reaches a trip screen the same way and
+ * then waits for something only that screen draws.
  */
 async function openWithSession(page: import('@playwright/test').Page, path: string) {
   await page.goto('/');
@@ -66,12 +74,53 @@ async function openTrip(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/edit$/);
 }
 
-async function openFirstItemActions(page: import('@playwright/test').Page) {
-  const trigger = page.getByRole('button', { name: `${FIRST_ITEM} item actions` });
+async function openItemActions(page: import('@playwright/test').Page, name: string) {
+  const trigger = page.getByRole('button', { name: `${name} item actions` });
   await expect(trigger).toBeVisible();
   await trigger.focus();
   await page.keyboard.press('Enter');
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}
+
+async function openFirstItemActions(page: import('@playwright/test').Page) {
+  await openItemActions(page, FIRST_ITEM);
+}
+
+/**
+ * Where focus settles once a day move is over: the stop sits under the new day, and focus is
+ * no longer on a control inside a closed <dialog>.
+ *
+ * The second wait is what makes this a measurement. When the sheet closes, the day button
+ * that was pressed keeps focus until Chromium's next focus fixup moves it to <body>, and a
+ * fast reorder lands inside that window. Read then, a restore that drops focus on <body>
+ * reads as "focus is on a button". Measured with MoveDaySheet's restore reverted to a bare
+ * `focus()`: the completed-move test below, which read focus as soon as the dialogs had
+ * closed, went red in 1 run of 6; a probe of the same flow found the closed sheet's day
+ * button in 5 reads of 6 at the moment the stop had moved, and <body> in 6 of 6 once the
+ * fixup had run. Waiting for the move alone is not enough for the same reason.
+ */
+async function focusAfterMove(
+  page: import('@playwright/test').Page,
+  name: string,
+  day: number,
+) {
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', {
+      level: 2,
+      name: new RegExp(`^Day ${String(day)}\\b`),
+    }),
+  });
+  await expect(
+    section.getByRole('button', { name: `${name} item actions` }),
+  ).toBeVisible();
+  await page.waitForFunction(() => {
+    const dialog = document.activeElement?.closest('dialog');
+    return !dialog || dialog.open;
+  });
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    return { onBody: el === document.body, connected: el?.isConnected ?? false };
+  });
 }
 
 test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
@@ -184,14 +233,14 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
 
-    // HALF OF THIS TITLE IS MEASURED, half is not, on purpose. "traps focus"
-    // is now the escape attempt above; "returns it to the trigger" stays
-    // unasserted for the reason below, and whether the title should drop that
-    // clause is BE's call, asked on #233. Left deliberately rather than
-    // overlooked.
+    // The title claims the trap and nothing else. It used to go on "and returns
+    // it to the trigger", a half that was never asserted, for the reason below.
+    // The title was narrowed (1c113059), and BA-040-T4's own wording in
+    // backend-plan.json now leaves that clause out and names the unit test that
+    // covers it. #233, where it was asked, is closed.
     //
     // NOT asserted here: "focus returns to the trigger". MoveDaySheet does
-    // restore it (restoreTo, :67-72) and a unit test covers that, but no
+    // restore it (its `restoreTo` ref) and a unit test covers that, but no
     // assertion I could write in a browser DISTINGUISHES it — deleting
     // target.focus() left this spec green both when closing with Escape (a
     // native <dialog> restores to its invoker on its own) and when closing with
@@ -261,14 +310,47 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
 
     // Both surfaces are gone and the move has landed.
     await expect(page.locator('dialog[open]')).toHaveCount(0);
+    const landed = await focusAfterMove(page, FIRST_ITEM, 3);
 
-    const landed = await page.evaluate(() => {
-      const el = document.activeElement as HTMLElement | null;
-      return {
-        onBody: el === document.body,
-        connected: el?.isConnected ?? false,
-      };
+    expect(
+      landed.onBody,
+      'focus fell to <body>: the next Tab restarts at the top of the page',
+    ).toBe(false);
+    expect(landed.connected, 'focus is on a node that is no longer in the page').toBe(
+      true,
+    );
+  });
+
+  test('BA-040-T4 FE-305-T4 moving a stop whose lock does not hold its date leaves focus in the page', async ({
+    page,
+  }) => {
+    // The path where MoveDaySheet's own restore is the only guard, in the gate as well
+    // as locally. The test above moves FIRST_ITEM, which in the gate carries a DATE lock,
+    // so picking a day hands over to the lock confirm and ConfirmDialog does the restore.
+    // SECOND_ITEM's only lock is MUST_VISIT, which does not hold a date (`moveBlock` in
+    // reorder.ts), so the sheet closes straight into the reorder - with the trigger that
+    // opened it hidden in the closed item menu and disabled while the request is in flight.
+    // A bare `focus()` on it does nothing, and focus falls to <body>.
+    await openItemActions(page, SECOND_ITEM);
+    const trigger = page.getByRole('button', {
+      name: `Move ${SECOND_ITEM} to another day`,
     });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole('button', { name: /Day 3/ }).first().focus();
+    await page.keyboard.press('Enter');
+
+    // No confirm in between: with one, this would be the test above again, measuring
+    // ConfirmDialog's restore instead of the sheet's.
+    await expect(
+      page.locator('dialog[open]'),
+      `a dialog is still open: ${SECOND_ITEM} should move without a confirm`,
+    ).toHaveCount(0);
+    const landed = await focusAfterMove(page, SECOND_ITEM, 3);
+
     expect(
       landed.onBody,
       'focus fell to <body>: the next Tab restarts at the top of the page',
@@ -342,7 +424,12 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   });
 });
 
-test.describe('BA-070-T5 the judged walk-through is operable by keyboard', () => {
+// No acceptance id in this title. Playwright's JUnit writes a testcase name as
+// the describe titles followed by the test's own (junit.js, `titlePath()`), so
+// an id here lands on EVERY test inside - including the focus-ring test below
+// that says in as many words it is NOT BA-070-T5, which the aggregator counted
+// as BA-070-T5 all the same. Each test carries the ids it proves itself.
+test.describe('the judged walk-through is operable by keyboard', () => {
   // FIGMA_HANDOFF's numbered walk-through is what a contest judge follows. These
   // cover the steps a keyboard user could be stopped by; the per-screen focus
   // and touch-target checks live in responsive.spec.ts and are not repeated.

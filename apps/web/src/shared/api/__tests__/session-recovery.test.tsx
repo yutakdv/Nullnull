@@ -61,9 +61,12 @@ function renderAt(path: string) {
 
 describe('FR-SES-03 a tab gets its own CSRF token without a new session', () => {
   it('recovers a token when the app opens away from the splash screen', async () => {
-    // The defect: only SplashScreen bootstraps, so a refresh or a deep link
-    // onto any other route left the token null and every mutation would have
-    // been rejected. Verified by loading /feed directly before the fix.
+    // The defect: when this was written only SplashScreen bootstrapped, so a
+    // refresh or a deep link onto any other route left the token null and every
+    // mutation would have been rejected. Verified by loading /feed directly
+    // before the fix. (Since #240 A-1 the shell also bootstraps, but only for a
+    // request that carried no cookie at all. Here /session/csrf answers with a
+    // token, which is how the mock stands for a tab whose cookie is valid.)
     expect(currentCsrfToken()).toBeNull();
     renderAt('/feed');
     await screen.findByRole('heading', { level: 1 });

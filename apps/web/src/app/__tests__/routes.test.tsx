@@ -27,12 +27,16 @@ describe('FE-001-T1 P0 route table', () => {
   // string "live" read as a broken build. The others left as their slices
   // landed: /, /language and /intro in FE-101, /profile in FE-105,
   // /about-data in FE-404, the optimization run in FE-502.
+  //
+  // PlaceholderScreen is deleted (no route used it), and with it the only
+  // element that carried `data-testid="placeholder-route"`. An assertion that
+  // this test id is absent could no longer fail, so the heading below is the
+  // whole check.
   it('resolves /live to the live screen, not a debug placeholder', async () => {
     renderAt('/live');
     expect(
       await screen.findByRole('heading', { level: 1, name: /라이브|Live/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId('placeholder-route')).toBeNull();
   });
 
   it('resolves a deep-linked post to its screen, not a blank page', async () => {

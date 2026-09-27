@@ -17,8 +17,8 @@ import styles from './ProfileScreen.module.css';
 
 // Figma: S14 profile `422:2925`.
 //
-// FR-PRO-01 test-account summary, FR-PRO-02 no profile sign-in control,
-// FR-PRO-03 trip list.
+// FR-PRO-01 test-account summary and locale, FR-PRO-02 no profile sign-in
+// control, FR-PRO-03 trip list.
 //
 // MOCK DATA: the trip list and the optimization history are served by msw
 // fixtures because listTrips and listOptimizationHistory have no approved
@@ -320,6 +320,27 @@ export function ProfileScreen() {
 
       <div className={styles.card}>
         <ul className={styles.rows}>
+          <li>
+            {/* The way back to KO/EN once onboarding is over (FE-105-T6): the
+                splash redirect was the only link to /language. `from=profile`
+                sends the language screen's Next back here instead of on
+                through the intro. The note is the language the app is showing,
+                which is always the language of the words around it — so it
+                needs no `lang` of its own. Listed before the data guide, the
+                order S14 names its rows in (FIGMA_HANDOFF §H/I); the row's own
+                frame is FCR-016's, still open. */}
+            <Link className={styles.row} to="/language?from=profile">
+              <span className={styles.rowText}>
+                <span className={styles.rowTitle}>{t('profile.language.title')}</span>
+                <span className={styles.rowNote}>
+                  {t(locale === 'en-US' ? 'language.en.name' : 'language.ko.name')}
+                </span>
+              </span>
+              <span className={styles.rowValue} aria-hidden="true">
+                <IconChevronRight size={18} />
+              </span>
+            </Link>
+          </li>
           <li>
             <Link className={styles.row} to="/about-data">
               <span className={styles.rowText}>

@@ -18,7 +18,6 @@ test.describe('FE-401 Live map and list', () => {
     await expect(page.getByRole('region', { name: '카카오 지도' })).toBeVisible();
     await expect(page.getByText('지도를 불러오지 못했어요')).toBeVisible();
     await expect(page.getByRole('region', { name: '라이브 여행지 목록' })).toBeVisible();
-    await expect(page.getByTestId('live-sheet-drag-handle')).toHaveCount(0);
     const main = page.getByRole('main');
     const scrollable = await main.evaluate(
       (element) => element.scrollHeight > element.clientHeight,

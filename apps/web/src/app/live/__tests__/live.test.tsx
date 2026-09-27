@@ -19,6 +19,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 import { formatReferenceTime } from '../../../shared/crowd/reference-time.js';
 
@@ -439,6 +444,104 @@ describe('FE-401 Live area list', () => {
       `/live/places/${placeFixtures.searchPage.items[0]?.id}`,
     );
     expect(result).not.toHaveTextContent('›');
+  });
+
+  it('reaches a place past the first page of results (#54)', async () => {
+    // The continuation itself is proven by FE-103-T5..T23 (place-search.test.tsx,
+    // must-visit.test.tsx); this is the wiring of Live's own result list.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    expect(
+      await screen.findByRole('link', {
+        name: messages['en-US']['live.searchOpen'].replace('{name}', next.name),
+      }),
+    ).toBeVisible();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
+  });
+
+  it('FE-103-T8 FE-103-T19 a failed next page keeps the results and adds no search failure', async () => {
+    // The screen's own alert is for a search that failed outright. A failed
+    // page two is reported by the continuation, and a second, first-page
+    // alert here would tell the traveller their search is gone while its
+    // results are still on screen.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    servePlaceSearchPages({ failNext: 1 });
+    const [a, b] = searchPages.first;
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', {
+      name: messages['en-US']['placeSearch.retryMore'],
+    });
+
+    for (const place of [a, b]) {
+      expect(
+        screen.getByRole('link', {
+          name: messages['en-US']['live.searchOpen'].replace('{name}', place.name),
+        }),
+      ).toBeVisible();
+    }
+    expect(screen.queryByText(messages['en-US']['live.searchError'])).toBeNull();
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter(
+          (alert) => alert.textContent !== messages['en-US']['placeSearch.moreFailed'],
+        ),
+    ).toEqual([]);
+  });
+
+  it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {
+    // While page one is asked for again the query still holds the cursor
+    // error, no longer as a next-page error. This screen's alert is for a
+    // search that failed outright, and the search is still here.
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${API_BASE}/live/areas`, () =>
+        HttpResponse.json(liveFixture<LiveAreaResult>('area-result-live')),
+      ),
+    );
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    renderLive();
+    await user.type(await screen.findByRole('searchbox'), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', {
+        name: messages['en-US']['error.CURSOR_EXPIRED.cta'],
+      }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(messages['en-US']['live.searchError'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: messages['en-US']['placeSearch.more'] });
   });
 
   it('FE-603-T5 credits each place a search returns', async () => {

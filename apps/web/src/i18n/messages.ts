@@ -329,6 +329,10 @@ export const messages = {
       '다른 곳에서 이 여행이 바뀌었어요. 선택한 내용은 그대로 두었어요.',
     'profile.interests.conflict.reload': '최신 내용 불러오기',
     'profile.interests.conflict.discard': '내 변경 취소',
+    // S14 lists locale among its rows; the note under it is the language the
+    // app is showing, read from `language.ko.name` / `language.en.name`
+    // (FCR-016).
+    'profile.language.title': '언어',
     'profile.dataGuide.title': '혼잡도 데이터 안내',
     'profile.dataGuide.note': '실시간 관측 · 공식 예측 · 장기 참고의 차이',
     'profile.location.title': '위치 권한',
@@ -375,6 +379,17 @@ export const messages = {
     'tripAdd.toast.error': '저장하지 못했어요',
     'tripAdd.toast.view': '보기',
     'tripAdd.toast.retry': '다시 시도',
+    // Card/Candidate (C01) and Card/TripItem (C38). No screen mounts either card
+    // yet (TripScreen and CandidatesScreen draw rows of their own); the words
+    // are here so the first one that does is not Korean-only. The locks, the
+    // time, the reservation note and the row menu reuse the trip screen's keys.
+    'candidateCard.schedule': '일정에 넣기',
+    'candidateCard.scheduled': '일정에 넣었어요',
+    'candidateCard.unscheduled': '날짜·시간 없이 담아둔 장소예요',
+    'candidateCard.remove': '담기 취소',
+    'tripItemCard.badge.changed': '변경됨',
+    'tripItemCard.badge.conflict': '시간 겹침',
+    'tripItemCard.badge.optimized': '최적화 반영',
     // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
     // same component can serve the feed and the post detail without knowing
     // which one opened it.
@@ -429,6 +444,13 @@ export const messages = {
     'dataGuide.rule5.title': '모든 혼잡 표시에는 출처가 있어요',
     'dataGuide.rule5.body':
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
+
+    // Every place-search list's continuation past its first page (#54,
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
+    'placeSearch.more': '검색 결과 더 보기',
+    'placeSearch.loadingMore': '결과를 더 불러오는 중이에요',
+    'placeSearch.moreFailed': '결과를 더 불러오지 못했어요. 받은 결과는 그대로예요.',
+    'placeSearch.retryMore': '다시 불러오기',
 
     // S02-4B must-visit places (438:3158).
     'mustVisit.step': 'STEP 4',
@@ -1416,6 +1438,7 @@ export const messages = {
       'This trip changed somewhere else. Your choices are still here.',
     'profile.interests.conflict.reload': 'Load the latest',
     'profile.interests.conflict.discard': 'Discard my changes',
+    'profile.language.title': 'Language',
     'profile.dataGuide.title': 'About crowd data',
     'profile.dataGuide.note':
       'Live observation · official forecast · long-term reference',
@@ -1455,6 +1478,13 @@ export const messages = {
     'tripAdd.toast.error': "Couldn't save it",
     'tripAdd.toast.view': 'View',
     'tripAdd.toast.retry': 'Try again',
+    'candidateCard.schedule': 'Add to itinerary',
+    'candidateCard.scheduled': 'On your itinerary',
+    'candidateCard.unscheduled': 'Saved with no date or time yet',
+    'candidateCard.remove': 'Unsave',
+    'tripItemCard.badge.changed': 'Changed',
+    'tripItemCard.badge.conflict': 'Time overlap',
+    'tripItemCard.badge.optimized': 'From optimization',
     'tripPicker.title': 'Which trip should it go in?',
     'tripPicker.cancel': 'Cancel',
     'tripPicker.loading': 'Loading your trips',
@@ -1504,6 +1534,14 @@ export const messages = {
     'dataGuide.rule5.title': 'Every crowd figure has a source',
     'dataGuide.rule5.body':
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
+
+    // Every place-search list's continuation past its first page (#54,
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
+    'placeSearch.more': 'Show more results',
+    'placeSearch.loadingMore': 'Loading more results',
+    'placeSearch.moreFailed':
+      "Couldn't load more results. The ones above are still here.",
+    'placeSearch.retryMore': 'Try loading again',
 
     // S02-4B must-visit places (438:3158). Figma has no EN frame.
     'mustVisit.step': 'STEP 4',

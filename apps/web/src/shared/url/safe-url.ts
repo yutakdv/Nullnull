@@ -2,10 +2,16 @@
 //
 // WHAT THIS IS FOR. A response URL reaches a DOM attribute in five places
 // (PostScreen, FeedPostCard, PlaceThumbnail, and both anchors in
-// DataAttribution) with no validation today. The two anchors are the execution
-// path: a browser will not run `<img src="javascript:…">`, but it does run
-// `<a href="javascript:…">` on click. `rel="noreferrer noopener"` is a
-// tabnabbing control and says nothing about the scheme.
+// DataAttribution), and each of them asks this function first (FE-603-T12,
+// measured per place in safe-url-sites.test.tsx and post.test.tsx). The two
+// anchors are the execution path: a browser will not run
+// `<img src="javascript:…">`, but it does run `<a href="javascript:…">` on
+// click. `rel="noreferrer noopener"` is a tabnabbing control and says nothing
+// about the scheme.
+//
+// For a while this file existed and nothing imported it but its own test, so
+// every rejection that test proves reached no page. A guard that exists and a
+// guard that runs are different claims; the per-place tests are the second.
 //
 // The contract cannot carry this check: `format: uri` asks whether a string
 // parses as a URI, not what scheme it names, so `javascript:alert(1)` and
@@ -22,7 +28,24 @@
 //     packages/contracts/fixtures);
 //   - it is the straightest reading of CLAUDE.md's "외부 URL은 allowlist";
 //   - the accepted cost: if BE later serves an http image it will not render,
-//     and someone has to trace the blank image back to this function.
+//     and someone has to trace the blank image back to this function. The
+//     three image sites keep http out for different reasons, and only one of
+//     them is a constraint on the field the site renders:
+//       · PlaceThumbnail renders `media_assets.served_url`, which V010's
+//         `media_assets_served_url_check` limits to https.
+//       · The feed and post covers render `posts.cover_url`, whose only CHECK
+//         is V015's non-blank one. A cover is https only because both writers
+//         (CuratedPostImporter and PostAuthoringService, the callers of the
+//         only two `INSERT INTO posts` that `git grep` finds under
+//         apps/api/src/main) put the same URL into a media_assets row in the
+//         same transaction, so V010 refuses an http cover there. V021's
+//         published → cover_asset_id CHECK does not close the gap: it is NOT
+//         VALID, so posts published before V021 are exempt, and it never
+//         requires `cover_url` to equal the asset's `served_url`. An http
+//         cover would come from such an old row or from a writer that stops
+//         copying the asset URL.
+//     A refused feed cover keeps an empty box of the cover's size, because
+//     that cover is the card's only control into the post (FE-603-T13).
 //
 // That last line is why the cost is written down rather than just the rule.
 //

@@ -568,22 +568,11 @@ export function OptimizationRunScreen() {
           action instead of a one-sided "apply anyway". */}
       {phase.kind === 'bar' ? (
         <DecisionBar
-          // All nine, not the four this screen happens to show today. The
-          // component falls back to its own Korean defaults for anything
-          // omitted, so a partial object renders Korean inside an English app
-          // — and only in the states that are hard to reach (stale, failed),
-          // which is where a missing translation survives longest.
-          labels={{
-            apply: t('decision.apply'),
-            keep: t('decision.keep'),
-            applying: t('decision.applying'),
-            applied: t('decision.applied'),
-            staleMessage: t('decision.staleMessage'),
-            staleAction: t('decision.staleAction'),
-            failedMessage: t('decision.failedMessage'),
-            failedAction: t('decision.failedAction'),
-            groupLabel: t('decision.groupLabel'),
-          }}
+          // No labels: the bar takes every one of its nine strings from the
+          // locale (`decision.*`, FE-001-T4). This screen used to pass all
+          // nine because an omitted one fell back to Korean inside an English
+          // app, in exactly the states that are hard to reach (stale,
+          // failed). The bar no longer has that gap to guard against.
           onApply={
             selectedId === null
               ? undefined
