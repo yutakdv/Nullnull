@@ -14,7 +14,8 @@ import type { Page } from '@playwright/test';
 // screen failing later as "We can't find that trip".
 
 /**
- * The first day holds 경복궁 then 인사동; 경복궁 carries a DATE lock and 인사동 a MUST_VISIT one.
+ * The first day holds 경복궁 then 인사동; 경복궁 carries a DATE lock and 인사동 a MUST_VISIT one
+ * (SECOND_ITEM below).
  *
  * The DATE lock is what makes a day change a question rather than a move
  * (`reorder.ts` `moveBlock` returns 'date-lock' for DATE and nothing else), so
@@ -26,8 +27,34 @@ import type { Page } from '@playwright/test';
  */
 export const FIRST_ITEM = '경복궁';
 
+/**
+ * 인사동, whose only lock is MUST_VISIT - which does not stop a day change, so moving it goes
+ * straight from the move sheet to the reorder with no confirm in between. That is the one path
+ * where MoveDaySheet's own focus restore is the only thing keeping focus off <body>: moving
+ * FIRST_ITEM in the gate hands the restore to the DATE-lock confirm instead.
+ */
+export const SECOND_ITEM = '인사동';
+
 const GYEONGBOKGUNG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b01';
 const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
+
+/**
+ * Opens `/` and waits for the session bootstrap, the way a person arrives.
+ *
+ * Not because nothing else bootstraps. Since #240 (ecad7070) the shell also starts a session
+ * when a deep link's CSRF reissue answers 401 with `missingCredential: SESSION_COOKIE`
+ * (AppShell.tsx `noCookieSent`; live-session.integration.spec.ts measures it on /live). What
+ * a deep link does not give is a moment to wait for: the splash redirects to /language or
+ * /feed only on the bootstrap's success branch, so the wait below ends once the session
+ * exists, while a deep link's URL does not move when it lands. The helpers below need that
+ * moment - a trip is its creator's (invariant 11), so the session has to exist before
+ * createTrip, and the page opened afterwards has to carry that same session.
+ */
+export async function startSession(page: Page): Promise<void> {
+  await page.goto('/');
+  // Splash redirects to /language (first visit) or /feed (returning) once bootstrap resolves.
+  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+}
 
 /**
  * Opens `/`, waits for the session bootstrap, then creates a trip from inside the page.
@@ -37,9 +64,7 @@ const INSADONG = '018f4b20-1a44-7e11-9c02-5d7e3f1a2b03';
  * path. Navigating afterwards reloads the app, which mints its own CSRF token again.
  */
 export async function createSeededTrip(page: Page): Promise<string> {
-  await page.goto('/');
-  // Splash redirects to /language (first visit) or /feed (returning) once bootstrap resolves.
-  await page.waitForURL(/\/(language|feed)$/, { timeout: 15_000 });
+  await startSession(page);
 
   // Dates relative to today, so the trip never falls into the past as the calendar moves.
   const day = (offset: number) => {

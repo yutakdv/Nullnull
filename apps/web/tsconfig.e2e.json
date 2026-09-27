@@ -6,10 +6,10 @@
 // checks failed in the browser (#266).
 //
 // A second program rather than adding "e2e" to the main `include`: the specs
-// need Node types (process.env in session.spec.ts) that app code must not
-// have, and widening the app program to get them would hand `process` to
-// every module under src/ -- the app bundle has no Node, so those types would
-// only ever be wrong there.
+// need Node types (process.env in session.integration.spec.ts) that app code
+// must not have, and widening the app program to get them would hand `process`
+// to every module under src/ -- the app bundle has no Node, so those types
+// would only ever be wrong there.
 //
 // `extends` rather than a standalone config so strict, noUncheckedIndexedAccess
 // and noUnusedLocals stay in one place. They are load-bearing here: a config

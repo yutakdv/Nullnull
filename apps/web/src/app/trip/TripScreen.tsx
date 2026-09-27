@@ -354,14 +354,11 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
             <span aria-hidden="true"> · </span>
             <span>{t('trip.length', { nights, days: dayCount })}</span>
           </p>
-          {/* candidateCount is the contract's own field, not a length taken
-              from the `candidates` array: that array is a page of the
-              candidates, so counting it would under-report the total. */}
-          {/* The count is the way into the candidate panel (S07-8), so it is a
-              link rather than a label. */}
+          {/* This is a link rather than a count: candidateCount includes
+              dismissed history, and TripDetail.candidates is only a page. */}
           {editing ? null : (
             <Link className={styles.candidates} to={`/trip/${trip.id}/candidates`}>
-              {t('trip.candidates', { count: trip.candidateCount })}
+              {t('trip.candidates')}
             </Link>
           )}
         </div>
@@ -380,7 +377,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
               className={`${styles.candidates} ${styles.candidatesEditing}`}
               to={`/trip/${trip.id}/candidates`}
             >
-              {t('trip.candidates', { count: trip.candidateCount })}
+              {t('trip.candidates')}
             </Link>
           </div>
         ) : (
@@ -467,6 +464,18 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>{t('trip.empty')}</p>
           <p className={styles.state}>{t('trip.emptyNote')}</p>
+          {editing ? null : (
+            <>
+              {trip.candidateCount > 0 ? (
+                <Link className={styles.emptyAction} to={`/trip/${trip.id}/candidates`}>
+                  {t('trip.emptyOpenCandidates')}
+                </Link>
+              ) : null}
+              <Link className={styles.emptyAction} to={`/trip/${trip.id}/add-place`}>
+                {t('trip.addPlace')}
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <p className={`${styles.state} ${styles.srOnly}`} role="status">

@@ -1,11 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type RefObject } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
 import {
+  PROBLEM_POLICY,
   isProblem,
+  problemPresentation,
   tripQueryKey,
   useAddTripItem,
   useCandidateMatches,
@@ -65,9 +67,19 @@ export function CandidatesScreen() {
   const trip = useTrip(tripId ?? null);
   const candidates = useTripCandidates(tripId ?? null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  const items = visibleCandidates(candidates.data?.items ?? []);
+  const items = visibleCandidates(
+    candidates.data?.pages.flatMap((page) => page.items) ?? [],
+  );
+  const cursorRefused =
+    candidates.isFetchNextPageError &&
+    isProblem(candidates.error) &&
+    PROBLEM_POLICY[candidates.error.code].recovery === 'reset-cursor'
+      ? candidates.error
+      : null;
+  const loadingMore = candidates.isFetchingNextPage || restarting;
 
   return (
     <section className={styles.screen} aria-labelledby="candidates-heading">
@@ -80,35 +92,19 @@ export function CandidatesScreen() {
         onBack={() => {
           void navigate(`/trip/${tripId ?? ''}`);
         }}
-        title={
-          trip.isSuccess
-            ? t('candidates.open', { count: trip.data.trip.candidateCount })
-            : t('candidates.title')
-        }
+        title={trip.isSuccess ? t('candidates.open') : t('candidates.title')}
       />
 
       <div className={styles.head}>
-        {/* The count waits for the list. Rendering `items.length` while the
-            request is in flight shows "0 saved places" to someone who has
-            saved places, which reads as data loss rather than as loading. */}
-        {/* The total comes from `candidateCount`, the contract's own field —
-            NOT from `items.length`, which is one PAGE of the candidates.
-            TripScreen already says this in as many words (:150) and links here
-            with that number, so counting the page made the two screens
-            disagree about the same set one tap apart: the trip total became
-            the current page length in otherwise identical wording.
-
-            `trip` is already fetched above for the title, so this costs no
-            extra request. */}
+        {/* The backend count includes dismissed history; neither that total
+            nor the current page length is the number of saved places. */}
         <h1
           className={styles.srOnly}
           id="candidates-heading"
           ref={headingRef}
           tabIndex={-1}
         >
-          {trip.isSuccess
-            ? t('candidates.open', { count: trip.data.trip.candidateCount })
-            : t('candidates.title')}
+          {trip.isSuccess ? t('candidates.open') : t('candidates.title')}
         </h1>
         <p className={styles.note}>{t('candidates.note')}</p>
       </div>
@@ -119,7 +115,7 @@ export function CandidatesScreen() {
         </p>
       ) : null}
 
-      {candidates.isError ? (
+      {candidates.isError && !candidates.isFetchNextPageError ? (
         <p className={styles.state} role="alert">
           {t('candidates.error')}
           <button
@@ -134,10 +130,13 @@ export function CandidatesScreen() {
         </p>
       ) : null}
 
-      {candidates.isSuccess && items.length === 0 ? (
+      {candidates.data && items.length === 0 && !candidates.hasNextPage ? (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>{t('candidates.empty')}</p>
           <p className={styles.state}>{t('candidates.emptyNote')}</p>
+          <Link className={styles.emptyAction} to={`/trip/${tripId ?? ''}/add-place`}>
+            {t('trip.addPlace')}
+          </Link>
         </div>
       ) : null}
 
@@ -160,6 +159,36 @@ export function CandidatesScreen() {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {candidates.isFetchNextPageError && !restarting ? (
+        <p className={styles.state} role="alert">
+          {t('candidates.error')}
+        </p>
+      ) : null}
+      {candidates.hasNextPage ? (
+        <button
+          aria-busy={loadingMore || undefined}
+          className={styles.more}
+          onClick={() => {
+            if (loadingMore) return;
+            if (cursorRefused) {
+              setRestarting(true);
+              void candidates.refetch().finally(() => setRestarting(false));
+            } else {
+              void candidates.fetchNextPage();
+            }
+          }}
+          type="button"
+        >
+          {loadingMore
+            ? t('candidates.loadingMore')
+            : cursorRefused
+              ? problemPresentation(cursorRefused, t).ctaLabel
+              : candidates.isFetchNextPageError
+                ? t('candidates.retryMore')
+                : t('candidates.more')}
+        </button>
       ) : null}
     </section>
   );

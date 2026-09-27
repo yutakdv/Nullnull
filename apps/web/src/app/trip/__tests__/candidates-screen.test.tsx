@@ -182,6 +182,96 @@ describe('FE-303-T2 the panel renders each state', () => {
     expect(await screen.findByText(copy['candidates.empty'])).toBeInTheDocument();
   });
 
+  it('offers place search when the counted candidate is dismissed', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, () =>
+        HttpResponse.json({ ...page, items: [{ ...active, status: 'DISMISSED' }] }),
+      ),
+    );
+    renderPanel();
+    expect(await screen.findByText(copy['candidates.empty'])).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Saved places' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: copy['trip.addPlace'] })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/add-place`,
+    );
+  });
+
+  it('reaches an active candidate after a page of dismissed candidates', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, ({ request }) =>
+        HttpResponse.json(
+          new URL(request.url).searchParams.get('cursor') === 'next-page'
+            ? {
+                ...page,
+                items: [active],
+                page: { ...page.page, hasMore: false, nextCursor: null },
+              }
+            : {
+                ...page,
+                items: [{ ...active, status: 'DISMISSED' }],
+                page: { ...page.page, hasMore: true, nextCursor: 'next-page' },
+              },
+        ),
+      ),
+    );
+    renderPanel();
+    const more = await screen.findByRole('button', { name: 'Show more saved places' });
+    expect(screen.queryByText(copy['candidates.empty'])).toBeNull();
+    await userEvent.setup().click(more);
+    expect(
+      await screen.findByRole('heading', { level: 2, name: active.place.name }),
+    ).toBeInTheDocument();
+  });
+
+  it('starts again with a fresh cursor after the next-page cursor expires', async () => {
+    if (!active) throw new Error('active fixture missing');
+    let firstPageCalls = 0;
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (cursor === 'expired') return problemResponse('CURSOR_EXPIRED');
+        if (cursor === 'fresh') {
+          return HttpResponse.json({
+            ...page,
+            items: [active],
+            page: { ...page.page, hasMore: false, nextCursor: null },
+          });
+        }
+        firstPageCalls += 1;
+        return HttpResponse.json({
+          ...page,
+          items: [{ ...active, status: 'DISMISSED' }],
+          page: {
+            ...page.page,
+            hasMore: true,
+            nextCursor: firstPageCalls === 1 ? 'expired' : 'fresh',
+          },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(
+      await screen.findByRole('button', { name: 'Show more saved places' }),
+    );
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    expect(firstPageCalls).toBe(2);
+    await user.click(
+      await screen.findByRole('button', { name: 'Show more saved places' }),
+    );
+    expect(
+      await screen.findByRole('heading', { level: 2, name: active.place.name }),
+    ).toBeInTheDocument();
+  });
+
   it('offers no add action for a candidate already on the itinerary', async () => {
     renderPanel();
     await loaded();
@@ -243,11 +333,92 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
     );
     const { card } = await openDates(active?.place.name ?? '');
     expect(
-      await within(card).findByText(copy['candidates.match.UNKNOWN']),
-    ).toBeInTheDocument();
+      await within(card).findAllByText(copy['candidates.match.UNKNOWN']),
+    ).toHaveLength(2);
     expect(
       within(card).queryByText(copy['candidates.match.NONE']),
     ).not.toBeInTheDocument();
+  });
+
+  it('keeps the UNKNOWN explanation inside an empty date sheet', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({ candidateId: active.id, state: 'UNKNOWN', slots: [] }),
+      ),
+    );
+    const { sheet } = await openDates(active.place.name);
+    expect(
+      await within(sheet).findByText(copy['candidates.match.UNKNOWN']),
+    ).toBeInTheDocument();
+    expect(within(sheet).queryByText(copy['candidates.sheet.noDates'])).toBeNull();
+  });
+
+  it('lets the traveller choose a date when only opening hours are unknown', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: 'OPENING_HOURS_UNKNOWN',
+          })),
+        }),
+      ),
+    );
+
+    const { user, sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    const rows = within(dates).getAllByRole('button');
+    expect(rows).toHaveLength(trip.days.length);
+    expect(rows.every((row) => !row.hasAttribute('disabled'))).toBe(true);
+    expect(within(sheet).queryByText(copy['candidates.sheet.noDates'])).toBeNull();
+    expect(sent).toHaveLength(0);
+
+    await user.click(rows[0]!);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body).toMatchObject({
+      candidateId: active.id,
+      date: trip.days[0]?.date,
+      startTime: null,
+    });
+  });
+
+  it('does not enable other unknown reasons as manual dates', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day, index) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: index === 1 ? 'OPENING_HOURS_UNKNOWN' : 'TIME_CONFLICT',
+          })),
+        }),
+      ),
+    );
+
+    const { sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    const rows = within(dates).getAllByRole('button');
+    expect(rows).toHaveLength(trip.days.length);
+    expect(rows[0]).toBeDisabled();
+    expect(rows[1]).toBeEnabled();
+    expect(rows[2]).toBeDisabled();
+    expect(rows[0]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
+    expect(rows[2]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
+    expect(sent).toHaveLength(0);
   });
 
   it('says NONE only when the server actually decided nothing fits', async () => {
@@ -657,23 +828,18 @@ describe('FE-303 removing a saved place (FR-CAN-06)', () => {
 });
 
 describe('FE-303-T3 the panel is reachable and named', () => {
-  it('names the screen with the trip total once it has arrived', async () => {
+  it('names the screen without counting dismissed history as saved places', async () => {
     renderPanel();
     await loaded();
-    // The TOTAL, from the contract's `candidateCount` — not the length of the
-    // page. This asserted the literal '3' (the page's length) while TripScreen
-    // labelled its link with `candidateCount`, so the two screens reported
-    // different totals for the same set one tap apart. The fixtures carry that
-    // disagreement: candidateCount is greater than the bounded page length.
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
-      copy['candidates.open'].replace(
-        '{count}',
-        String(tripFixtures.detailScheduled.candidateCount),
-      ),
+      copy['candidates.open'],
     );
+    expect(
+      screen.queryByRole('heading', { level: 1, name: /Saved places \d/ }),
+    ).toBeNull();
   });
 
-  it('does not claim zero saved places while the list is still loading', async () => {
+  it('keeps the saved-places heading while the list is still loading', async () => {
     server.use(
       http.get(`${API_BASE}/trips/:tripId/candidates`, async () => {
         await delay('infinite');
@@ -682,10 +848,8 @@ describe('FE-303-T3 the panel is reachable and named', () => {
     );
     renderPanel();
     const heading = await screen.findByRole('heading', { level: 1 });
-    // "0" here reads as data loss to someone who saved places.
-    expect(heading).not.toHaveTextContent(
-      copy['candidates.open'].replace('{count}', '0'),
-    );
+    expect(heading).toHaveTextContent(copy['candidates.open']);
+    expect(screen.getByRole('status')).toHaveTextContent(copy['candidates.loading']);
   });
 
   it('offers a way back to the itinerary', async () => {
@@ -919,26 +1083,6 @@ describe('FE-303-T3 the date sheet is operable without a mouse', () => {
   it('is titled, so it is not an unnamed dialog', async () => {
     const { sheet } = await openDates(exact?.place.name ?? '');
     expect(sheet).toHaveAccessibleName(copy['candidates.sheet.title']);
-  });
-});
-
-describe('the saved-places count agrees with the screen that links here', () => {
-  // TripScreen labels the link with `candidateCount`, the contract's own
-  // field, and says why in a comment (TripScreen.tsx:150). This screen counted
-  // `items.length` instead — one PAGE of the candidates — so the two screens
-  // reported different totals for the same set, one tap apart. The fixtures
-  // make it visible: candidateCount is larger than the bounded page.
-  it('reports the trip total, not the length of one page', async () => {
-    renderPanel();
-    await loaded();
-    const heading = await screen.findByRole('heading', { level: 1 });
-
-    const total = tripFixtures.detailScheduled.candidateCount;
-    expect(total).not.toBe(page.items.length); // the fixtures must disagree,
-    // or this test would pass either way.
-    expect(heading).toHaveTextContent(
-      copy['candidates.open'].replace('{count}', String(total)),
-    );
   });
 });
 

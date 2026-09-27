@@ -611,6 +611,22 @@
   font-weight: 700;
 }
 
+.emptyAction {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-action-subtle);
+  color: var(--color-action-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .state {
   margin: 0;
   color: var(--color-text-secondary);
