@@ -398,7 +398,7 @@ print(json.dumps(ledger, ensure_ascii=False, indent=2))
 4. [ ] **KTO 실제 호출**(`BA-021-T3`·`BA-073-T2`): `kto-smoke`를 마지막 호출이 통과한 장소로 한 번 돌린다.
    - operator 성공 줄: `actual_call=verified release=<RELEASE> …`
    - 이어서 ①의 검사를 돌린다.
-5. [ ] **예보 호출**: inventory에 p14 2번이 나오도록 이 release에서 예보를 부른다. `task --task kto-demo-forecast`의 성공 줄은 `KTO_DEMO_REFRESH_DONE mode=forecast …`이다. 12시간 schedule도 배포된 release의 ops 정의로 같은 호출을 한다. 배포 뒤 첫 tick 전이면 직접 돌린다.
+5. [ ] **예보 호출**: inventory에 p14 2번이 나오도록 이 release에서 예보를 부른다. `task --task kto-demo-forecast`의 성공 줄은 `KTO_DEMO_REFRESH_DONE mode=forecast …`이다. 12시간 schedule도 배포된 release의 ops 정의로 같은 호출을 한다. schedule은 배포(`Migration` stack 갱신) 약 2분 뒤 한 번 바로 돌지만, set이 신선하면 KTO를 부르지 않는다(R4 배포 직후 예보 `calls=0`, [runbook](../operations/STAGING_DEPLOYMENT_RUNBOOK.md#예보detail-재적재-schedule-a-044)). 먼저 그 run의 `refreshed`·`calls`와 마지막 장소별 `fetchedAt`을 확인한다. 실제 호출이 없었다면 마지막 적재에서 6시간 15분 이상 지난 뒤 승인된 수동 task를 돌리거나 다음 12시간 실행을 기다린다. `calls=0`인 run은 이 단계의 호출 증거로 세지 않는다.
 6. [ ] **영문 호출**(오너 결정 (a)): staging runbook §11의 영문 명령 두 개를 이 순서로 돌린다.
    - `task --task kto-eng-link-import`: 오너가 승인한 연결 plan을 들인다. 성공 줄은 장소마다 `eng_link <placeId> PROCESSED`와 `eng_links_processed=<n>`이다.
    - `task --task kto-eng-text-refresh`: 연결마다 EngService2 detailCommon2를 부른다. 연결마다 `KTO_ENG_TEXT_REFRESH placeId=… outcome=…`이 찍히고, 끝에 `KTO_ENG_TEXT_REFRESH_DONE …`이 찍힌다. 하나라도 실패하면 task가 실패하고 배포 잠금이 남는다.
