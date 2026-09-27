@@ -297,9 +297,13 @@ test.describe('FE-402-T3 the Live place detail', () => {
 // BA-091-T2, T29 and T30 (#97), which the backend card hands to the browser:
 // the Live list with the map off, every relation state, and no fake delta -
 // one clause each, so each is proven by its own test.
-const RELATED = JSON.parse(fixture('places/related-page.json')) as {
-  items: { relation: string; place: { name: string } }[];
-};
+type RelationPage = { items: { relation: string; place: { name: string } }[] };
+const RELATED = JSON.parse(fixture('places/related-page.json')) as RelationPage;
+// The server derives SIMILAR only, so the relation page carries SIMILAR places. The
+// EXACT place lives in its own approved example, which has no producer today (#390).
+const RELATED_EXACT = JSON.parse(
+  fixture('places/related-page-exact.json'),
+) as RelationPage;
 const RELATION_STATES = {
   EXACT: 'A verified equivalent is available',
   SIMILAR: 'Similar places are available',
@@ -349,8 +353,8 @@ test('BA-091-T29 every relation state reads as itself on the place detail', asyn
   page,
 }) => {
   // NONE, CHECKING and UNKNOWN are approved Live examples. EXACT and SIMILAR
-  // carry places, which only the catalogue relation example has; the Live
-  // detail example is given that example's place of the same relation.
+  // carry places, which only the catalogue relation examples have; the Live
+  // detail example is given those examples' place of the same relation.
   const bodies: Record<keyof typeof RELATION_STATES, string> = {
     NONE: fixture('live/place-detail-related-none.json'),
     CHECKING: fixture('live/place-detail-related-checking.json'),
@@ -358,9 +362,12 @@ test('BA-091-T29 every relation state reads as itself on the place detail', asyn
     EXACT: '',
     SIMILAR: '',
   };
-  for (const relation of ['EXACT', 'SIMILAR'] as const) {
-    const item = RELATED.items.find((each) => each.relation === relation);
-    if (!item) throw new Error(`related-page.json has no ${relation} place`);
+  for (const [relation, example, name] of [
+    ['EXACT', RELATED_EXACT, 'related-page-exact.json'],
+    ['SIMILAR', RELATED, 'related-page.json'],
+  ] as const) {
+    const item = example.items.find((each) => each.relation === relation);
+    if (!item) throw new Error(`${name} has no ${relation} place`);
     const detail = JSON.parse(PLACE_DETAIL) as { related: object };
     bodies[relation] = JSON.stringify({
       ...detail,

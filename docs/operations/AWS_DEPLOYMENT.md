@@ -22,7 +22,7 @@ tags:
 
 ## 0. 2026-09-14 staging 확정 profile
 
-이 문서의 production 일반 원칙보다 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)이 staging에 우선한다. 확정값은 총비용 상한 `$200`, 종료일 `2026-10-25`, CloudFront 기본 domain, CloudFront VPC origin + internal ALB, NAT 없음, ECS api 1/ai 1, RDS PostgreSQL Multi-AZ다. primary alarm destination은 보호 설정으로 확정됐고 secondary와 실제 수신/tabletop은 아직 열려 있다.
+이 문서의 production 일반 원칙보다 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)이 staging에 우선한다. 확정값은 총비용 상한 `$200`, 종료일 `2026-10-31`(A-069), CloudFront 기본 domain, CloudFront VPC origin + internal ALB, NAT 없음, ECS api 1/ai 1, RDS PostgreSQL Multi-AZ다. primary alarm destination은 보호 설정으로 확정됐고 secondary와 실제 수신/tabletop은 아직 열려 있다.
 
 ## 1. 목표 구조
 
@@ -425,7 +425,7 @@ destroy/diff에 stateful replacement 또는 broad IAM change가 보이면 workfl
 
 ### Staging 비용 guardrail
 
-B01의 staging 총비용 상한은 `$200`, 종료일은 `2026-10-25`로 확정됐다. 상세 소비 모형과 종료 절차는 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)을 따른다. 과거 승인 요청은 [최소 staging 착수 계획](STAGING_BRINGUP_PLAN.md)에 이력으로 남긴다.
+B01의 staging 총비용 상한은 `$200`, 종료일은 `2026-10-31`로 확정됐다(A-069로 10-25에서 연장). 상세 소비 모형과 종료 절차는 [staging 배포 실행 계약](STAGING_DEPLOYMENT_RUNBOOK.md)을 따른다. 과거 승인 요청은 [최소 staging 착수 계획](STAGING_BRINGUP_PLAN.md)에 이력으로 남긴다.
 
 - Budget 50/75%: 추세 확인과 anomalous resource/tag 누락 점검.
 - Budget 80%(`$160`): 신규 비용 증가 변경 중지, log/RDS/ECS 사용 검토.

@@ -65,7 +65,7 @@ p14의 목록 3개다.
 - `source`·`endpoint`는 inventory가 찍는 값이다. 한국관광공사 operation 이름이 아니라 내부 감사 키(`api_ingest_logs.endpoint_key`)다.
   - 1·2: `backend`의 `KtoPlaceDetailGateway`·`KtoCrowdForecastGateway`에 있다.
   - 3: #360의 `KtoEngTextRefresh`에만 있다.
-- **3번은 지금 `backend`의 어떤 release도 inventory에 낼 수 없다.** PDF가 말하는 "한 번 측정"은 `KtoEngServiceProbeMain`이고, 그 javadoc이 *"no audit row"* 라고 적는다. 감사 행을 남기는 영문 호출은 #360(`KtoEngTextRefresh`)과 그것을 돌리는 operator task(#367)가 들어와야 생긴다. 오너 결정 (a)에 따라 최종 release에서 그 호출을 돌린다(§4).
+- **3번은 `kto-eng-text-refresh`가 돈 release에서만 inventory에 나온다.** PDF가 말하는 "한 번 측정"은 `KtoEngServiceProbeMain`이고, 그 javadoc이 *"no audit row"* 라고 적는다. 감사 행을 남기는 영문 호출은 #360(`KtoEngTextRefresh`)이고, 그것을 돌리는 operator task `kto-eng-text-refresh`는 #367이 넣었다. 둘 다 main에 있고 rc.22에 배포됐다. rc.22에서는 연결 import(`kto-eng-link-import`, `eng_links_processed=3`)까지만 돌았고 text refresh는 아직 돌지 않았다([#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). 오너 결정 (a)에 따라 최종 release에서 그 호출을 돌린다(§4).
 - **3번의 `usedBy`는 `FR-PLC-01`이다.** PDF는 이 API에 기능을 잇지 않았으므로 이 값은 PDF 문구가 아니라 오너 결정 (a)에서 왔다. #360이 받아 온 영문 텍스트는 장소 상세에 나온다.
 - p15(기타 API)는 검사기 대상이 아니다. inventory가 `KTO_` source만 센다(`JdbcKtoCallInventoryQuery`). 다만 읽다가 본 것이 하나 있다. 1번 "서울 실시간 도시데이터"의 상세설명이 2번 "카카오모빌리티 길찾기"의 상세설명과 같은 문장이다. PDF는 마감 뒤 고칠 수 없다(CMP-SUB-001).
 

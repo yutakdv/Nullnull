@@ -38,15 +38,24 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
           const response = await nativeFetch(...args);
           if (/\/candidates$/.test(pathname) && response.ok) {
             const body = (await response.clone().json()) as {
-              items: Array<{ status: string }>;
+              items: Array<{ status: string; place: { name: string } }>;
             };
+            // By name, not by position: the candidate page follows the server's order (created_at
+            // DESC), so items[0] is whichever place was saved last. A page without this place fails
+            // the list read loudly instead of narrowing the list to some other card.
+            const target = body.items.find(
+              (item) => item.place.name === '연희동 카페거리',
+            );
+            if (!target) {
+              throw new Error(
+                'candidate-not-active: 연희동 카페거리 is not on the candidate page',
+              );
+            }
             listReads += 1;
             return new Response(
               JSON.stringify({
                 ...body,
-                items: [
-                  { ...body.items[0], status: listReads === 1 ? 'ACTIVE' : status },
-                ],
+                items: [{ ...target, status: listReads === 1 ? 'ACTIVE' : status }],
               }),
               { status: response.status, headers: response.headers },
             );

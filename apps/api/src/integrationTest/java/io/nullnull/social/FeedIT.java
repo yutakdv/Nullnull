@@ -10,7 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.JsonShape;
 import io.nullnull.testsupport.OwnedRows;
+import io.nullnull.testsupport.PlaceCredits;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -88,6 +90,28 @@ class FeedIT {
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                 + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
         createdPlaces.add(id);
+        return id;
+    }
+
+    /**
+     * A KTO place as JdbcCanonicalCatalogStore writes it: the place, its external reference, and its Korean
+     * localization with the revision the text was collected under (V047). The feed fixtures' places are
+     * such places, credited and with a text credit on name and address.
+     */
+    private UUID ktoPlace(String name) {
+        UUID id = place(name);
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, address, updated_at, source_code, source_registry_version,
+                     source_locale, observed_at)
+                VALUES (?, ?, 'ko-KR', ?, '서울시 어딘가', ?, 'KTO_KOR_SERVICE_2', 4, 'ko-KR', ?)
+                """, UUID.randomUUID(), id, name, now, now);
+        jdbc.update("""
+                INSERT INTO place_external_refs
+                    (id, place_id, source_code, source_registry_version, external_id, external_type, verified_at)
+                VALUES (?, ?, 'KTO_KOR_SERVICE_2', 4, ?, 'KTO_CONTENT_TYPE:12', ?)
+                """, UUID.randomUUID(), id, "fixture-" + id, now);
         return id;
     }
 
@@ -439,6 +463,45 @@ class FeedIT {
                             .header("X-CSRF-Token", owner.csrf.token))
                     .andExpect(status().isNoContent());
         }
+    }
+
+    /**
+     * The three feed fixtures Frontend mocks listFeed with, held against a real feed page. They used to
+     * carry crowd readings - FORECAST, UNAVAILABLE and STALE, credited to KorService2 as if it were a
+     * forecast source - while FeedCardResponse always sends crowd null: a CrowdMetric needs a full
+     * DataProvenance, and inventing one is what invariant 8 forbids.
+     *
+     * <p>The feed is global, so the page can hold other classes' cards too. That cannot change the shape
+     * (one record, and JsonShape merges array elements), but it would change the credits, so those are
+     * compared on this test's own card.
+     */
+    @Test
+    @DisplayName("BA-032 the feed fixtures describe the page listFeed sends, crowd null on every card")
+    void theFeedFixturesDescribeTheServersPage() throws Exception {
+        UUID postId = post("대조 글", ktoPlace("대조 장소"), "2099-09-07T00:00:00Z");
+        tools.jackson.databind.JsonNode body = new tools.jackson.databind.ObjectMapper().readTree(
+                mvc.perform(get("/api/v1/feed").cookie(cookie(owner())))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        tools.jackson.databind.JsonNode mine = null;
+        for (tools.jackson.databind.JsonNode card : body.get("items")) {
+            if (card.get("post").get("id").asString().equals(postId.toString())) {
+                mine = card;
+            }
+        }
+        assertThat(mine).as("this test's card is on the first page").isNotNull();
+
+        for (String fixture : List.of("feed/page.json", "feed/page-no-trip.json", "feed/page-2.json")) {
+            tools.jackson.databind.JsonNode onDisk = JsonShape.fixture(fixture);
+            assertThat(JsonShape.of(body)).as(fixture).isEqualTo(JsonShape.of(onDisk));
+            assertThat(crowds(body)).as("%s crowd", fixture).isEqualTo(crowds(onDisk));
+            PlaceCredits.assertSameAs(mine, onDisk, fixture);
+        }
+    }
+
+    private static java.util.Set<tools.jackson.databind.JsonNode> crowds(tools.jackson.databind.JsonNode page) {
+        java.util.Set<tools.jackson.databind.JsonNode> values = new java.util.LinkedHashSet<>();
+        page.get("items").forEach(card -> values.add(card.get("crowd")));
+        return values;
     }
 
     @Test

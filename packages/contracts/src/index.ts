@@ -64,6 +64,7 @@ import optimizationDecisionKeep from "../fixtures/optimizations/decision-keep.js
 import optimizationDecisionRevert from "../fixtures/optimizations/decision-revert.json" with { type: "json" };
 import placeSearchPage from "../fixtures/places/search-page.json" with { type: "json" };
 import relatedPage from "../fixtures/places/related-page.json" with { type: "json" };
+import relatedPageExact from "../fixtures/places/related-page-exact.json" with { type: "json" };
 import relatedNone from "../fixtures/places/related-none.json" with { type: "json" };
 import relatedChecking from "../fixtures/places/related-checking.json" with { type: "json" };
 import placeSearchPageEmpty from "../fixtures/places/search-page-empty.json" with { type: "json" };
@@ -281,20 +282,24 @@ export const relatedFixtures = {
   // 29-field DataProvenance and the comparison rules read it, so a synthesised
   // one would be exactly the fabricated evidence invariant 8 protects.
   page: relatedPage as components["schemas"]["RelatedPlaceResult"],
+  // The EXACT state. No server path produces it today - its one possible source, KTO_RELATED_PLACES,
+  // is not approved (BA-024-T7) - so it is the mock of the Figma state, credited to that source's
+  // registered values. Its own page because any EXACT item makes the page EXACT.
+  pageExact: relatedPageExact as components["schemas"]["RelatedPlaceResult"],
   none: relatedNone as components["schemas"]["RelatedPlaceResult"],
   checking: relatedChecking as components["schemas"]["RelatedPlaceResult"],
 };
 
-// PROVISIONAL MOCK DATA — replace when BA-032 serves listFeed for real.
+// MOCK DATA for listFeed, which BA-032 serves: ids, titles and places are
+// synthetic, the shape and crowd are the server's.
 //
-// listFeed has no example in docs/api/openapi.yaml, so these were built to
-// satisfy the schema and to cover every state the screen has to render:
-// all four candidateState values, a FORECAST crowd reading and an
-// UNAVAILABLE one, a post with no excerpt, and a second page so pagination
-// is exercised rather than assumed.
+// page.json is the feedPage example in docs/api/openapi.yaml. These cover every
+// state the screen has to render: all four candidateState values, a post with
+// no excerpt, and a second page so pagination is exercised rather than assumed.
 //
-// The crowd provenance is copied from the related-places fixture rather than
-// retyped: DataProvenance requires 29 fields and a hand-written one drifts.
+// crowd is null on every card, as FeedCardResponse sends it: a CrowdMetric
+// needs a full DataProvenance, and inventing one is what invariant 8 forbids.
+// FeedIT holds these pages against a real listFeed response.
 export const feedFixtures = {
   page: feedPage as components["schemas"]["FeedPage"],
   pageTwo: feedPage2 as components["schemas"]["FeedPage"],

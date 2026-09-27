@@ -40,10 +40,13 @@ result.
 | --- | ---: | ---: |
 | 14 days (plan window) | 64.13 | 70.55 |
 | 2026-09-18 to 2026-10-25 (37 days) | 156.03 | 171.63 |
+| 2026-09-18 to 2026-10-31 (43 days, A-069; linear from the 37-day row, an estimate) | 181.33 | 199.47 |
 | + second API task for 7 judging days | +5.61 | +6.17 |
 | After shutdown, per month (retained secrets, images, snapshots, logs) | 3.14 | 3.45 |
 
 The operator plan uses **80** for its 14-day window (70.55 rounded up for deploy overlap and drills).
-Running to 2026-10-25 with the judging scale-up is about **178** with tax, which leaves little of the
-200 envelope; a restore drill, a second environment or sustained traffic above the assumptions must be
+Running to 2026-10-25 with the judging scale-up was about **178** with tax. A-069 extends the service to
+2026-10-31: about **199.47** with tax without the scale-up, which the code does not do (API `desiredCount` 1),
+and about 205.64 with it, over the envelope. The owner kept the 200 limit (A-069) and watches the bill by hand;
+ a restore drill, a second environment or sustained traffic above the assumptions must be
 re-estimated first. AWS Budgets are not available here, so the 200 is watched by hand.

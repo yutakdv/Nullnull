@@ -127,7 +127,7 @@ secret 노출은 commit 삭제만으로 닫지 않고 revoke/rotate, 사용 log 
 - 승인 없이 변경됐거나 lock이 깨지면 SEV0로 취급하고 apply를 차단한다.
 - proposal, input trip version, data fingerprint, decision/revision을 불변 evidence로 보존한다.
 - LLM 출력 자체를 사실 evidence로 사용하지 않는다. 결정적 validator가 왜 통과했는지 조사한다.
-- affected revision은 검증된 revert로 복구하고 감사 record를 삭제하지 않는다.
+- affected revision의 감사 record를 삭제하지 않는다. A-074 뒤 앱에도 운영 도구(`staging_operator.py`)에도 revert 경로가 없으므로, 영향받은 일정은 사용자가 직접 편집해 복구한다. 심사 기간에 새 운영 도구는 만들지 않는다(A-074의 결과로 받아들인 위험).
 
 ## 8. 삭제 job·backup 특화 사고
 

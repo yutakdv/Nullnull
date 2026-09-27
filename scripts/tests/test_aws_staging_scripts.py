@@ -213,6 +213,87 @@ class CatalogVersionDerivationTest(unittest.TestCase):
                 self.module().catalog_version(paths)
 
 
+class StagingSmokeEdgeTest(unittest.TestCase):
+    """staging-smoke.sh judges what an anonymous /api/v1/health/live gets through the edge.
+
+    Closed is the default, and the only mode CD and `edge --state open` use. Open is the judging period
+    after a --preserve-open-edge deploy (A-069), where the infrastructure lines (BA-071-T1) must still be
+    produced. Measured with curl and aws faked on PATH: aws answers as an internet-facing ALB, so a run that
+    got past the edge judgement stops at `alb-is-not-internal`, and the reason says which branch ran.
+    """
+
+    FAKE_CURL = """#!/usr/bin/env python3
+import os, sys
+args = sys.argv[1:]
+url, output, fmt = args[-1], None, ''
+for i, a in enumerate(args):
+    if a == '--output': output = args[i + 1]
+    if a == '--write-out': fmt = args[i + 1]
+if url.endswith('/api/v1/health/live'):
+    status, ctype, body = os.environ['FAKE_STATUS'], os.environ['FAKE_TYPE'], os.environ['FAKE_BODY']
+else:
+    status, ctype, body = '200', 'text/html', '<!doctype html>'
+if output and output != '/dev/null':
+    open(output, 'w').write(body)
+sys.stdout.write(fmt.replace('%{http_code}', status).replace('%{content_type}', ctype))
+"""
+    FAKE_AWS = """#!/bin/sh
+case "$*" in
+  *sts*) echo "arn:aws:sts::111111111111:assumed-role/nullnull-stg-operator/test" ;;
+  *cloudformation*) echo "arn:aws:elasticloadbalancing:ap-northeast-2:111111111111:loadbalancer/app/x/1" ;;
+  *elbv2*) echo "internet-facing" ;;
+  *) exit 9 ;;
+esac
+"""
+    UP = '{"status":"UP"}'
+
+    def run_smoke(self, expect_edge, status, ctype, body):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp)
+            (fake / "curl").write_text(self.FAKE_CURL)
+            (fake / "aws").write_text(self.FAKE_AWS)
+            for tool in ("curl", "aws"):
+                (fake / tool).chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if not k.startswith("NULLNULL_")}
+            env.update({"PATH": f"{fake}:{env.get('PATH', '')}", "NULLNULL_AWS_ACCOUNT_ID": "111111111111",
+                        "NULLNULL_AWS_AUTH": "profile", "AWS_PROFILE": "test", "AWS_REGION": "ap-northeast-2",
+                        "FAKE_STATUS": status, "FAKE_TYPE": ctype, "FAKE_BODY": body})
+            command = ["bash", str(AWS_SCRIPTS / "staging-smoke.sh"), "--url", "https://example.test"]
+            if expect_edge == "<no value>":
+                command += ["--expect-edge"]
+            elif expect_edge is not None:
+                command += ["--expect-edge", expect_edge]
+            result = subprocess.run(command, capture_output=True, text=True, env=env, check=False)
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        return result.stderr
+
+    def test_each_edge_mode_accepts_only_its_own_answer(self) -> None:
+        past_the_edge = "reason=alb-is-not-internal"
+        for expect_edge, status, ctype, body, reason in [
+            (None, "503", "application/problem+json", "{}", past_the_edge),
+            (None, "200", "application/json", self.UP, "reason=public-api-edge-not-closed"),
+            ("closed", "200", "application/json", self.UP, "reason=public-api-edge-not-closed"),
+            ("open", "200", "application/json", self.UP, past_the_edge),
+            ("open", "200", "application/json;charset=UTF-8", self.UP, past_the_edge),
+            ("open", "503", "application/problem+json", "{}", "reason=public-api-edge-not-open"),
+            ("open", "200", "application/json", '{"status":"DOWN"}', "reason=public-api-edge-not-open"),
+            # A CloudFront fallback that serves the SPA for an /api path is 200 but is not the API.
+            ("open", "200", "text/html", "<!doctype html>", "reason=public-api-edge-not-open"),
+            ("sideways", "200", "application/json", self.UP, "reason=expect-edge-must-be-open-or-closed"),
+            ("<no value>", "200", "application/json", self.UP, "reason=expect-edge-must-be-open-or-closed"),
+        ]:
+            with self.subTest(expect_edge=expect_edge, status=status, ctype=ctype, body=body):
+                self.assertIn(reason, self.run_smoke(expect_edge, status, ctype, body))
+
+    def test_the_pass_line_names_the_edge_it_checked(self) -> None:
+        # The evidence line must not claim a closed edge for a run that checked an open one.
+        text = (AWS_SCRIPTS / "staging-smoke.sh").read_text()
+        line = re.search(r"printf 'staging_smoke=pass [^']*'([^\n]*)", text)
+        assert line, "the pass line is no longer one printf"
+        self.assertIn("public_api_edge=%s", line.group(0))
+        self.assertTrue(line.group(1).strip().startswith('"$expect_edge"'), line.group(1))
+
+
 class ShellSafetyContractTest(unittest.TestCase):
     def test_all_shell_scripts_parse(self) -> None:
         scripts = sorted(AWS_SCRIPTS.glob("*.sh"))

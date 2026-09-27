@@ -34,7 +34,7 @@ tags:
 | P0 | 실제 KTO 호출 없이 mock/replay만 제출 | staging actual-call + provider history/call-audit gate |
 | P0 | KTO 출처 누락·무허가 CI/BI 사용 | DOM/visual/asset-license coverage |
 | P0 | 제출 profile에서 로그인/위치가 핵심 흐름을 막음 | external incognito + permission/network test |
-| P0 | Figma의 언어·feed·guest·data 상태가 실제 capability와 다름 | FCR screen-manifest + dead-control/network E2E |
+| P0 | Figma의 언어·feed·로그인 표현·data 상태가 실제 capability와 다름(로그인은 A-075: 프로필 'TEST' 표기, 로그인 컨트롤 없음, `/sign-in` 흉내는 인증 요청 없음) | FCR screen-manifest + dead-control/network E2E |
 | P1 | 경로 제안 불가능/시간창 위반 | route/optimizer property test |
 
 ## 2. Test layer
@@ -472,7 +472,7 @@ property test는 고정 seed 목록과 실패 시 재현 seed를 기록한다. �
 | REC-INT-03 | APPLY commit 뒤 response 유실, 같은 key retry | decision/revision 1회, 원래 응답 수렴 | fault injection + E2E-07 |
 | REC-INT-04 | 두 클라이언트가 같은 version으로 편집/APPLY 동시 실행 | 하나만 성공, 다른 요청 TRIP_CHANGED, 덮어쓰기 0 | latch/barrier DB test + E2E-08 |
 | REC-INT-05 | item 쓰기 뒤 decision/revision 단계에 강제 실패 | 전체 rollback, 부분 일정 0 | PostgreSQL fault injection |
-| REC-INT-06 | APPLY 후 편집/만료/중복 REVERT | 후속 편집 보존, 허용 REVERT만 새 revision 1회 | integration + E2E-07 |
+| REC-INT-06 | APPLY 후 편집/만료/중복 REVERT | 후속 편집 보존, 허용 REVERT만 새 revision 1회 | integration(`OptimizeRevertIT` BA-053-T2 편집·T4/T5 만료·T6/T7 중복, `OptimizationDecisionSchemaIT` BA-053-T8). E2E-07에는 A-074 뒤 REVERT 단계가 없고, `staging-flows.mjs --optimize-item`은 창 안의 허용 REVERT 1회만 부르므로 이 행의 case를 재지 않는다 |
 | REC-SEC-01 | owner A/B의 trip/candidate/run/proposal/cursor 교차 접근 | 모든 접근·mutation에 owner 검증, 404 masking | authorization matrix |
 | REC-SEC-02 | synthetic rawText·token·좌표 canary 주입 | log/DB/event/artifact에 금지 값 0 | privacy scan |
 | REC-SEC-03 | 삭제와 snapshot 생성/worker 완료 경합, restore 후 tombstone | revoke 이후 조회 차단, 삭제 data 재생성 0 | PostgreSQL + restore test |

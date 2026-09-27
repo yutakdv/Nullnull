@@ -221,7 +221,7 @@ release artifact를 재생성해 과거 digest를 대체하지 않는다. retent
 ### 공모전 제출 추가 gate
 
 1. 전체 P0 검증 → 기능/PDF 동결 → 최종 제출 대조 순서를 지킨다.
-2. 외부망·익명창에서 HTTPS URL과 핵심 journey를 검증하고 `로그인 불필요`로 제출한다.
+2. 외부망·익명창에서 HTTPS URL과 핵심 journey를 검증하고 `로그인 불필요`로 제출한다. A-075에 따라 앱의 `/sign-in`은 테스트 계정을 브라우저 안에서만 대조하고 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로). 선택값은 `CMP-SUB-005`([준수 매트릭스](../contest/COMPETITION_COMPLIANCE_MATRIX.md))와 [제출 runbook](../contest/SUBMISSION_RUNBOOK.md)의 제출 화면 입력을 따른다.
 3. 승인된 운영키로 실제 KTO call → call-audit → 공개 response → 화면 텍스트 출처를 한 release에서 확인한다.
 4. 기능설명서는 공식 양식을 변경하지 않고 PDF로 렌더링하며 실제 배포 기능/API만 적는다.
 5. 위치 capability/geolocation은 OFF이고 승인 없는 CI·BI logo 및 secret 노출이 없다.

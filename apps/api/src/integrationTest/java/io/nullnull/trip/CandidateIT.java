@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.testsupport.JsonShape;
+import io.nullnull.testsupport.PlaceCredits;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
@@ -56,6 +58,28 @@ class CandidateIT {
         OffsetDateTime now = OffsetDateTime.now();
         jdbc.update("INSERT INTO places (id, canonical_name, category_code, region_code, status,"
                 + " created_at, updated_at) VALUES (?, ?, 'HS', '11', 'ACTIVE', ?, ?)", id, name, now, now);
+        return id;
+    }
+
+    /**
+     * A KTO place as JdbcCanonicalCatalogStore writes it: the place, its external reference, and its Korean
+     * localization with the revision the text was collected under (V047). The save-result fixtures credit
+     * such a place, so the place they are compared with has to be one.
+     */
+    private UUID ktoPlace(String name) {
+        UUID id = place(name);
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbc.update("""
+                INSERT INTO place_external_refs
+                    (id, place_id, source_code, source_registry_version, external_id, external_type, verified_at)
+                VALUES (?, ?, 'KTO_KOR_SERVICE_2', 4, ?, 'KTO_CONTENT_TYPE:12', ?)
+                """, UUID.randomUUID(), id, "fixture-" + id, now);
+        jdbc.update("""
+                INSERT INTO place_localizations
+                    (id, place_id, locale, name, updated_at, source_code, source_registry_version, source_locale,
+                     observed_at)
+                VALUES (?, ?, 'ko-KR', ?, ?, 'KTO_KOR_SERVICE_2', 4, 'ko-KR', ?)
+                """, UUID.randomUUID(), id, name, now, now);
         return id;
     }
 
@@ -493,13 +517,14 @@ class CandidateIT {
     @Test
     @DisplayName("BA-034 the CandidateSaveResult fixtures describe the shape the server really sends")
     void theSaveResultFixturesMatchTheServer() throws Exception {
-        // Not a value comparison - ids, timestamps and place names differ by construction. What has
-        // to agree is the SHAPE: which keys exist at each level, and the two fields that carry the
-        // operation's meaning. Frontend mocks against these files, so a key the server never sends
-        // (or never sends) is a screen built on something that will not arrive.
+        // Ids, timestamps and place names differ by construction, so those are not compared. What has
+        // to agree is the SHAPE - which keys exist at each level - the two fields that carry the
+        // operation's meaning, and the place's two credits by value, since a screen draws those
+        // verbatim. Frontend mocks against these files, so a key the server never sends is a screen
+        // built on something that will not arrive.
         var owner = owner();
         String tripId = trip(owner);
-        UUID placeId = place("fixture 대조");
+        UUID placeId = ktoPlace("fixture 대조");
         UUID postId = curatedPost("fixture 글", placeId);
 
         String created = add(owner, tripId, placeId, postId, "fx1-" + UUID.randomUUID())
@@ -526,13 +551,11 @@ class CandidateIT {
                 .as("%s source", fixtureName)
                 .containsExactlyInAnyOrderElementsOf(fieldNames(fixture.get("candidate")
                         .get("sources").get(0)));
-        // textProvenance (BA-086) is filtered out because the candidate fixtures do not carry it yet
-        // (tracked in #60, BA-086 FE handoff).
-        // Remove this filter once they do. Note that this class has no contract validation, so with
-        // the filter in place nothing here looks at the field at all.
-        assertThat(fieldNames(actual.get("candidate").get("place")).stream()
-                .filter(field -> !field.equals("textProvenance")).toList()).as("%s place", fixtureName)
-                .containsExactlyInAnyOrderElementsOf(fieldNames(fixture.get("candidate").get("place")));
+        // The place at every depth, and its two credits by value. Key names at the top level passed a
+        // fixture crediting KTO for a place seeded with no source at all (#387).
+        assertThat(JsonShape.of(actual.get("candidate").get("place"))).as("%s place", fixtureName)
+                .isEqualTo(JsonShape.of(fixture.get("candidate").get("place")));
+        PlaceCredits.assertSameAs(actual, fixture, fixtureName);
 
         assertThat(actual.get("duplicate").asBoolean()).isEqualTo(expectedDuplicate);
         assertThat(fixture.get("duplicate").asBoolean()).isEqualTo(expectedDuplicate);
@@ -573,5 +596,40 @@ class CandidateIT {
         mvc.perform(get("/api/v1/trips/" + tripId + "/candidates").param("status", "DISMISSED")
                         .cookie(cookie(owner)))
                 .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    /**
+     * The page's ORDER, which no other test here reads: a candidate is created at each of the fixture's
+     * createdAt instants, and the server's answer has to list them in the fixture's sequence. Until the
+     * candidate-order change the file ran in ascending createdAt while JdbcCandidateStore answers
+     * created_at DESC, id ASC. The instants must differ - on a tie the server orders by id, and the
+     * fixture's ids are authored, not the server's.
+     */
+    @Test
+    @DisplayName("BA-034 candidates/candidate-page.json lists its candidates in the order listTripCandidates sends")
+    void theCandidatePageFixtureIsInTheServersOrder() throws Exception {
+        tools.jackson.databind.JsonNode fixture = JsonShape.fixture("candidates/candidate-page.json");
+        List<String> authored = new ArrayList<>();
+        fixture.get("items").forEach(item -> authored.add(item.get("createdAt").asString()));
+        assertThat(authored).as("the fixture's createdAt instants").doesNotHaveDuplicates().hasSizeGreaterThan(1);
+
+        var owner = owner();
+        String tripId = trip(owner);
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        for (String createdAt : authored) {
+            String saved = add(owner, tripId, place("순서 후보 " + createdAt), null, "o-" + UUID.randomUUID())
+                    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            UUID candidate = UUID.fromString(json.readTree(saved).get("candidate").get("id").asString());
+            jdbc.update("UPDATE trip_candidates SET created_at = ? WHERE id = ?",
+                    java.sql.Timestamp.from(java.time.Instant.parse(createdAt)), candidate);
+        }
+
+        String page = mvc.perform(get("/api/v1/trips/" + tripId + "/candidates").cookie(cookie(owner)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> served = new ArrayList<>();
+        json.readTree(page).get("items").forEach(item -> served.add(
+                java.time.Instant.parse(item.get("createdAt").asString()).toString()));
+        List<String> expected = authored.stream().map(at -> java.time.Instant.parse(at).toString()).toList();
+        assertThat(served).as("createdAt in the order the server lists them").isEqualTo(expected);
     }
 }

@@ -477,11 +477,11 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 1. KO/EN 선택·저장·재조회와 지원하지 않는 locale validation을 구현한다
 2. onboarding 완료와 active trip은 owner 범위로 갱신한다
-3. guest/login 준비 중·데이터 안내에 필요한 projection을 제공한다
+3. 익명 session과 데이터 안내에 필요한 projection을 제공한다. 로그인 화면은 A-075에 따라 FE 안에서만 동작하고(공모전 테스트 계정 prefill, 브라우저 안 대조) 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로)
 4. 09-06 PM 검토 PM-001, PM-002, PM-006, PM-017의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 5. #10 D5의 getCurrentOwner 최소 읽기를 B01에 인계하고 locale/profile 전체 완료는 B02에서 검증한다
 
-실패·안전 경계: JA/ZH·정식 계정 로그인은 P0 요청을 보내지 않는 비활성 상태다. 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.
+실패·안전 경계: JA/ZH는 P0 요청을 보내지 않는 비활성 상태다. 로그인은 A-075에 따라 `/sign-in` 흉내(공모전 테스트 계정 prefill, 브라우저 안 대조)만 있고 그 계정으로 서버 인증 요청을 보내지 않는다(정식 계정 로그인은 P1, `FEATURE_ACCOUNT_LOGIN` OFF). 다른 owner 또는 삭제된 trip을 active로 설정하지 못한다.
 
 필수 검증:
 
@@ -498,7 +498,7 @@ BA-011 구현 증거 (local·full Docker Java 276 / 121 / 13 / 19, 0 fail/error/
 - `OwnerPreferencesIT.mergePatchAndRepeat/malformedAndAtomic`, `OwnerPreferencesConcurrencyIT.lockedReadPreservesConcurrentChange`: null/absent, unknown/type/content-type, 실패 원자성, owner 잠금 뒤 최신 필드 보존, 반복 onboarding의 owner row version 불변을 검사한다.
 - `OwnerContractTest.schemas/mediaType`는 OwnerProfile·Problem과 merge-patch 415를 검사한다. `SessionContractTest.securityParity`가 실제 route/operation/security를 함께 검사한다.
 - report: `apps/api/build/test-results/integrationTest/TEST-io.nullnull.identity.OwnerPreferencesIT.xml`, `TEST-io.nullnull.identity.OwnerPreferencesConcurrencyIT.xml`; `apps/api/build/test-results/openapiContractTest/TEST-io.nullnull.contract.OwnerContractTest.xml`. Playwright는 `apps/web/e2e/session.spec.ts`의 BA-011 transport 검사이며 shell keyboard/focus와 함께 실행한다.
-- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·비활성 CTA·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
+- 공개 shape·migration은 그대로다. PM-001/002/017의 서버 KO/EN/guest 상태를 구현했고 UI-only intro·A-075 로그인 표현(`/sign-in` 흉내, 프로필 `TEST` 표기, 프로필 로그인 컨트롤 없음)·cookie 유실 안내는 FE 검수다. PM-006 taxonomy는 BA-030/031의 trip 관심사 범위이며 `/me`에 새 field를 만들지 않았다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-001, PM-002, PM-006, PM-017.
 
@@ -1813,7 +1813,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - **`T9`는 안전 경계 문장(*"KEEP/REVERT를 다시 되돌리지 않는다"*)의 절이다.** 그 동작을 재던 case가 `T2` ID를 달고 있었는데 `T2`의 문구에는 그 절이 없었고, 이름은 KEEP과 REVERT를 말하면서 본문은 KEEP만 쟀다. REVERT를 되돌리는 case를 더했고, 종류 검사를 끈 변이에서 둘 다 빨갛다.
 - **`T10`.** history cursor의 수명은 `OptimizationCursorProperties`의 15분이고 만료는 `SignedCursorCodec`이 410 `CURSOR_EXPIRED`로 답한다. 같은 cursor가 신선할 때 받아들여지는 것을 대조군으로 둔다. 만료 검사를 끈 변이에서 `T10`만 빨갛다.
 
-FE 인계·완료 증거: undo 가능/만료/후속 변경·S14 이력 empty/failed/expired examples와 새 ETag. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: S14 이력 empty/failed/expired examples와 새 ETag. 여행 화면의 되돌리기(undo) 진입점은 A-074로 퇴역해 undo 가능/만료/후속 변경 상태는 FE에 인계하지 않는다. revert API와 그 검증은 그대로다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — PM-002, PM-009, PM-015, PM-016.
 
@@ -1829,7 +1829,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - Figma: `724:4858`; FCR: `FCR-015`
 - 데이터·정책: 저장하지 않는 응답 시점 투영 · APPLY decision의 revertUntil·resultingTripVersion · run 상태
 
-새 operation이 없다. 계약 `getOptimization`이 precedence까지 완결해 둔 선택 필드에 **생산자가 없어서**, FE는 만료를 지속 표시할 서버 근거 없이 `README.md` §5의 "기기 시계로 undo를 켜지 않는다"만 지키고 있다. 금지는 있는데 대안이 없는 상태다.
+새 operation이 없다. 계약 `getOptimization`이 precedence까지 완결해 둔 선택 필드에 **생산자가 없어서**, FE는 만료를 지속 표시할 서버 근거 없이 `README.md` §5의 "기기 시계로 undo를 켜지 않는다"만 지키고 있었다. 금지는 있는데 대안이 없는 상태였다. 이 카드가 그 생산자를 만들었다. 그 뒤 여행 화면의 undo 진입점이 A-074로 퇴역해, 지금 앱은 이 필드를 읽지 않는다. 필드와 생산자는 그대로다.
 
 구현 순서:
 
@@ -1861,7 +1861,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 `T7`과 `T9`는 막은 줄이 아니라 결과를 단언한다. 둘 다 경로 위에 가드가 여럿이라서다. owner 검사는 decision·run·trip 조회 세 곳에 있고, 셋을 다 끈 변이에서 `T7`만 빨개진다(하나씩 끈 변이는 재지 않았다). 두 번째 undo는 오늘 HTTP에서 첫 undo가 올린 trip version에 걸리는데, 그 검사만 끄면 `red=0`이다 — V033의 `reverted_decision_id` unique와 run 상태 전이가 이어서 막는다. 셋을 다 꺼야 `T9`만 빨개진다. 그래서 `T9`는 409를 단언하고 code는 `TRIP_CHANGED`·`DATA_CHANGED` 중 무엇이든 받는다. V033에 닿기 전에 transaction 안에서 trip을 새로 읽는 version 검사가 두 번째 undo를 막는다 — 두 undo가 모두 쓰기 전에 읽는 경쟁에서도 그렇고, BA-053-T7이 그것을 동시에 보내 잰다. 그래서 그 index의 증명은 SQL 층에서 BA-053-T8이 한다.
 
-FE 인계·완료 증거: applied/expired/reverted persistent 상태의 서버 근거와 FCR-015 증거 연결. 필드가 없을 때 FE가 undo를 켜지 않는 것까지 확인한다. 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
+FE 인계·완료 증거: applied/expired/reverted 상태의 서버 근거(`revertAvailability` 생산자와 그 IT)는 그대로다. 여행 화면의 undo 진입점은 A-074로 퇴역해 FE 인계 대상이 아니고, FCR-015는 FE가 A-074에 맞춰 정리했다(#403). 실제 API test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
 ## B07 · 붙여넣기 import
 
@@ -2056,7 +2056,7 @@ FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status
 
 구현 순서:
 
-1. 익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP/REVERT를 검수한다
+1. 익명 외부 HTTPS에서 생성→KTO탐색→후보→일정화→preview→APPLY/KEEP을 검수한다. REVERT는 A-074로 앱 진입점이 퇴역해 verifier API 경로(`staging-flows.mjs --optimize-item`)에서만 확인한다
 2. 실제 KTO call과 화면 attribution·source state·PDF 기능 목록을 같은 release에 연결한다
 3. Live 이전에는 핵심 흐름 준비만 판정하고 전체 P0·최종 제출 검수는 BA-092 뒤 다시 수행한다
 4. 09-06 PM 검토 PM-001, PM-014, PM-023의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
@@ -2068,9 +2068,9 @@ FE 인계·완료 증거: 복원 측정값·사고 사용자 문구·safe status
 - `T2`·`T4`·`T5`는 원래 한 절이었다(*"mock-only KTO audit·출처 누락·위치 요청이 release gate에서 실패한다"*). 셋을 막는 장치가 달라서 규칙 3에 따라 나눴다.
 - **release gate가 무엇인가**: `staging-release.yml`의 `verify` job이 `ci_reconcile.py verify`로 **그 SHA가 main이고 required 두 workflow(`docs-contract`·`docker-integration`)가 정확히 그 SHA에서 성공했는지**를 요구한다. 이것을 재는 test는 `test_aws_ci_reconcile.py`의 `test_deploy_requires_this_runs_commit_and_both_checks`와 `test_only_main_may_release`다. 그래서 `docker-integration` 안의 검사는 사슬로 release를 막는다. 다만 빨간 SHA를 실제 release가 거부하는 것을 끝에서 끝까지 잰 적은 없다.
 - 미증명(`T2`): `check_actual_call_evidence.py`의 판정 논리는 `test_actual_call_evidence.py` 14건이 잰다. `mock`·`replay`·`fixture` source(`test_file_data_cannot_satisfy_an_exclusion_about_file_data`), local 실행, 다른 release의 증거, 호출 0건, 거절된 호출, 보고서 없음이 `--require-verified`에서 release를 막는 것(`test_a_missing_report_blocks_the_release_when_verification_is_required`)이 여기 들어간다. **그러나 release를 막는 자리에서 돌지 않는다.** `--require-verified`로 도는 곳은 operator의 `write_actual_call_report` 하나다. 방금 실제 smoke로 만든 보고서를 스스로 검사하는 자리다. release deploy는 이것을 부르지 않고, `docs-contract`는 require 없이 판정만 남긴다. 제출일 절차는 [SUBMISSION_RUNBOOK의 제출 release 대조 검사](../contest/SUBMISSION_RUNBOOK.md#제출-release-대조-검사) ①에 명령·성공 줄·멈춤 조건으로 있다. 다만 **사람이 돌리는 단계**다. 모자란 것은 제출 release의 증거(release bucket `evidence/actual-call-<release>.json`)에 그 검사를 돌린 기록이다. 가능하면 사람 단계가 아니라 제출 release를 확정하는 명령 안에서 돌린다.
-- 부분(`T4`): 막는 장치는 있고 release의 사슬 안에서 돈다 — `apps/web/src/shared/ui/__tests__/attribution-coverage.test.ts`(FE-603-T4)의 "renders a credit in every file that reads one"과 0건 가드 "has targets to measure at all"이 `docker-integration`의 web suite에서 돈다. FE 기록에 변이 측정이 있다(`DataAttribution` 제거에 반경 1, 파일 0개에 0건 가드). 서버 쪽 값은 `BA-030-T5`(trip 장소의 credit 값)가 같은 게이트에서 잰다. **이 절의 ID를 단 수집된 testcase가 없어 증명으로 세지 않는다.** vitest report는 `check_test_reports.py`가 읽지 않으므로 ID를 test 이름에 다는 것만으로는 부족하다. vitest JUnit을 집계에 넣거나 게이트 판정으로 기록해야 한다.
+- 증명(`T4`, 게이트): 막는 장치가 release의 사슬 안에서 돌고, 이 절의 ID로 집계된다. `apps/web/e2e/attribution.integration.spec.ts`(#382)의 "BA-073-T4 every place the trip response credits shows that credit on screen"이 실제 API의 여행 응답이 출처를 준 장소마다 그 카드가 서버의 출처 문구를 그대로 그리는지 본다. `docker-integration`의 E2E에서 돌고 E2E JUnit은 `--e2e-junit-dir`로 집계된다. main `63d981f8`의 Docker integration run 36013007001이 성공이다. 여행 화면의 장소 출처를 지우면 이 test만 빨개진다는 것은 #382의 측정이다([#53 코멘트](https://github.com/yutakdv/Nullnull/issues/53#issuecomment-5818413401), 이 카드에서 다시 재지 않았다). 파일 단위 장치 `apps/web/src/shared/ui/__tests__/attribution-coverage.test.ts`(FE-603-T4)도 같은 게이트의 web suite에서 돈다. **이 test가 보는 것은 여행 응답이 부른 장소뿐이다.** rc.23 확인 중에 여행 생성 수동 단계의 장소 행이 KTO 출처 없이 이름만 그리는 것이 나왔다(같은 코멘트). 장소 이름을 그리는 자리 전체를 훑는 것은 FE 작업(#389)이다.
 - 증명(`T5`, 게이트): 막는 장치가 release의 사슬 안에서 돌고, 이제 이 절의 ID로 집계된다. `apps/web/e2e/location-off.spec.ts`(FE-603-T1)의 testcase 제목이 `FE-603-T1 BA-073-T5`를 단다. `screens.ts`의 화면마다 한 건씩 geolocation 호출·권한 dialog·나가는 요청의 좌표를 보고, 전체 한 건이 "no screen registers a geolocation permission at all"을 단언한다. `docker-integration`의 E2E에서 돌고 E2E JUnit은 `--e2e-junit-dir`로 집계된다. `main` 트리는 화면이 22개라 23건이다(소스로 셈). #360 로컬 게이트(`backend` 트리, 화면 21개)에서는 22건이 전부 통과한 것을 report로 쟀다.
-- 미증명(`T3`): `scripts/check_submission_inventory.py`가 이 절의 검사기다. ledger(PDF 목록을 data로 쓴 것)·제출 release에서 받은 `getDemoReadiness` 답·같은 release의 `ktoCallInventory`(`counts_as_evidence=true`)를 양방향으로 대조한다. 판정 논리는 `test_check_submission_inventory.py` 9건이 **합성 입력으로** 잰다. script suite에 찍히는 `submission_inventory=verified release=2026.09.21-1`은 그 test fixture의 출력이고 실제 release의 증거가 아니다. **실제 release에 돌린 적이 없다.** 세 입력·명령·멈춤 조건은 [SUBMISSION_RUNBOOK의 제출 release 대조 검사](../contest/SUBMISSION_RUNBOOK.md#제출-release-대조-검사) ②에 있다. 모자란 것은 넷이다. (1) ledger가 없다. 형식은 검사기 docstring에 *"draft, pending owner/FE agreement"* 로만 있다. 초안을 뽑는 명령과 오너가 채울 칸은 runbook의 "ledger 만들기"에 있다. (2) **`ktoCallInventory`는 operator ops task `kto-call-inventory`로 뽑는다**(배포된 release에 결속, 결과 파일은 `check_submission_inventory.py`의 `--inventory` 입력 모양 그대로). 그 명령이 제출 release에서 **아직 돈 적이 없다.** (3) readiness를 받는 curl은 `staging-flows.mjs`의 호출을 옮긴 것이고 staging에서 그 형태로 돌려 보지 않았다. (4) 셋을 모아 검사기를 돌린 출력이 없다. 그리고 검사기는 `pdfLabel`을 보지 않는다. 빈 문자열이어도 `verified`인 것을 쟀으므로, 문구가 PDF와 같은지는 사람이 대조한다.
+- 미증명(`T3`): `scripts/check_submission_inventory.py`가 이 절의 검사기다. ledger(PDF 목록을 data로 쓴 것)·제출 release에서 받은 `getDemoReadiness` 답·같은 release의 `ktoCallInventory`(`counts_as_evidence=true`)를 양방향으로 대조한다. 판정 논리는 `test_check_submission_inventory.py` 9건이 **합성 입력으로** 잰다. script suite에 찍히는 `submission_inventory=verified release=2026.09.21-1`은 그 test fixture의 출력이고 실제 release의 증거가 아니다. **실제 release에서는 rc.12에서 한 번 돌았다**([#305 코멘트](https://github.com/yutakdv/Nullnull/issues/305#issuecomment-5752673973)). operator ops task `kto-call-inventory`가 `kto_inventory operations=2 counts_as_evidence=true`를, readiness curl이 `readiness=captured`를, 검사기가 `submission_inventory=verified release=v0.1.0-rc.12`를 찍었다. 경로가 끝까지 도는 것은 그것으로 확인됐다. **그러나 제출 증거는 아니다.** 셋 다 release 이름에 묶이는데 그 뒤로 재배포됐다. 그리고 그때의 ledger는 저장소 밖 script가 `ktoOperations`를 inventory 값으로 바꿔 만든 것이라, PDF 목록과 대조한 것이 아니었다(같은 코멘트). 세 입력·명령·멈춤 조건은 [SUBMISSION_RUNBOOK의 제출 release 대조 검사](../contest/SUBMISSION_RUNBOOK.md#제출-release-대조-검사) ②에 있다. 모자란 것은 셋이다. (1) PDF에서 옮긴 ledger 초안(`docs/contest/submission-ledger.draft.json`)은 있다. 확정은 [ledger 초안](../contest/SUBMISSION_INVENTORY_DRAFT.md) §4의 오너·FE 합의를 기다린다. (2) PDF p14 3번 영문 API는 `kto-eng-text-refresh`(#360·#367, rc.22에 배포)가 부른 release에서만 inventory에 나온다. 그 실행은 R4 배포 뒤 오너 셸 몫이다. (3) 최종 release에서 inventory·readiness·검사기를 다시 돌린 출력이 없다. 그리고 검사기는 `pdfLabel`을 보지 않는다. 빈 문자열이어도 `verified`인 것을 쟀으므로, 문구가 PDF와 같은지는 사람이 대조한다.
 
 필수 검증:
 
@@ -2120,7 +2120,7 @@ FE 인계·완료 증거: 새 계약 승인 후 생성 client·필터 examples·
 
 **계정 인증·익명 승계·follow graph** — P1 / `deferred` / BE_AI_DRI 구현, FE_DRI 검토
 
-보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0 로그인 CTA는 준비 중으로 남는다.
+보류(`A-064`): A-064 오너 결정: 로그인은 FE가 흉내만 내고(A-056 껍데기 화면) 백엔드는 구현하지 않는다. 안전 기본값: 계정·승계·follow API가 없고 익명 session만 있다. P0의 `/sign-in`은 A-075에 따라 공모전 테스트 계정을 미리 채우고 브라우저 안에서만 대조하며, 그 계정으로 서버에 로그인·인증 요청을 보내지 않는다(익명 session bootstrap은 그대로).
 
 - 선행: [BA-010](#ba-010), [BA-012](#ba-012), [BA-031](#ba-031), [BA-033](#ba-033), [BA-073](#ba-073)
 - 기능 ID: `FR-AUT-01`, `FR-FOL-01`
@@ -2289,7 +2289,7 @@ FE 인계·완료 증거: DAY/TRIP before/after·route unavailable·scope union 
 
 실패·안전 경계: 원문 일정/정밀 위치/secret·DB mutation/APPLY tool을 모델에 주지 않는다. structured ID·수치·사실 검증 실패는 template fallback이며 조용한 자동 일정 변경은0이다.
 
-**`integration-ready`가 덮는 범위는 제목보다 좁다.** 증명된 것은 설명 template fallback, 출력 validator(`T1`), provider 실패와 startup 가드(`T2`~`T10`), 선호 해석 validator(`T11`~`T15`)이며 전부 apps/ai REC corpus로 증명된다. **선호 해석은 판정하는 쪽만 있고 만드는 쪽이 없다** — `nullnull_ai.preference`를 자기 package 밖에서 import하는 곳이 0이고 endpoint·adapter method·Spring 호출자가 없다. draft 보조 연결(FR-TRC-11)과 **AI 사용 표기**도 미구현이다. apps/ai 설명 응답은 `source`(TEMPLATE/LLM)를 돌려주지만 `OptimizeItemHandler`가 `.summary()`만 쓰고 공개 계약에 그 필드가 없다. 그래서 **`AI_PROVIDER=OPENAI`를 켜기 전에 AI 사용 표기가 먼저 들어가야 한다** — 지금 켜면 LLM이 쓴 문장이 표기 없이 사용자에게 나간다. 제출본은 `AI_PROVIDER=NONE`이다. kill switch는 `AI_PROVIDER=NONE`으로 다시 시작하는 것이며 런타임 스위치는 없다. OpenAI 외부 전송에 대한 개인정보 경계 문서(불변식 10 재증명)도 없다. 이 넷은 새 카드가 아니라 `A-064`의 한 항목으로 추적한다.
+**`integration-ready`가 덮는 범위는 제목보다 좁다.** 증명된 것은 설명 template fallback, 출력 validator(`T1`), provider 실패와 startup 가드(`T2`~`T10`), 선호 해석 validator(`T11`~`T15`)이며 전부 apps/ai REC corpus로 증명된다. **선호 해석은 판정하는 쪽만 있고 만드는 쪽이 없다** — `nullnull_ai.preference`를 자기 package 밖에서 import하는 곳이 0이고 endpoint·adapter method·Spring 호출자가 없다. draft 보조 연결(FR-TRC-11)과 **AI 사용 표기**도 미구현이다. apps/ai 설명 응답은 `source`(TEMPLATE/LLM)를 돌려주지만 `OptimizeItemHandler`가 `.summary()`만 쓰고 공개 계약에 그 필드가 없다. 그래서 **`AI_PROVIDER=OPENAI`를 켜기 전에 AI 사용 표기가 먼저 들어가야 한다** — 지금 켜면 LLM이 쓴 문장이 표기 없이 사용자에게 나간다. 제출본은 `AI_PROVIDER=NONE`이다. kill switch는 `AI_PROVIDER=NONE`으로 다시 시작하는 것이며 런타임 스위치는 없다. OpenAI 외부 전송의 기술 경계(켜면 나가는 것·나가지 않는 것과 그 근거 test)는 #365 뒤로 [PRIVACY_REQUIREMENTS §12](../security/PRIVACY_REQUIREMENTS.md#12-선택-외부-llmopenai-전송-경계)에 있다. 남은 것은 오너 결정이다: provider 보존·학습 정책 확인, 외부 processor 허용과 국외 이전, 사용자 고지·동의. 이 넷은 새 카드가 아니라 `A-064`의 한 항목으로 추적한다.
 
 필수 검증:
 
@@ -2350,7 +2350,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-086
 
-**영문 POI coverage·번역 품질** — P1 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
+**영문 POI coverage·번역 품질** — P1 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022)
 - 기능 ID: `FR-LOC-01`
@@ -2364,7 +2364,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
-진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **남은 것은 데이터다**: 세 후보의 오너 직접 검토, staging 에서 import·refresh 실행(운영 task 등록과 task definition 의 `KTO_ENG_BASE_URL`), 영문 coverage 보고서. 그 전에는 이 카드를 닫지 않는다.
+진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **데이터 쪽 진행**: 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)는 오너가 직접 검토해 승인했다. #367 이 운영 task 둘(`kto-eng-link-import`·`kto-eng-text-refresh`)과 task definition 의 `KTO_ENG_BASE_URL` 을 넣었고, rc.22 에서 연결 import 가 돌았다(`eng_links_processed=3`, [#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). **남은 것**: R4 배포 뒤 오너 셸의 `kto-eng-text-refresh`(EngService2 `detailCommon2` 3회), 그 뒤 en-US 응답 확인과 영문 coverage 보고서다. refresh 는 덕수궁·북촌의 국문 snapshot 에 `sigungu_code` 가 있어야 영문을 쓴다(`EngLinkRule`). 그 값은 확인되지 않았고 refresh 출력의 연결별 outcome 에 드러난다. 그 전에는 이 카드를 닫지 않는다.
+
+`integration-ready`(절마다 test 대조): `T1`~`T29` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T11` 은 원래 "값을 베끼지 않는다"와 "한글로 언어를 판정한다" 두 절을 묶고 있어 `T11`·`T28` 로 나눴고, 두 절을 함께 재던 test 도 둘로 나눴다. 글자 비율을 글자만으로 세는 규칙은 `T29` 로 따로 뗐다. `T11` 은 overview marker 만이 아니라 fixture 의 provider 텍스트 값 전부가 report 에 없는지 본다(모두 Codex 검토). `T1`~`T5`·`T15`~`T29` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
 
 실패·안전 경계: P0 KO/EN 앱 UI 지원과 영문 데이터 coverage 확장을 구분한다. 번역이 새로운 사실이나 지원하지 않는 locale capability를 만들지 않는다.
 
@@ -2380,7 +2382,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T8`: source 가 더 이상 enabled 가 아니면 그 localization 은 나가지 않는다
 - `BA-086-T9`: localization provenance 는 네 열 전부이거나 전무다
 - `BA-086-T10`: 영문 dataset probe 는 우리 contentId 가 그 dataset 에서 풀리는지를 보고한다
-- `BA-086-T11`: 영문 dataset probe 는 값을 베끼지 않고 한글 포함 여부로 언어를 판정한다
+- `BA-086-T11`: 영문 dataset probe 는 provider 값을 report 에 베끼지 않는다
 - `BA-086-T12`: 캐시된 snapshot 이 현재가 아닌 source revision 을 들고 있으면 ingest 가 그것을 pin 하지 않고 거절한다
 - `BA-086-T13`: ingest 된 place 의 국문 텍스트는 읽기 게이트가 읽는 provenance 를 들고 있다
 - `BA-086-T14`: 이미 매핑된 장소를 지나간 revision 의 snapshot 으로 다시 ingest 하면 거절이 아니라 no-op 이다
@@ -2397,6 +2399,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-086-T25`: 오너 연결 규칙을 더 이상 만족하지 않는 영문 record 의 텍스트는 나가지 않는다
 - `BA-086-T26`: 현재가 아닌 revision 아래 가져온 영문 record 는 쓰이지 않는다
 - `BA-086-T27`: 호출 중 오너가 연결을 바꾸면 이전 record 의 텍스트는 쓰이지 않는다
+- `BA-086-T28`: 영문 dataset probe 는 한글 포함 여부로 언어를 판정한다
+- `BA-086-T29`: 영문 dataset probe 의 ASCII 글자 비율은 숫자·구두점·공백을 빼고 글자만 센다
 
 FE 인계·완료 증거: 영문 coverage 보고서·fallback 기준과 긴 문자열 fixtures. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2514,7 +2518,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-091
 
-**Live 탭 API·장소 검색·대안·후보 저장** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Live 탭 API·장소 검색·대안·후보 저장** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-090](#ba-090), [BA-034](#ba-034), [BA-042](#ba-042)
 - 기능 ID: `FR-LIV-01`, `FR-LIV-02`, `FR-LIV-03`, `FR-LIV-04`, `FR-LIV-05`, `FR-LIV-06`, `FR-LIV-09`, `FR-LIV-11`
@@ -2532,14 +2536,23 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 진행 상태(대조): **`T5` 를 좁혔다.** 원래 문구는 *"다른 owner 의 cursor 는 거절된다"* 였는데 **Live 표면 전체에 cursor 가 없다** — `listLiveAreaPlaces` 는 page envelope 가 아니라 맨 배열을 내고 `getLivePlace` 는 단건이며 `queryLiveAreas` 의 요청에도 cursor 가 없다(계약 측정). **상류가 그 입력을 만들 수 없어 구조적으로 반증 불가인 절**이라 그대로 두면 증명할 방법이 없다. **그래서 지우지 않고 덫으로 바꿨다**: 지금 참인 사실(cursor 를 발급하지 않는다)을 응답 shape 로 고정하면, **Live 에 페이지네이션이 생기는 날 그 단언이 발화하고** 그때 owner 결속을 다시 세워야 한다는 것이 드러난다. **owner 별 cursor 거절 자체는 `BA-022-T2`·`BA-070-T1` 이 소유한 층**이고 이 카드가 그것을 다시 증명하지 않는다.
 
-`T2`는 **소유자가 FE다**(#97, FE-401). map OFF 목록·relation 모든 상태·no fake delta는 Playwright가 재고, 게이트가 `--e2e-junit-dir`로 E2E JUnit을 집계한다. 그 절을 재는 testcase가 `BA-091-T2` 이름으로 잡히면 `externalOwner`를 뗀다.
+`T2`·`T29`·`T30`은 **소유자가 FE다**(#97, FE-401). 원래 `T2` 한 ID가 map OFF 목록·relation 모든 상태·no fake delta 세 절을 묶고 있어서 규칙 3에 따라 나눴다. 셋 다 Playwright가 재고, 게이트가 `--e2e-junit-dir`로 E2E JUnit을 집계한다. 각 절을 재는 testcase가 그 ID 이름으로 잡히면 그 ID의 `externalOwner`를 뗀다.
+
+진행 상태(`integration-ready`, 절마다 test 본문과 대조): FE 소유 `T2`·`T29`·`T30`을 뺀 27개 절이 각자 그 ID를 단 testcase로 게이트 JUnit에 잡힌다. 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 세 행(수집·매핑, 생산자·수정·신선도, 조회·후보·replay)과 서울 거부 원인 로그 행에 있다. report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`이다. 대조하며 판정한 것은 셋이다.
+
+- `T4`: 원래 증인은 `CoarseViewportTest`의 예외 문구 검사뿐이었다. 로그를 실제로 보는 case가 없었으므로 `LiveAreaApiIT.aRefusedViewportLeavesItsCoordinatesInNoLogLine`을 더했다. 거절된 요청이 root appender에 쓴 줄 전부(메시지·throwable·MDC)와 process의 stdout·stderr를 훑고, 두 곳 모두에서 그 요청의 access log 줄을 찾았는지를 먼저 단언해 공허하지 않게 했다. Logback만 보던 첫 판은 `System.err`로 찍는 경로를 통과시켰다(Codex 검토).
+- `T20`: test가 둘이다. `newerReviewCanReplaceArea`는 끝 상태(행 하나, 새 구역)를, `aReaderDuringTheReplacementSeesOnlyTheOldLink`는 교체 도중을 잰다. 새 구역 행을 다른 연결이 `FOR UPDATE`로 잡으면 import가 DELETE 뒤 INSERT의 FK 검사에서 멈추고, 그동안 제3 연결이 옛 연결 하나만 보는지 단언한다. 끝 상태만 재던 첫 판은 "원자적"을 증명하지 못했다(Codex 검토).
+- `T26`: 심사 종료 시각에 claim·gateway 호출이 0임을 잰다. 종료 전에는 호출한다는 반대편은 `T28`의 test가 같은 scheduler로 gateway를 부르는 것으로 선다.
+- `T28`: 거절 줄을 prefix가 아니라 outcome·rule token으로 만든 줄 전체와 비교하고, 응답 body의 provider 문자열(두 글자 이상) 전부가 로그에 없는지 본다. marker 하나와 prefix만 보던 첫 판은 `보통`·`POI009` 같은 다른 provider 문자열을 붙인 줄을 통과시켰다(Codex 검토).
+
+**순서 의존**: `T2`·`T29`·`T30`의 `externalOwner`는 FE가 그 ID 이름의 게이트 E2E를 만든 **뒤에** 뗀다(#97). 먼저 떼면 required 게이트의 집계가 그 ID를 찾지 못해 빨갛다. 구현 순서 4의 PM 경계(FCR-025·FCR-026·FCR-028 Open)는 오너 결정이고 이 승격이 닫지 않는다.
 
 실패·안전 경계: viewport는 소수점3자리·축별 최소0.01도이며 URL/log/analytics 저장을 금지한다. Live 후보 저장도 일정/version을 바꾸지 않는다.
 
 필수 검증:
 
 - `BA-091-T1`: viewport 는 소수점 3자리를 넘으면 거절된다
-- `BA-091-T2`: map OFF 목록과 relation 모든 상태·no fake delta를 E2E로 확인한다
+- `BA-091-T2`: Live map OFF 목록을 E2E로 확인한다
 - `BA-091-T3`: Live 에서 고른 장소를 후보로 저장해도 일정은 바뀌지 않는다
 - `BA-091-T4`: viewport 거절이 좌표를 로그에 남기지 않는다
 - `BA-091-T5`: Live 목록 응답은 cursor 를 발급하지 않는다
@@ -2566,6 +2579,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-091-T26`: 심사 종료 시각부터 서울 수집을 시도하지 않는다
 - `BA-091-T27`: 거절된 서울 수집은 결과와 규칙을 한 줄로 남긴다
 - `BA-091-T28`: 거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다
+- `BA-091-T29`: Live relation 의 모든 상태를 E2E로 확인한다
+- `BA-091-T30`: Live 화면이 근거 없는 혼잡 차이를 표시하지 않음을 E2E로 확인한다
 
 FE 인계·완료 증거: S11 전체 상태와 승인된 map ON/OFF parity·attribution fixtures. Live UI 통합은 이 마지막 단계에만 활성화한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 
@@ -2573,7 +2588,7 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 ### BA-092
 
-**Live replay·장애 fallback·전체 P0 최종 gate** — P0 / `planned` / BE_AI_DRI 구현, FE_DRI 검토
+**Live replay·장애 fallback·전체 P0 최종 gate** — P0 / `in-progress` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-091](#ba-091)
 - 기능 ID: `FR-LIV-07`
@@ -2590,6 +2605,29 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 
 실패·안전 경계: replay는 실제 현재값/분산 성과/실제 KTO 호출 증거가 아니다. 이 단계 이후는 출시 검증·회귀 수정이며 새 비Live 기능은 다음 범위로 별도 선정한다.
 
+진행 상태(`in-progress`, 절마다 test 본문과 대조): 절 스무 개(`T1`~`T20`) 가운데 replay·Live 판정 13개(`T1`·`T2`·`T4`~`T14`)는 main 게이트에서 초록이고 rc.23에 배포돼 있다. 이 13개의 절 → test는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)의 `api-quality` Live 조회·후보·replay 행에 있고(`T15`~`T18`의 test는 `apps/web` suite·E2E 행에 있다), report는 `apps/api/build/test-results/{test,integrationTest}/TEST-io.nullnull.live.*.xml`과 `TEST-io.nullnull.operations.application.DemoCapabilityQueryTest.xml`(`T11`)이다.
+
+| 절 | test | 무엇을 재나 |
+| --- | --- | --- |
+| `T1` | `ReplayManifestMigrationIT` 두 case | 승인 시점과 entry checksum이 맞지 않는 manifest, 다른 source revision의 snapshot |
+| `T2` | `LiveAreaReadingSelectorTest`·`ReplayLiveQueryIT`·`ReplayManifestMigrationIT` | replay가 자기 state·관측시각을 지키고 현재 LIVE로 보이지 않는다 |
+| `T4`~`T7` | `ReplayManifestMigrationIT` | capture window, snapshot 삭제 금지, manifest·entry 불변, scrub column 부재 |
+| `T8`~`T10`, `T12`, `T13` | `ReplayManifestMigrationIT` | 손상된 최신 승인에서 후퇴 금지, 승인 계획의 관측만 capture, 철회된 source, 비활성 구역, metric·normalization |
+| `T11` | `DemoCapabilityQueryTest.replayReadinessRequiresAnApprovedManifest` | flag가 켜져도 승인 manifest 전에는 READY가 아니다 |
+| `T14` | `LiveAreaReadingSelectorTest` | 구역 목록과 장소 상세가 같은 source 단위 LIVE 판정을 쓴다 |
+
+**`T3`은 원래 절 여섯을 한 ID에 묶고 있었다**(*"전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다"*). 규칙 3에 따라 `T3`·`T15`~`T19`로 나눴고, 위치 OFF는 지도 SDK 상태에 따라 다시 `T18`·`T20`으로 나눴다. **FE가 #394에서 `T15`~`T18`을 게이트 test 제목에 달았다.** `T15`·`T16`·`T18`은 E2E JUnit으로 #396 게이트에서 이미 집계됐고, `T17`(vitest)은 #393의 vitest 집계가 main에 들어가야 처음 집계된다. 넷 다 절을 **일부만** 잰다(아래). `T3`·`T19`·`T20`은 그 ID를 단 testcase가 없어 카드는 `integration-ready`로 올리지 않는다. 넷이 공통으로 재지 않는 것은 절이 말하는 **최종 release**다. `T15`·`T16`·`T18`은 지도 키 없이 만든 게이트 bundle을 로컬 API나 fixture에 붙여 재고, `T17`은 소스를 정적으로 scan할 뿐 bundle을 재지 않는다. release bundle(`staging-release.yml`이 키를 넣어 따로 build한다)이나 그 release의 실제 API에 닿는 것은 없다. 게이트가 재는 부분과 남은 것:
+
+- `T3`(익명 외부망): 재는 것은 사람의 완주뿐이다. staging flows는 verifier 경로라 해당하지 않는다. 최종 release에서 새 시크릿 창·휴대전화 데이터망으로 한다.
+- `T15`(KO/EN): `core-locale.spec.ts`의 세 test가 두 locale로 돈다(게이트 JUnit 6건). 여행 생성 마법사(초안 preview까지), 여행 보기, 최적화 READY 화면의 결정 버튼, Live 목록·상세의 heading과 주요 control을 그 locale의 `messages` 값과 대조한다. API는 `page.route`로 승인 fixture를 준다. 재지 않는 것: 방문하지 않는 화면(Feed·후보·일정 편집·최적화 설정·결정 뒤 상태 등), 본문과 상태 문구, 서버가 쓴 문장의 언어. 영어 결정 화면에 한국어 `proposal.summary`가 뜬 채로 통과한다. run은 `page.route`가 주는 고정 fixture(`run-ready.json`)라 서버가 owner locale로 문장을 쓰는 경로가 실행되지 않고, spec은 summary를 단언하지 않는다.
+- `T16`(keyboard): `optimization-keyboard.spec.ts`가 APPLY·KEEP을 Tab과 Enter만으로 누르고, 나간 명령의 모양(결정·proposal·If-Match·Idempotency-Key)을 단언한다. API는 `page.route`다 — 게이트는 `FEATURE_OPTIMIZATION_ITEM`이 꺼져 실제 READY run이 없다. `keyboard-flow.spec.ts`의 세 test도 이 ID를 단다: 여행 생성 완주, 잠금 확인·취소, 일정 이동 뒤 focus. 처음부터 끝까지 Tab·Enter만 쓰는 것은 여행 생성(실제 API) 하나다. 잠금 test는 확인·취소를 키보드로 하지만 편집 진입은 click, 해제 control은 `focus()`로 닿는다. 이동 test는 날짜 선택과 동의를 click으로 해서 키보드 결정의 증거가 아니다. 재지 않는 것: 서버가 결정을 받아 trip이 바뀌는지, 최적화 시작, 여러 proposal 중 고르기, 후보 저장·일정화의 키보드 경로. REVERT는 control이 없어 잴 것이 없다.
+- `T17`(출처): `attribution-coverage.test.ts`(vitest)의 세 case가 단다. shipped 코드에서 출처 타입을 가진 값의 `.name`을 읽는 자리를 (파일, 표현식) 묶음으로 모아, 같은 파일의 `PlaceAttribution`, 부모 파일이 그리는 credit(`CREDITED_ELSEWHERE` 1건), 명시된 면제 중 하나와 짝인지 정적으로 보고 묶음별 개수를 고정한다. 구조 분해로 꺼낸 이름과 장소를 부르는 서버 문장은 scan 밖이다. #393이 게이트에 vitest JUnit 집계를 넣었지만 #393은 backend에만 있고 main에는 아직 없다. #396의 게이트 run은 #393이 없는 tree에서 돌았으므로, 이 세 case는 backend→main PR의 게이트에서 처음 집계된다. 렌더도 가시성도 보지 않는다. 실제 화면의 credit은 `BA-073-T4`(`attribution.integration.spec.ts`)가 여행 상세 한 화면에서 재는데, 이 ID를 달지 않는다. 면제 일곱 항목(`.name` 자리로는 19개: 확인 대화상자·상태 문구·시트 문맥 줄·드래그 잔상)을 UI 피드백으로 보고 출처 없이 두는 정책은 test 주석과 FE plan의 FE-603 step에 있고, 이 카드의 `T17` 문장에는 없다.
+- `T18`(위치 OFF, 지도 SDK 꺼짐): `location-off.spec.ts`의 화면별 22건과, Live가 켜진 목록·상세를 fixture로 여는 `live-replay-matrix.spec.ts`의 2건이 단다(#396 게이트 JUnit 24건 통과). 게이트에서 여행에 속한 화면 여덟은 그 세션의 여행이 아닌 fixture trip id로 열려 여행 내용이 그려지지 않는다(대부분 not-found나 오류 화면이고, 장소 추가 화면은 검색 화면을 그려 입력까지 한다). `location-off`의 Live 두 항목은 `FEATURE_LIVE_DATA=false`라 거절 화면이다. 최종 release는 Live가 켜져 있다(`infra/src/staging.ts`). 실제로 막는 것은 `navigator.geolocation` wrapper다. `page.on('dialog')`는 alert·confirm류만 받아 권한 prompt를 볼 수 없고, `location-off`에는 wrapper가 설치됐는지 보는 guard가 없다(matrix에는 있다). 이 셋은 코드를 읽어 찾았고 변이로 재지 않았다.
+- `T20`(위치 OFF, Kakao 지도 SDK 켜짐): 게이트에서 잴 수 없다. 게이트 build에는 `VITE_KAKAO_MAP_APP_KEY`가 없고 egress가 막혀 SDK가 로드되지 않는다. 지도 키가 들어간 staging에서 사람이나 operator가 확인한다.
+- `T19`(rollback): Wave 4 안에서는 잴 수 없다. rollback이 edge를 닫고 `current.json`을 바꿔 같은 release의 증거를 모두 무효로 만든다. `BA-071-T4`와 같은 자리이고, 미증명으로 기록할지는 오너 결정이다.
+
+`T15`~`T18`의 ID는 FE가 #394에서 test 제목에 달았다. 이 카드는 제목을 고치지 않았다. 위 판정은 그 test 본문을 읽어 대조한 것이고 test를 다시 돌리지 않았다. 게이트 통과는 #396의 docker-integration artifact에서 셌다(`T15` 6건, `T16` 5건, `T18` 24건, 실패·skip 0). 원래 `T3`을 인용한 기록(`DECISIONS_AND_RISKS` A-054·A-033)은 나누기 전의 여섯 절 전체를 가리킨다.
+
 필수 검증:
 
 - `BA-092-T1`: 승인 시점과 entry 목록이 다른 manifest 는 replay 로 쓰이지 않는다
@@ -2605,7 +2643,13 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 - `BA-092-T12`: 비활성 구역의 관측은 capture 또는 replay할 수 없다
 - `BA-092-T13`: 서울 표준 metric 또는 normalization과 다른 관측은 capture 또는 replay할 수 없다
 - `BA-092-T14`: 구역 목록과 장소 상세는 전체 활성 구역의 현재 LIVE 여부를 같은 기준으로 판정한다
-- `BA-092-T3`: 전체 P0 익명 외부망·KO/EN·keyboard·출처·위치 OFF·rollback gate가 통과한다
+- `BA-092-T3`: 최종 release에서 새 익명 브라우저가 외부망으로 로그인 없이 전체 P0 흐름을 완결한다
+- `BA-092-T15`: 최종 release의 핵심 흐름 화면이 한국어와 영어로 표시된다
+- `BA-092-T16`: 최종 release의 핵심 흐름 결정 동작을 키보드만으로 할 수 있다
+- `BA-092-T17`: 최종 release에서 출처가 붙은 장소는 화면에 그 출처를 표시한다
+- `BA-092-T18`: 최종 release의 전체 P0 화면이 지도 SDK가 꺼진 상태에서 위치 권한을 요청하지 않는다
+- `BA-092-T19`: 이전 release로 rollback한 뒤 외부 smoke가 통과한다
+- `BA-092-T20`: Kakao 지도 SDK가 켜진 최종 release의 Live 지도 화면이 위치 권한을 요청하지 않는다
 
 FE 인계·완료 증거: 최종 Live E2E·화면·readiness와 미활성 P1/P2 목록. 제출 접수 증거는 실제 제출 후 별도로 기록한다. 실제 API/DB test report와 상대 재현 확인을 연결한 뒤 완료 처리한다.
 

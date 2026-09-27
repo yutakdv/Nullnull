@@ -1179,7 +1179,11 @@ export const handlers = [
   // The response asserts invariant 2 in its own shape: saving a candidate sets
   // tripScheduleChanged false and leaves the trip untouched here.
   http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
-    const body = (await request.json()) as { placeId: string; mustVisit?: boolean };
+    const body = (await request.json()) as {
+      placeId: string;
+      mustVisit?: boolean;
+      source: { type: string; postId?: string | null };
+    };
     const candidates = currentCandidates();
     const existing = candidates.items.find((c) => c.place.id === body.placeId);
     if (existing) {
@@ -1194,6 +1198,11 @@ export const handlers = [
       placeFixtures.searchPage.items[0];
     const template = candidates.items[0];
     if (!place || !template) return problemResponse('VALIDATION_FAILED');
+    // The template lends only what every fixture candidate shares (tripId, note, mustVisit). Its
+    // source and time were whichever candidate sat first, which the page's order decides; a new
+    // save carries the source it was saved from and the time it was saved, and the server lists it
+    // first (created_at DESC).
+    const now = new Date().toISOString();
     const candidate = {
       ...template,
       id: crypto.randomUUID(),
@@ -1204,8 +1213,12 @@ export const handlers = [
       // from the template, every saved place read back as not must-visit and
       // the wizard's picks lost their badge on the candidate panel.
       mustVisit: body.mustVisit ?? false,
+      sources: [
+        { type: body.source.type, postId: body.source.postId ?? null, createdAt: now },
+      ] as typeof template.sources,
+      createdAt: now,
     };
-    candidateState = { ...candidates, items: [...candidates.items, candidate] };
+    candidateState = { ...candidates, items: [candidate, ...candidates.items] };
     return HttpResponse.json(
       { candidate, duplicate: false, tripScheduleChanged: false },
       { status: 201 },

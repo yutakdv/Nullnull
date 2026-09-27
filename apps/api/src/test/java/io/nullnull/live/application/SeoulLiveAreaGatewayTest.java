@@ -396,8 +396,12 @@ class SeoulLiveAreaGatewayTest {
      * Everything the scheduled collection prints for a refused response, through the real scheduler, gateway and
      * validator. Every response carries the marker - in the value its rule judged, or in the provider's message -
      * so a line that quoted the code, the area or the value it refused would carry it. The two lines are asserted
-     * first: without them the marker's absence would also hold for a run that printed nothing. Only the refusal
-     * line's prefix - its words are BA-091-T27's.
+     * first: without them the marker's absence would also hold for a run that printed nothing.
+     *
+     * <p>The marker is not the only provider text. Each body also carries 보통, POI009, INFO-000, the area and the
+     * observation times, and a line that appended any of them used to pass: the first line was held by its prefix
+     * alone. So both lines are held whole - the refusal line is two words from our own vocabulary, the outcome
+     * and the rule token - and every string the body carried is searched for as well.
      */
     @Test
     @DisplayName("BA-091-T28 거절된 서울 응답의 제공자 문자열은 수집 로그에 남지 않는다")
@@ -418,9 +422,41 @@ class SeoulLiveAreaGatewayTest {
 
             List<String> lines = log.lines().toList();
             assertThat(lines).as(example.rule().token()).hasSize(2);
-            assertThat(lines.get(0)).as(example.rule().token()).startsWith("seoul_live_validation outcome=");
+            assertThat(lines.get(0)).as(example.rule().token()).isEqualTo("seoul_live_validation outcome="
+                    + example.outcome().name() + " rule=" + example.rule().token());
             assertThat(lines.get(1)).isEqualTo("seoul_live_collect_failed reason=IllegalStateException");
-            assertThat(log).as(example.rule().token()).doesNotContain(marker);
+            List<String> sent = providerStrings(example.body());
+            assertThat(sent).as(example.rule().token()).contains(marker);
+            for (String value : sent) {
+                assertThat(log).as("%s: %s", example.rule().token(), value).doesNotContain(value);
+            }
+        }
+    }
+
+    /**
+     * Every string value the provider body carried, two characters or longer. One-letter flags (N, Y) are left
+     * out because they occur inside our own words - ENUM_DRIFT has an N - and the whole-line equality above
+     * already keeps them off the log. A body that is not JSON contributes the text between its tags.
+     */
+    private static List<String> providerStrings(String body) {
+        List<String> values = new ArrayList<>();
+        try {
+            collectStrings(new tools.jackson.databind.ObjectMapper().readTree(body), values);
+        } catch (tools.jackson.core.JacksonException notJson) {
+            for (String text : body.split("<[^>]*>")) {
+                values.add(text);
+            }
+        }
+        values.removeIf(value -> value.length() < 2);
+        return values;
+    }
+
+    private static void collectStrings(tools.jackson.databind.JsonNode node, List<String> values) {
+        if (node.isString()) {
+            values.add(node.stringValue());
+        }
+        for (tools.jackson.databind.JsonNode child : node) {
+            collectStrings(child, values);
         }
     }
 

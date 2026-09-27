@@ -60,5 +60,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     css: false,
+    // JUnit alongside the readable one in CI, as playwright.config.ts does for the browser suite.
+    // check_test_reports.py reads JUnit and nothing else, so an acceptance clause proven here was
+    // invisible to the gate. The path ends in unit/ because the reader looks for
+    // <dir>/<suite>/*.xml, and compose.integration.yml binds vitest-report out of the container.
+    reporters: process.env.CI ? ['default', 'junit'] : ['default'],
+    outputFile: process.env.CI ? { junit: 'vitest-report/unit/results.xml' } : undefined,
   },
 });

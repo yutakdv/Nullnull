@@ -57,8 +57,9 @@ export const ROLE_BOUNDARY_POLICY = "NullnullStgRoleBoundary";
 // Metric namespace for everything this app publishes from its own log lines.
 export const METRIC_NAMESPACE = "Nullnull/Staging";
 // The forecast refresh schedule (A-044). The end instant is staging_operator.py's EXPIRY, not a second
-// date: judging closes 2026-10-25 23:59:59 KST and nothing here may outlive it.
-export const FORECAST_SCHEDULE_END = new Date("2026-10-25T14:59:59Z");
+// date: the service ends 2026-10-31 23:59:59 KST (A-069; the stack `Expiry` tag stays 2026-10-25 on purpose,
+// see A-069) and nothing here may outlive it.
+export const FORECAST_SCHEDULE_END = new Date("2026-10-31T14:59:59Z");
 // Every 12 h. A run renews the sets that lapse within KtoDemoRefresh.FORECAST_RENEW_BEFORE of its start,
 // six hours longer than this cadence, so the set one run fetched is renewed by the next as long as a
 // run's call comes less than six hours later after its tick than the previous run's did. Lateness is
@@ -73,7 +74,10 @@ export const FORECAST_SCHEDULE_RATE_HOURS = 12;
 export const FORECAST_MISSING_PERIOD_HOURS = 1;
 export const FORECAST_MISSING_PERIODS = 18;
 // The demo places, as staging_operator.py's `places` input spells them: contentId:contentTypeId.
-export const FORECAST_DEMO_PLACES = "126508:12,128611:12";
+// A-070/A-071: the two original places first, then the three existing places, then the #351 places, each only if
+// the owner's 2026-09-26 detail batch and forecast probe gave REFRESHED with coverage>0 and no rejection
+// (126508/128611 fixed; 2470006 and 129507 measured coverage=0 and stay out). Derived from the ops logs, not typed.
+export const FORECAST_DEMO_PLACES = "126508:12,128611:12,126509:12,126537:12,127642:12,126511:12,126484:12,126510:12,126535:12,126485:12,264353:12,126804:12,1059479:12,126498:12,126532:12,2589349:12,129703:14,1934593:14";
 // OPS_TASKS['kto-demo-forecast'] and ['kto-demo-detail'] in scripts/aws/staging_operator.py name these
 // same main classes, with these same approval variables.
 export const FORECAST_MAIN =
@@ -83,7 +87,7 @@ export const DETAIL_MAIN =
 // A forecast request is built from a detailCommon2 snapshot, and the registry stales that snapshot after
 // 604800 s (V007__sources.sql). Once it lapses the forecast refresh has nothing to ask with and ends
 // NO_VERIFIED_KTO_MAPPING (KtoDemoRefresh.refreshForecast), so a forecast-only schedule would fail from
-// the seventh day of a thirty-six day judging period onward. Every 5 days, with
+// the seventh day of the judging period onward. Every 5 days, with
 // KtoDemoRefresh.DETAIL_RENEW_BEFORE longer than that by a day, so each run renews the snapshot the run
 // before it fetched as long as its call is not a day later after its tick than that run's (the same
 // lateness as above). "5 + 2 = the 7 the registry allows" was the defect (#361): it put that snapshot
@@ -243,6 +247,9 @@ export function createStacks(
       Project: "Nullnull",
       Environment: "staging",
       ManagedBy: "CDK",
+      // Stays at the original date on purpose (A-069): changing it retags 86 resources, RDS, Secrets, S3,
+      // DynamoDB and the VPC among them, and staging_operator.py refuses that as a stateful change.
+      // Nothing reads this tag; the service end is staging_operator.EXPIRY.
       Expiry: "2026-10-25",
     }))
       cdk.Tags.of(s).add(k, v);
