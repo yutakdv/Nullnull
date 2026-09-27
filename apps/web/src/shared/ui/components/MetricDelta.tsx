@@ -9,10 +9,8 @@ import styles from './MetricDelta.module.css';
 // AGENTS.md rule 6). Callers pass the server's verdict; they do not compute
 // it from the two values.
 
-export interface MetricDeltaProps {
+interface MetricDeltaCommon {
   label: string;
-  /** Server verdict. False renders the reason, never a number. */
-  eligible: boolean;
   /** Shown when eligible. Pre-formatted by the caller, e.g. "4 · 혼잡 → 1 · 매우 여유". */
   value?: string;
   direction?: 'improved' | 'worsened' | 'unchanged';
@@ -29,9 +27,27 @@ export interface MetricDeltaProps {
    * Localized by the caller, like every other string here.
    */
   directionLabel?: string;
-  /** Why the comparison is unavailable. Required when eligible is false. */
-  reason?: string;
 }
+
+/**
+ * `eligible` is the server verdict; false renders the reason, never a number.
+ *
+ * The reason is REQUIRED with `eligible: false`, by type. It used to be
+ * optional with a Korean fallback ('확인 불가') that no caller reached -
+ * ProposalCard always passes one - but any caller that omitted it would have
+ * shown that Korean on an English screen, and a vaguer reason than the one the
+ * caller had. With no fallback there is no Korean left in this component to
+ * reach.
+ */
+export type MetricDeltaProps = MetricDeltaCommon &
+  (
+    | { eligible: true; reason?: string }
+    | {
+        eligible: false;
+        /** Why the comparison is unavailable, in the caller's words. */
+        reason: string;
+      }
+  );
 
 const ARROWS = { improved: '↓', worsened: '↑', unchanged: '' } as const;
 
@@ -59,7 +75,7 @@ export function MetricDelta({
           ) : null}
         </span>
       ) : (
-        <span className={styles.unavailable}>{reason ?? '확인 불가'}</span>
+        <span className={styles.unavailable}>{reason}</span>
       )}
     </div>
   );

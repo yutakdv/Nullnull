@@ -329,6 +329,10 @@ export const messages = {
       '다른 곳에서 이 여행이 바뀌었어요. 선택한 내용은 그대로 두었어요.',
     'profile.interests.conflict.reload': '최신 내용 불러오기',
     'profile.interests.conflict.discard': '내 변경 취소',
+    // S14 lists locale among its rows; the note under it is the language the
+    // app is showing, read from `language.ko.name` / `language.en.name`
+    // (FCR-016).
+    'profile.language.title': '언어',
     'profile.dataGuide.title': '혼잡도 데이터 안내',
     'profile.dataGuide.note': '실시간 관측 · 공식 예측 · 장기 참고의 차이',
     'profile.location.title': '위치 권한',
@@ -375,6 +379,17 @@ export const messages = {
     'tripAdd.toast.error': '저장하지 못했어요',
     'tripAdd.toast.view': '보기',
     'tripAdd.toast.retry': '다시 시도',
+    // Card/Candidate (C01) and Card/TripItem (C38). No screen mounts either card
+    // yet (TripScreen and CandidatesScreen draw rows of their own); the words
+    // are here so the first one that does is not Korean-only. The locks, the
+    // time, the reservation note and the row menu reuse the trip screen's keys.
+    'candidateCard.schedule': '일정에 넣기',
+    'candidateCard.scheduled': '일정에 넣었어요',
+    'candidateCard.unscheduled': '날짜·시간 없이 담아둔 장소예요',
+    'candidateCard.remove': '담기 취소',
+    'tripItemCard.badge.changed': '변경됨',
+    'tripItemCard.badge.conflict': '시간 겹침',
+    'tripItemCard.badge.optimized': '최적화 반영',
     // Sheet/TripPicker (C02). The sheet takes its copy from the caller so the
     // same component can serve the feed and the post detail without knowing
     // which one opened it.
@@ -430,12 +445,19 @@ export const messages = {
     'dataGuide.rule5.body':
       'Live·예측·REPLAY와 경로 데이터 모두 출처·기준시각을 함께 보여드려요. 근거 없는 숫자를 만들지 않아요.',
 
+    // Every place-search list's continuation past its first page (#54,
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
+    'placeSearch.more': '검색 결과 더 보기',
+    'placeSearch.loadingMore': '결과를 더 불러오는 중이에요',
+    'placeSearch.moreFailed': '결과를 더 불러오지 못했어요. 받은 결과는 그대로예요.',
+    'placeSearch.retryMore': '다시 불러오기',
+
     // S02-4B must-visit places (438:3158).
     'mustVisit.step': 'STEP 4',
     'mustVisit.title1': '꼭 가고 싶은 곳을',
     'mustVisit.title2': '알려주세요',
-    'mustVisit.body1': '이 장소는 그대로 지켜드리고,',
-    'mustVisit.body2': '나머지 시간은 취향에 맞춰 채워드릴게요.',
+    'mustVisit.body1': '선택한 장소를 여행에 담아둘게요.',
+    'mustVisit.body2': '날짜는 여행에서 직접 고를 수 있어요.',
     'mustVisit.search': '장소 검색',
     'mustVisit.searchLabel': '장소 이름으로 검색',
     'mustVisit.picked': '담은 곳',
@@ -450,8 +472,14 @@ export const messages = {
     // 라벨은 그대로 두고 접근성 이름에만 장소를 넣는다.
     'mustVisit.addNamed': '{place} 담기',
     'mustVisit.remove': '빼기',
-    'mustVisit.next': '이대로 채우기',
+    'mustVisit.next': '여행 만들기',
     'mustVisit.skip': '건너뛰기',
+    // #185: 여행은 만들어졌는데 일부 장소의 후보 저장이 실패한 상태. Figma frame이
+    // 없어 FE placeholder다(FCR-039). 여행은 이미 있으므로 `다시 시도`는 실패한
+    // 장소만 다시 보내고 여행을 새로 만들지 않는다.
+    'mustVisit.unsaved': '여행은 만들었어요. {count}곳을 담지 못했어요: {places}',
+    'mustVisit.retry': '다시 시도',
+    'mustVisit.openTrip': '여행으로 가기',
 
     // S02-1/2/3 trip create wizard (438:3012, 438:3108, 438:3134).
     'wizard.step': 'STEP',
@@ -612,7 +640,7 @@ export const messages = {
     'trip.length': '{nights}박 {days}일',
     'trip.dday': 'D-{days}',
     'trip.started': '여행 중',
-    'trip.candidates': '담아둔 장소 {count}',
+    'trip.candidates': '담아둔 장소',
     'trip.addPlace': '장소 추가',
     'trip.allDays': '전체',
     'trip.day': '{n}일차',
@@ -621,6 +649,7 @@ export const messages = {
     'trip.dayEmpty': '이 날은 아직 일정이 없어요',
     'trip.empty': '아직 일정이 없어요',
     'trip.emptyNote': '담아둔 장소를 날짜에 넣으면 일정이 돼요',
+    'trip.emptyOpenCandidates': '담아둔 장소 확인하기',
     'trip.timeUnset': '시간 미정',
     'trip.visitOrder': '{position}번째',
     'trip.duration': '예상 {hours}시간',
@@ -1014,12 +1043,15 @@ export const messages = {
     'candidates.title': '담아둔 장소',
     'candidates.note':
       'Feed·Live에서 담아둔 장소예요 · 일정에 추가하거나 기존 장소와 교체할 수 있어요',
-    'candidates.open': '담아둔 장소 {count}',
+    'candidates.open': '담아둔 장소',
     'candidates.back': '일정으로 돌아가기',
     'candidates.loading': '담아둔 장소를 불러오는 중이에요',
     'candidates.error': '담아둔 장소를 불러오지 못했어요',
     'candidates.empty': '아직 담아둔 장소가 없어요',
     'candidates.emptyNote': 'Feed나 Live에서 마음에 드는 곳을 담아보세요',
+    'candidates.more': '담아둔 장소 더 보기',
+    'candidates.retryMore': '담아둔 장소 다시 불러오기',
+    'candidates.loadingMore': '담아둔 장소를 불러오는 중이에요',
     'candidates.scheduled': '이미 일정에 있어요',
     'candidates.add': '일정에 추가',
     'candidates.adding': '추가하는 중이에요',
@@ -1031,7 +1063,8 @@ export const messages = {
     // for another (FIGMA_HANDOFF candidate relation table).
     'candidates.match.CHECKING': '가능한 날짜를 확인하는 중이에요',
     'candidates.match.NONE': '지금 일정에는 넣을 수 있는 날이 없어요',
-    'candidates.match.UNKNOWN': '판단할 근거가 부족해요. 날짜를 직접 골라주세요',
+    'candidates.match.UNKNOWN':
+      '판단할 근거가 부족해요. 가능한 날짜가 있으면 직접 골라주세요',
     'candidates.match.SIMILAR': '비슷한 장소예요',
     'candidates.match.EXACT': '현재 일정과 겹치지 않아요',
     'candidates.match.NOT_ACTIVE':
@@ -1065,7 +1098,7 @@ export const messages = {
     'wizard.planning.NOTHING.title': '아직 하나도 없어요',
     'wizard.planning.NOTHING.body': '취향에 맞춰 일정을 채워드릴게요',
     'wizard.planning.MUST_VISIT_ONLY.title': '꼭 가고 싶은 곳만 정했어요',
-    'wizard.planning.MUST_VISIT_ONLY.body': '그 장소는 지키고 나머지를 채워드릴게요',
+    'wizard.planning.MUST_VISIT_ONLY.body': '장소를 담아두고 여행에서 날짜를 골라요',
     'wizard.planning.MOSTLY_PLANNED.title': '거의 다 세우고 왔어요',
     'wizard.planning.MOSTLY_PLANNED.body': '있는 일정을 그대로 옮겨드릴게요',
     'wizard.next': '다음',
@@ -1410,6 +1443,7 @@ export const messages = {
       'This trip changed somewhere else. Your choices are still here.',
     'profile.interests.conflict.reload': 'Load the latest',
     'profile.interests.conflict.discard': 'Discard my changes',
+    'profile.language.title': 'Language',
     'profile.dataGuide.title': 'About crowd data',
     'profile.dataGuide.note':
       'Live observation · official forecast · long-term reference',
@@ -1449,6 +1483,13 @@ export const messages = {
     'tripAdd.toast.error': "Couldn't save it",
     'tripAdd.toast.view': 'View',
     'tripAdd.toast.retry': 'Try again',
+    'candidateCard.schedule': 'Add to itinerary',
+    'candidateCard.scheduled': 'On your itinerary',
+    'candidateCard.unscheduled': 'Saved with no date or time yet',
+    'candidateCard.remove': 'Unsave',
+    'tripItemCard.badge.changed': 'Changed',
+    'tripItemCard.badge.conflict': 'Time overlap',
+    'tripItemCard.badge.optimized': 'From optimization',
     'tripPicker.title': 'Which trip should it go in?',
     'tripPicker.cancel': 'Cancel',
     'tripPicker.loading': 'Loading your trips',
@@ -1499,12 +1540,20 @@ export const messages = {
     'dataGuide.rule5.body':
       'Live, forecast, REPLAY and route data all show their source and reference time. We do not invent numbers.',
 
+    // Every place-search list's continuation past its first page (#54,
+    // FE-103-T5..T23). No Figma node draws it (FCR-038).
+    'placeSearch.more': 'Show more results',
+    'placeSearch.loadingMore': 'Loading more results',
+    'placeSearch.moreFailed':
+      "Couldn't load more results. The ones above are still here.",
+    'placeSearch.retryMore': 'Try loading again',
+
     // S02-4B must-visit places (438:3158). Figma has no EN frame.
     'mustVisit.step': 'STEP 4',
     'mustVisit.title1': 'Which places do you',
     'mustVisit.title2': 'want to keep?',
-    'mustVisit.body1': "We'll keep these exactly as they are,",
-    'mustVisit.body2': 'and fill the rest around your taste.',
+    'mustVisit.body1': "We'll save your chosen places to the trip.",
+    'mustVisit.body2': 'You can choose their dates in the trip.',
     'mustVisit.search': 'Search places',
     'mustVisit.searchLabel': 'Search by place name',
     'mustVisit.picked': 'Kept places',
@@ -1517,8 +1566,12 @@ export const messages = {
     'mustVisit.add': 'Keep',
     'mustVisit.addNamed': 'Keep {place}',
     'mustVisit.remove': 'Remove',
-    'mustVisit.next': 'Fill the rest',
+    'mustVisit.next': 'Create trip',
     'mustVisit.skip': 'Skip',
+    'mustVisit.unsaved':
+      "Your trip was created, but {count} of your places couldn't be saved: {places}",
+    'mustVisit.retry': 'Try again',
+    'mustVisit.openTrip': 'Go to trip',
 
     // S02-1/2/3 trip create wizard. Figma has no EN frames.
     'wizard.step': 'STEP',
@@ -1671,7 +1724,7 @@ export const messages = {
     'trip.length': '{nights} nights, {days} days',
     'trip.dday': 'D-{days}',
     'trip.started': 'Under way',
-    'trip.candidates': 'Saved places {count}',
+    'trip.candidates': 'Saved places',
     'trip.addPlace': 'Add a place',
     'trip.allDays': 'All',
     'trip.day': 'Day {n}',
@@ -1680,6 +1733,7 @@ export const messages = {
     'trip.dayEmpty': 'Nothing scheduled this day yet',
     'trip.empty': 'Nothing scheduled yet',
     'trip.emptyNote': 'Put a saved place on a date and it becomes part of the plan',
+    'trip.emptyOpenCandidates': 'View saved places',
     'trip.timeUnset': 'No time set',
     'trip.visitOrder': 'Stop {position}',
     'trip.duration': 'About {hours}h',
@@ -1955,12 +2009,15 @@ export const messages = {
     'candidates.title': 'Saved places',
     'candidates.note':
       'Places you saved from Feed and Live · add them to a day or swap one in',
-    'candidates.open': 'Saved places {count}',
+    'candidates.open': 'Saved places',
     'candidates.back': 'Back to the itinerary',
     'candidates.loading': 'Loading your saved places',
     'candidates.error': "We couldn't load your saved places",
     'candidates.empty': 'Nothing saved yet',
     'candidates.emptyNote': 'Save a place you like from Feed or Live',
+    'candidates.more': 'Show more saved places',
+    'candidates.retryMore': 'Try loading saved places again',
+    'candidates.loadingMore': 'Loading more saved places',
     'candidates.scheduled': 'Already on the itinerary',
     'candidates.add': 'Add to a day',
     'candidates.adding': 'Adding',
@@ -1970,7 +2027,8 @@ export const messages = {
     'candidates.cancel': 'Cancel',
     'candidates.match.CHECKING': 'Checking which days would work',
     'candidates.match.NONE': 'No day in this trip can take it right now',
-    'candidates.match.UNKNOWN': "We can't tell — choose a date yourself",
+    'candidates.match.UNKNOWN':
+      'Not enough evidence to decide. Choose a date if available',
     'candidates.match.SIMILAR': 'A similar place',
     'candidates.match.EXACT': "Doesn't clash with your itinerary",
     'candidates.match.NOT_ACTIVE':
@@ -2001,7 +2059,8 @@ export const messages = {
     'wizard.planning.NOTHING.title': 'Nothing yet',
     'wizard.planning.NOTHING.body': "We'll fill the days around your taste",
     'wizard.planning.MUST_VISIT_ONLY.title': 'Only the must-visits',
-    'wizard.planning.MUST_VISIT_ONLY.body': "We'll keep those and fill the rest",
+    'wizard.planning.MUST_VISIT_ONLY.body':
+      'Save places now, then choose dates in your trip',
     'wizard.planning.MOSTLY_PLANNED.title': 'Almost all of it',
     'wizard.planning.MOSTLY_PLANNED.body': "We'll carry your plan across as it is",
     'wizard.next': 'Next',

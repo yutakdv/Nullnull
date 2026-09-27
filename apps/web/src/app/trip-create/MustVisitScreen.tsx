@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceCrowdForecasts, usePlaceSearch } from '../../shared/api/index.js';
@@ -10,10 +10,12 @@ import {
   SearchField,
   unitCredits,
 } from '../../shared/ui/index.js';
+import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
 } from '../../shared/crowd/CrowdForecastReading.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './MustVisitScreen.module.css';
 
 type PlaceSummary = components['schemas']['PlaceSummary'];
@@ -43,30 +45,28 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // screen table lists one path for trip creation (`/start`) and never gave this
 // one a URL.
 //
-// The picks still do not reach the server, but NOT because the contract is
-// missing — that part is settled and this comment used to say otherwise.
-// #180 was answered on 2026-09-13 with option B: the intention rides on the
-// CANDIDATE, so `AddCandidateRequest.mustVisit` exists today (and is typed in
-// the generated client). `CreateTripRequest` will never carry it — a dateless
-// place cannot be a `seedItem` (`date` is required) and cannot hold a lock
-// (`trip_constraints.trip_item_id` is NOT NULL), so it stays an intention until
-// scheduling promotes it to a `MUST_VISIT` constraint.
+// The picks reach the server as CANDIDATES of the new trip. #180 was answered
+// on 2026-09-13 with option B: the intention rides on the candidate
+// (`AddCandidateRequest.mustVisit`). `CreateTripRequest` will never carry it —
+// a dateless place cannot be a `seedItem` (`date` is required) and cannot hold
+// a lock (`trip_constraints.trip_item_id` is NOT NULL), so it stays an
+// intention until scheduling promotes it to a `MUST_VISIT` constraint.
 //
-// What is still open is the WRITE, not the field: sending the picks means N
-// `addTripCandidate` calls after `createTrip`, and those N+1 requests are not
-// one transaction (invariant 5). #185 asks what this screen should show when
-// the trip is created and only some picks land, and that is unanswered. Until
-// it is, the wizard carries the picks in its draft and `toCreateRequest` drops
-// them, so what reaches the API stays honest.
+// So the primary action is `createTrip` followed by one `addTripCandidate` per pick
+// (TripWizardScreen `savePicks`), and those N+1 requests are not one
+// transaction (invariant 5). When the trip is created and only some picks land,
+// this step names the ones that did not and offers 다시 시도 for exactly those
+// — the same trip, the same keys — or 여행으로 가기 without them (#185). The
+// frame for that state is not drawn yet (FCR-039).
 //
 // MOCK DATA: searchPlaces has no approved example, so the msw fixture behind it
 // is a schema-valid guess (packages/contracts). The screen calls the real
 // generated client, so BA-022 landing removes the fixture and handler only.
 //
 // The Figma card's crowd reading comes from queryPlaceCrowdForecasts, not from
-// PlaceSummary. The ordered response is joined to search results by index and
-// preserves the chosen point's own provenance; no ordinal is derived from the
-// KTO relative index (FCR-029).
+// PlaceSummary. Each search page is its own batch, and its ordered response is
+// joined to that page's results by index, preserving the chosen point's own
+// provenance; no ordinal is derived from the KTO relative index (FCR-029).
 
 export interface MustVisitStepProps {
   /** The places chosen so far, held by the wizard so going back keeps them. */
@@ -78,8 +78,22 @@ export interface MustVisitStepProps {
   onSubmit: () => void;
   /** Create the trip without any, which is a real answer rather than a cancel. */
   onSkip: () => void;
-  /** True while createTrip is in flight, so neither exit fires twice. */
+  /**
+   * True while createTrip or the picks' candidate writes are in flight, so
+   * neither exit fires twice — and, once every pick has landed, until the
+   * trip's route replaces this step.
+   */
   isSubmitting: boolean;
+  /**
+   * Picks the created trip could not take (#185). Non-empty only once the trip
+   * exists and some of its candidate writes failed; the step then offers to
+   * retry exactly these or to open the trip without them, and nothing else.
+   */
+  unsaved: PlaceSummary[];
+  /** Re-send the unsaved picks to the same trip. Never creates a trip. */
+  onRetryUnsaved: () => void;
+  /** Open the created trip without the unsaved picks. */
+  onOpenTrip: () => void;
   startDate: string | null;
   endDate: string | null;
 }
@@ -91,6 +105,9 @@ export function MustVisitStep({
   onSubmit,
   onSkip,
   isSubmitting,
+  unsaved,
+  onRetryUnsaved,
+  onOpenTrip,
   startDate,
   endDate,
 }: MustVisitStepProps) {
@@ -98,13 +115,38 @@ export function MustVisitStep({
   const [query, setQuery] = useState('');
   const search = usePlaceSearch(query, locale);
   const searchResults = search.data?.items ?? [];
+  const resultList = useRef<HTMLUListElement>(null);
   const forecasts = usePlaceCrowdForecasts(
-    searchResults.map((place) => place.id),
+    (search.data?.pages ?? []).map((page) => page.map((place) => place.id)),
     startDate,
     endDate,
   );
 
   const pickedIds = new Set(picked.map((place) => place.id));
+  // The list is what gets sent, so it stops changing once sending starts: a
+  // place kept after the press would not be among the picks 다시 시도 sends,
+  // and one removed would still be sent (#185).
+  const locked = isSubmitting || unsaved.length > 0;
+  // #185's partial failure, shown once a write attempt has finished with
+  // places left over — and again after each retry that leaves some.
+  const showUnsaved = unsaved.length > 0 && !isSubmitting;
+  const unsavedRef = useRef<HTMLParagraphElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  // Brings the message into view and focus back to the CTA, which is 다시
+  // 시도 now. The CTA was disabled while the writes ran, and Chromium drops
+  // focus from a disabled control to <body> (focus-restore.ts records the same
+  // measurement), so without this the next Tab starts from the top of the page.
+  //
+  // `block: 'end'`, not 'nearest', so the message lands just above the fixed
+  // bar (its scroll-margin-bottom is the bar's height). Measured in Chromium at
+  // 390px in Korean: the message sat inside the scroll box but UNDER the bar,
+  // and 'nearest' left it there — it counts the element as already in view and
+  // does not scroll for the margin alone.
+  useEffect(() => {
+    if (!showUnsaved) return;
+    unsavedRef.current?.scrollIntoView({ block: 'end' });
+    restoreFocusTo(retryRef.current);
+  }, [showUnsaved]);
 
   function meta(place: PlaceSummary): string {
     // categoryName, not categoryCode. BA-022 made the distinction explicit in
@@ -153,12 +195,14 @@ export function MustVisitStep({
                 {t('mustVisit.searching')}
               </p>
             ) : null}
-            {search.isError ? (
+            {/* A failed search. A failed later page leaves the results
+                standing and reports beside its own control (searchFailed). */}
+            {searchFailed(search) ? (
               <p className={styles.state} role="alert">
                 {t('mustVisit.searchError')}
               </p>
             ) : null}
-            {search.isSuccess && search.data.items.length === 0 ? (
+            {search.isSuccess && searchResults.length === 0 ? (
               <p className={styles.state}>{t('mustVisit.noResults')}</p>
             ) : null}
             {searchResults.length > 0 ? (
@@ -168,9 +212,13 @@ export function MustVisitStep({
                 series={undefined}
               />
             ) : null}
-            {search.isSuccess && search.data.items.length > 0 ? (
-              <ul className={styles.list} aria-labelledby="search-results">
-                {search.data.items.map((place, index) => (
+            {searchResults.length > 0 ? (
+              <ul
+                className={styles.list}
+                aria-labelledby="search-results"
+                ref={resultList}
+              >
+                {searchResults.map((place, index) => (
                   <li className={styles.card} key={place.id}>
                     {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                       it is the accessible content. */}
@@ -190,7 +238,7 @@ export function MustVisitStep({
                       <PlaceAttribution compact place={place} />
                       <CrowdForecastCardReading
                         alongside={unitCredits([place])}
-                        series={forecasts.data?.items[index]}
+                        series={forecasts.items[index]}
                       />
                     </span>
                     <button
@@ -202,7 +250,7 @@ export function MustVisitStep({
                       // accessible name carries it.
                       aria-label={t('mustVisit.addNamed', { place: place.name })}
                       className={styles.action}
-                      disabled={pickedIds.has(place.id)}
+                      disabled={pickedIds.has(place.id) || locked}
                       onClick={() => {
                         onAdd(place);
                       }}
@@ -213,6 +261,7 @@ export function MustVisitStep({
                 ))}
               </ul>
             ) : null}
+            <PlaceSearchMore list={resultList} search={search} />
           </div>
         ) : null}
 
@@ -253,6 +302,7 @@ export function MustVisitStep({
                     type="button"
                     className={styles.action}
                     aria-label={`${place.name} ${t('mustVisit.remove')}`}
+                    disabled={locked}
                     onClick={() => {
                       onRemove(place.id);
                     }}
@@ -264,33 +314,74 @@ export function MustVisitStep({
             </ul>
           )}
         </div>
+
+        {/* #185's partial failure: the trip exists and these picks are not on
+            it. No Figma frame yet (FCR-039), so this is an FE placeholder in
+            the wizard's own error style. Hidden while a retry is in flight and
+            rendered again if it fails, so the alert is announced each time. */}
+        {showUnsaved ? (
+          <p
+            className={`${styles.state} ${styles.unsaved}`}
+            ref={unsavedRef}
+            role="alert"
+          >
+            {t('mustVisit.unsaved', {
+              count: unsaved.length,
+              places: unsaved.map((place) => place.name).join(', '),
+            })}
+          </p>
+        ) : null}
       </div>
 
       {/* The two exits now do different things, which is the whole point of
           #185: both used to call navigate('/feed'), so a traveller who picked
-          places and pressed 이대로 채우기 got the same trip as one who pressed
-          건너뛰기, and the picks vanished with no word. 이대로 채우기 carries
+          places and pressed the primary action got the same trip as one who
+          pressed 건너뛰기, and the picks vanished with no word. 여행 만들기 carries
           them into the trip; 건너뛰기 states that there are none.
 
           Both create the trip, so both are blocked while one is in flight —
           a second press would be a second trip, which Idempotency-Key guards
-          against but the user should not have to discover. */}
-      <BottomCta
-        fixed
-        label={t('mustVisit.next')}
-        disabled={isSubmitting}
-        onClick={onSubmit}
-        secondary={
-          <button
-            type="button"
-            className={styles.skip}
-            disabled={isSubmitting}
-            onClick={onSkip}
-          >
-            {t('mustVisit.skip')}
-          </button>
-        }
-      />
+          against but the user should not have to discover.
+
+          Once the trip exists with picks unsaved, neither is offered: each
+          would create the trip again. The same bar carries 다시 시도, which
+          re-sends only those picks, and 여행으로 가기. */}
+      {unsaved.length > 0 ? (
+        <BottomCta
+          buttonRef={retryRef}
+          fixed
+          label={t('mustVisit.retry')}
+          disabled={isSubmitting}
+          onClick={onRetryUnsaved}
+          secondary={
+            <button
+              type="button"
+              className={styles.skip}
+              disabled={isSubmitting}
+              onClick={onOpenTrip}
+            >
+              {t('mustVisit.openTrip')}
+            </button>
+          }
+        />
+      ) : (
+        <BottomCta
+          fixed
+          label={t('mustVisit.next')}
+          disabled={isSubmitting}
+          onClick={onSubmit}
+          secondary={
+            <button
+              type="button"
+              className={styles.skip}
+              disabled={isSubmitting}
+              onClick={onSkip}
+            >
+              {t('mustVisit.skip')}
+            </button>
+          }
+        />
+      )}
     </div>
   );
 }

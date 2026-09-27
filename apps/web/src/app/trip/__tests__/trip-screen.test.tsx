@@ -39,17 +39,15 @@ async function loaded() {
 }
 
 describe('FE-301-T1 the counts are right and distinct', () => {
-  it('shows the candidate count from the contract field', async () => {
+  it('keeps the saved-places link when the bounded candidate view is empty', async () => {
     renderTrip();
     await loaded();
-    // 5 in the fixture, while `candidates` is an empty array: taking the
-    // array length would show 0 and under-report the total.
+    // The bounded view can be empty while saved places still exist.
     expect(trip.candidates).toHaveLength(0);
-    expect(
-      screen.getByText(
-        copy['trip.candidates'].replace('{count}', String(trip.candidateCount)),
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: copy['trip.candidates'] })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/candidates`,
+    );
   });
 
   it('sums the scheduled items across every day', async () => {
@@ -105,10 +103,61 @@ describe('FE-301-T1 the counts are right and distinct', () => {
     renderTrip();
     await loaded();
     expect(screen.getByText(copy['trip.empty'])).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View saved places' })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/candidates`,
+    );
+    expect(screen.getByRole('link', { name: copy['trip.addPlace'] })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/add-place`,
+    );
     // And not a count of zero, which reads as a working screen with no data.
     expect(
       screen.queryByText(copy['trip.itemCount'].replace('{count}', '0')),
     ).not.toBeInTheDocument();
+  });
+
+  it('does not call dismissed candidates saved places in the trip link', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...trip,
+            candidateCount: 1,
+            days: trip.days.map((day) => ({ ...day, items: [] })),
+          },
+          { headers: { ETag: '"3"' } },
+        ),
+      ),
+    );
+    renderTrip();
+    await loaded();
+    expect(screen.getByRole('link', { name: 'Saved places' })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/candidates`,
+    );
+    expect(screen.queryByRole('link', { name: 'Saved places 1' })).toBeNull();
+  });
+
+  it('offers place search when an empty trip has no saved places', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...trip,
+            candidateCount: 0,
+            days: trip.days.map((day) => ({ ...day, items: [] })),
+          },
+          { headers: { ETag: '"3"' } },
+        ),
+      ),
+    );
+    renderTrip();
+    await loaded();
+    expect(screen.getByRole('link', { name: copy['trip.addPlace'] })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/add-place`,
+    );
   });
 
   it('orders items by position rather than array order', async () => {

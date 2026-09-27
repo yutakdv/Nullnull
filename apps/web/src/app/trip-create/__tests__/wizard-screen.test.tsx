@@ -24,6 +24,11 @@ import { messages } from '../../../i18n/messages.js';
 import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
+import {
+  NEXT_CURSOR,
+  searchPages,
+  servePlaceSearchPages,
+} from '../../../shared/testing/msw/place-search-pages.js';
 import { routes } from '../../routes.js';
 
 const copy = messages['en-US'];
@@ -72,8 +77,8 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-function renderWizard() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
+function renderWizard(entries: string[] = ['/start']) {
+  const router = createMemoryRouter(routes, { initialEntries: entries });
   const result = render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -93,8 +98,11 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
 }
 
 /** Reaches the P0 deterministic recommendation preview from NOTHING. */
-async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>) {
-  renderWizard();
+async function reachRecommendedPreview(
+  user: ReturnType<typeof userEvent.setup>,
+  entries?: string[],
+) {
+  const { router } = renderWizard(entries);
   await pickDates(user);
   await user.click(screen.getByRole('button', { name: /–/ }));
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
@@ -104,6 +112,7 @@ async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>)
     }),
   );
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  return router;
 }
 
 async function startRecommendedTrip(user: ReturnType<typeof userEvent.setup>) {
@@ -587,7 +596,7 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     const user = userEvent.setup();
-    renderWizard();
+    const { router } = renderWizard();
     await pickDates(user);
     await user.click(screen.getByRole('button', { name: /–/ }));
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
@@ -606,6 +615,9 @@ describe('FE-102-T1 creating the trip', () => {
       ).toBeDisabled();
     });
     expect(created).toHaveLength(1);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toMatch(/^\/trip\//);
+    });
   });
 
   it('reports a failure instead of leaving the button spinning', async () => {
@@ -626,6 +638,100 @@ describe('FE-102-T1 creating the trip', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       copy['wizard.createFailed'],
     );
+  });
+});
+
+describe('FE-102-T6 every wizard branch shares the create attempt across remounts', () => {
+  function holdCreate() {
+    let release: () => void = () => undefined;
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(`${API_BASE}/trips`, async ({ request }) => {
+        created.push({
+          key: request.headers.get('idempotency-key'),
+          body: await request.json(),
+        });
+        await wait;
+        return HttpResponse.json(
+          { id: '018f4c00-0000-7000-8000-000000000001' },
+          { status: 201 },
+        );
+      }),
+    );
+    return release;
+  }
+
+  async function leaveAndReturn(router: ReturnType<typeof createMemoryRouter>) {
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(document.getElementById('wizard-heading')).toBeNull();
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(router.state.location.pathname).toBe('/start');
+  }
+
+  it('locks a returned recommendation branch until its original create answers', async () => {
+    const release = holdCreate();
+    const user = userEvent.setup();
+    const router = await reachRecommendedPreview(user, ['/feed', '/start']);
+    await startRecommendedTrip(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await leaveAndReturn(router);
+    const next = await screen.findByRole('button', { name: copy['wizard.creating'] });
+    const locked = next.hasAttribute('disabled');
+    const importLocked = screen
+      .getByRole('button', { name: copy['import.start'] })
+      .hasAttribute('disabled');
+    if (!locked) await user.click(next);
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: copy['wizard.dates.title'] }),
+      ).toBeInTheDocument(),
+    );
+    expect(locked).toBe(true);
+    expect(importLocked).toBe(true);
+    expect(created).toHaveLength(1);
+    expect(patched).toEqual([]);
+  });
+
+  it('locks a returned manual branch until its original create answers', async () => {
+    const release = holdCreate();
+    const user = userEvent.setup();
+    const { router } = renderWizard(['/feed', '/start']);
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
+    );
+    await user.click(await screen.findByRole('button', { name: copy['manual.next'] }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await leaveAndReturn(router);
+    const next = await screen.findByRole('button', { name: copy['manual.next'] });
+    const locked = next.hasAttribute('disabled');
+    if (!locked) await user.click(next);
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: copy['wizard.dates.title'] }),
+      ).toBeInTheDocument(),
+    );
+    expect(locked).toBe(true);
+    expect(created).toHaveLength(1);
+    expect(patched).toEqual([]);
   });
 });
 
@@ -886,6 +992,99 @@ describe('S02-4C-C the manual branch collects an itinerary (FE-103, FR-TRC-05)',
     expect(
       await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
     ).toBeInTheDocument();
+  });
+
+  it('reaches a place past the first page of results (#54)', async () => {
+    // This step's list is its own markup, so the continuation FE-103-T5..T23
+    // prove (place-search.test.tsx, must-visit.test.tsx) is wired here separately: a place on page two
+    // becomes a stop like any other.
+    const served = servePlaceSearchPages();
+    const [next] = searchPages.next;
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: copy['manual.addNamed'].replace('{place}', next.name),
+      }),
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: copy['manual.removeNamed'].replace('{place}', next.name),
+      }),
+    ).toBeInTheDocument();
+    expect(served.bodies.at(-1)?.cursor).toBe(NEXT_CURSOR);
+  });
+
+  it('FE-103-T8 FE-103-T19 a failed next page keeps the results and adds no search failure', async () => {
+    // This step gated its list on `isSuccess`, which a failed page two turns
+    // false, so the results received already would vanish with it. And the
+    // step's own alert is for a search that failed outright.
+    servePlaceSearchPages({ failNext: 1 });
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await screen.findByRole('button', { name: copy['placeSearch.retryMore'] });
+
+    for (const place of searchPages.first) {
+      expect(
+        screen.getByRole('button', {
+          name: copy['manual.addNamed'].replace('{place}', place.name),
+        }),
+      ).toBeInTheDocument();
+    }
+    expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
+    // Nor an alert in other words. What the continuation's own alert says is
+    // FE-103-T9's, measured once on MustVisit.
+    expect(
+      screen
+        .queryAllByRole('alert')
+        .filter((alert) => alert.textContent !== copy['placeSearch.moreFailed']),
+    ).toEqual([]);
+  });
+
+  it('FE-103-T21 restarting after a refused cursor adds no search failure', async () => {
+    // The query still holds the cursor error while the restart runs, no
+    // longer as a next-page error; the search itself has not failed.
+    const served = servePlaceSearchPages({
+      failNext: 1,
+      failWith: 'CURSOR_EXPIRED',
+      holdRestart: true,
+    });
+    const user = userEvent.setup();
+    await reachManual(user);
+    const adds = await screen.findAllByRole('button', {
+      name: new RegExp(copy['manual.addToDay'].replace('{day}', '.+')),
+    });
+    await user.click(adds[0] as HTMLElement);
+    await user.type(await screen.findByLabelText(copy['manual.searchLabel']), '서울');
+    await user.click(
+      await screen.findByRole('button', { name: copy['placeSearch.more'] }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: copy['error.CURSOR_EXPIRED.cta'] }),
+    );
+    await served.restartRequested;
+
+    expect(screen.queryByText(copy['manual.searchError'])).toBeNull();
+
+    served.releaseRestart();
+    await screen.findByRole('button', { name: copy['placeSearch.more'] });
   });
 });
 

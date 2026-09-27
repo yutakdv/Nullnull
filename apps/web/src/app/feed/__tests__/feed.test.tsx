@@ -38,26 +38,12 @@
 //                        forecast, replay and stale distinguishable per
 //                        reading rather than collapsed.
 //
-//            THE STALE CLAUSE IS NOT MEASURED AT THIS LAYER, and the gap is
-//            wider than a missing case. Measured, not assumed:
-//
-//              - this suite makes 0 STALE assertions;
-//              - the feed fixtures (packages/contracts/fixtures/feed/*.json)
-//                carry only FORECAST and UNAVAILABLE, so no STALE card can
-//                reach this screen in a test without a new fixture;
-//              - deleting `STALE: t('state.STALE')` from FeedScreen's label
-//                map breaks NOTHING: 60 tests across this suite,
-//                data-components and card-components all stay green, and
-//                `tsc` stays green too because `stateLabels` is a
-//                Partial<Record<SourceState, string>> and a missing key is
-//                legal by type.
-//
-//            data-components.test.tsx proves StateLabel gives all six states
-//            distinct words, but it renders StateLabel DIRECTLY — it never
-//            goes through the feed, so it cannot see the feed's own wiring
-//            drop a state. Recorded rather than fixed: closing it needs a
-//            STALE feed fixture, which is a contract-fixture change and not
-//            this file's to make.
+//            The STALE clause was once unmeasured at this layer: the suite
+//            made 0 STALE assertions and the feed fixtures
+//            (packages/contracts/fixtures/feed/*.json) carry only FORECAST and
+//            UNAVAILABLE. `words a STALE card in the feed's language` below
+//            closes it by putting a STALE reading on a card in the test,
+//            without a contract-fixture change.
 // FE-201-T3: keyboard reach, accessible names, announced results.
 //
 // The pagination assertions read what actually reached the wire. A "load
@@ -74,6 +60,7 @@ import {
   candidateFixtures,
   crowdFixtures,
   feedFixtures,
+  liveFixtures,
   sessionFixtures,
   tripFixtures,
 } from '@nullnull/contracts';
@@ -901,22 +888,19 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     expect(screen.getByText(scheduled?.post.title ?? '')).toBeInTheDocument();
   });
 
-  it("hands a STALE card the feed's own wording for STALE", async () => {
-    // Closes the gap recorded at the top of this file. It was measured, not
-    // suspected: this suite made 0 STALE assertions, no feed fixture could
-    // produce a STALE card, and deleting `STALE: t('state.STALE')` from
-    // FeedScreen's label map broke nothing.
+  it("words a STALE card in the feed's language, not in Korean", async () => {
+    // Closes the gap recorded at the top of this file: this suite made 0 STALE
+    // assertions and no feed fixture could produce a STALE card.
     //
-    // The assertion is on the EN copy on purpose. `stateLabels` is a
-    // Partial<Record<SourceState, string>>, so a missing key is legal to
-    // `tsc`, and StateLabel then falls back to its own hardcoded Korean
-    // (`LABELS[state]`). A card whose wiring dropped STALE still draws a
-    // plausible label — just the untranslated one — so a Korean assertion
-    // here could not tell a wired card from an unwired one.
+    // The feed passes no state words (FE-201-T4 says why); StateLabel takes
+    // them from the locale, and its hardcoded Korean (`LABELS[state]`) is only
+    // for a render with no I18nProvider. The assertion is on the EN copy on
+    // purpose: a card that fell through to that Korean still draws a plausible
+    // label, so a Korean assertion here could not tell the two apart.
     //
     // data-components.test.tsx proves StateLabel gives all six states
     // distinct words, but it renders StateLabel DIRECTLY. This case is the
-    // only one that goes through the feed, which is the wiring that broke.
+    // only one that goes through the feed.
     const pageTwo = withCrowd(feedFixtures.pageTwo, 0, STALE);
     const stale = pageTwo.items[0];
     // Without this the lookup could go empty and the queries below would be
@@ -935,7 +919,7 @@ describe('FE-201 the card shows only what the contract supplies', () => {
     // Scoped to this card: every other card carries its own state label, so a
     // document-wide query would pass while this one stayed unlabelled.
     expect(within(card).getByText(copy['state.STALE'])).toBeInTheDocument();
-    // And it is the feed's label, not StateLabel's fallback.
+    // And it is the locale's word, not StateLabel's provider-less Korean.
     expect(within(card).queryByText(messages['ko-KR']['state.STALE'])).toBeNull();
   });
 });
@@ -995,8 +979,9 @@ describe('FE-201-T3 keyboard and accessible names', () => {
   });
 
   it('says a provider incident in the feed language, not in Korean', async () => {
-    // The feed passes its own state words, and that list had no
+    // The feed used to pass its own state words, and that list had no
     // PROVIDER_INCIDENT, so an English feed fell through to the Korean default.
+    // It passes none now: StateLabel reads the locale, and this is that path.
     const card = feedFixtures.page.items[0];
     expect(card).toBeDefined();
     server.use(
@@ -1065,6 +1050,41 @@ describe('FE-201-T3 keyboard and accessible names', () => {
     });
     expect(await screen.findByText(secondPageTitle)).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: copy['feed.loadingMore'] })).toBeNull();
+  });
+});
+
+// A reading's stage words are its SOURCE's. Seoul publishes four stages with
+// words of its own (A-060), and CrowdLevel picks them from the provenance. The
+// feed used to hand every card the generic five-stage words, which win over
+// that choice, so a Seoul 3 read "Moderate" (the generic 3) instead of Seoul's
+// "Slightly crowded". Nothing showed it because FeedController sends
+// `crowd: null` on every card today; the reading here is the Live contract
+// fixture's own Seoul reading, put on a card.
+describe('FE-201-T4 a card words a reading in its own source’s stages', () => {
+  it('words a Seoul reading with Seoul’s stages, not the generic five', async () => {
+    const card = feedFixtures.page.items[0];
+    const seoul = liveFixtures.areaResultLive.areas[0]?.crowd;
+    // Without these the queries below would run against a card or a reading
+    // that is not there, and pass by matching nothing.
+    expect(card).toBeDefined();
+    expect(seoul?.provenance.source).toBe('SEOUL_CITYDATA');
+    expect(seoul?.ordinalLevel).toBe('3');
+    // The two wordings must differ, or the second assertion proves nothing.
+    expect(copy['live.crowd.seoul.level3']).not.toBe(copy['crowd.stage.3']);
+    server.use(
+      http.get(`${API_BASE}/feed`, () =>
+        HttpResponse.json({ ...feedFixtures.page, items: [{ ...card, crowd: seoul }] }),
+      ),
+    );
+
+    renderFeed();
+    const article = (await screen.findByText(card?.post.title ?? '')).closest(
+      'article',
+    ) as HTMLElement;
+    expect(
+      within(article).getByText(`3 · ${copy['live.crowd.seoul.level3']}`),
+    ).toBeInTheDocument();
+    expect(within(article).queryByText(`3 · ${copy['crowd.stage.3']}`)).toBeNull();
   });
 });
 

@@ -117,12 +117,14 @@ export function AppShell({ tabs = false }: AppShellProps) {
   const showTabs = tabs && !location.pathname.startsWith('/live/places/');
 
   // FR-SES-03. This is the root element of every route, which is why the call
-  // lives here: only the splash screen bootstraps, so a refresh or a deep link
-  // onto /feed or /profile used to leave the tab with no CSRF token and every
-  // mutation would have been rejected. The hook asks only when the token is
-  // missing, and only for the session the cookie already names — it never
-  // bootstraps a replacement, because doing that on an expired session creates
-  // a different anonymous owner and strands the user's trips.
+  // lives here: when it was written only the splash screen bootstrapped, so a
+  // refresh or a deep link onto /feed or /profile left the tab with no CSRF
+  // token and every mutation would have been rejected. The hook asks only when
+  // the token is missing, and only for the session the cookie already names. It
+  // never bootstraps a replacement for a cookie the server rejected, because
+  // doing that on an expired session creates a different anonymous owner and
+  // strands the user's trips. The one bootstrap this shell starts is for a
+  // request that carried no cookie at all (`noCookieSent` below, #240 A-1).
   //
   // The result is READ, not discarded. PROBLEM_POLICY marks UNAUTHORIZED
   // severity `screen` with recovery `restart-session`, and dropping the error

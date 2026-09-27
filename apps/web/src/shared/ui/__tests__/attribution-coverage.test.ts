@@ -65,6 +65,12 @@ interface Site {
  */
 const EXEMPT: readonly { file: string; expr: string; reason: string }[] = [
   {
+    file: 'app/trip-create/wizard-attempt.ts',
+    expr: '(pickasPendingPick).place',
+    reason:
+      'storage validation only: checks a recovered place name is a string; the recovery screen credits every rendered place',
+  },
+  {
     file: 'app/feed/FeedScreen.tsx',
     expr: 'card.primaryPlace',
     reason:
@@ -152,8 +158,12 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip-create/ImportPasteScreen.tsx :: place': { sites: 1, credits: 1 },
   'app/trip-create/ManualStopsStep.tsx :: place': { sites: 2, credits: 1 },
   'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 3, credits: 1 },
-  'app/trip-create/MustVisitScreen.tsx :: place': { sites: 4, credits: 2 },
+  'app/trip-create/MustVisitScreen.tsx :: place': { sites: 5, credits: 2 },
   'app/trip-create/RecommendedDraftStep.tsx :: stop.place': { sites: 2, credits: 1 },
+  'app/trip-create/wizard-attempt.ts :: (pickasPendingPick).place': {
+    sites: 1,
+    credits: 0,
+  },
   'app/trip/AddPlaceScreen.tsx :: place': { sites: 3, credits: 1 },
   'app/trip/CandidatesScreen.tsx :: candidate.place': { sites: 3, credits: 1 },
   'app/trip/ItemMoveControls.tsx :: choice.place': { sites: 1, credits: 0 },
@@ -167,7 +177,10 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip/useTripDragReorder.ts :: item.place': { sites: 2, credits: 0 },
   'shared/ui/components/CandidateCard.tsx :: candidate.place': { sites: 1, credits: 1 },
   'shared/ui/components/FeedPostCard.tsx :: primaryPlace': { sites: 1, credits: 1 },
-  'shared/ui/components/TripItemCard.tsx :: item.place': { sites: 2, credits: 1 },
+  // 3: the heading, and the row menu's name in two spellings (the locale's
+  // `trip.item.actions`, and the Korean one with no provider) - all in the
+  // one card its single credit covers.
+  'shared/ui/components/TripItemCard.tsx :: item.place': { sites: 3, credits: 1 },
 };
 
 /**
@@ -185,8 +198,11 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
  *     that can carry children, inside one of the above — found by the scan
  *     itself (`wrappers`), not listed, so a wrapper written tomorrow is a
  *     control without an edit here. None exists today: the three components
- *     that render `children` (ItemMoveControls, LiveBottomSheet, I18nProvider)
- *     render them outside any control, and the three that spread props onto a
+ *     that render `children` (ItemMoveControls, I18nProvider and App.tsx's
+ *     RootErrorBoundary — counted with `grep -rn children src` outside tests
+ *     and stories; an earlier count here named the since-deleted
+ *     LiveBottomSheet and missed the class component) render them outside
+ *     any control, and the three that spread props onto a
  *     button (Chip, LockControl, TripAddButton) type them without `children`.
  *     A grep for spread props missed those three at first — it read each tag
  *     on one line and their attributes span several — which is why the scan
