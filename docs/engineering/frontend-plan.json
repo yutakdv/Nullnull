@@ -2,10 +2,7 @@
   "schemaVersion": 1,
   "branch": "frontend",
   "lastFeaturePhase": "B10",
-  "requiredChecks": [
-    "docs-contract",
-    "docker-integration"
-  ],
+  "requiredChecks": ["docs-contract", "docker-integration"],
   "phases": [
     {
       "id": "B00",
@@ -71,13 +68,8 @@
       "title": "React/TypeScript/Vite scaffold, router, query client, i18n",
       "status": "integration-ready",
       "dependsOn": [],
-      "operations": [
-        "createDemoSession"
-      ],
-      "featureIds": [
-        "FR-SES-01",
-        "FR-SES-02"
-      ],
+      "operations": ["createDemoSession"],
+      "featureIds": ["FR-SES-01", "FR-SES-02"],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
@@ -98,6 +90,18 @@
         {
           "id": "FE-001-T3",
           "assertion": "쿠키 없는 첫 방문에서 세션 생성 전에 나가 쿠키 없음 401을 받은 활성 조회는 세션이 생긴 뒤 한 번 다시 부른다"
+        },
+        {
+          "id": "FE-001-T4",
+          "assertion": "한국어 기본값을 가진 공유 컴포넌트는 앱 안에서 caller가 문구를 넘기지 않아도 선택한 locale의 문구를 쓴다(한국어 기본값은 I18nProvider 없는 렌더에서만 쓰인다)"
+        },
+        {
+          "id": "FE-001-T5",
+          "assertion": "root 오류 경계는 한국어 줄과 영어 줄에 각자의 lang을 달아, 영어 세션 뒤(html lang이 en-US)에도 한국어 줄을 한국어로 읽게 한다"
+        },
+        {
+          "id": "FE-001-T6",
+          "assertion": "src/app·src/shared 코드의 JSX 텍스트·문자열·template literal에 locale을 거치지 않는 한국어가 없다(명시한 예외 파일의 정확한 문자열, 한국어 기본값 컴포넌트가 이름으로 지정한 module 수준 기본값 선언, mock 데이터 디렉터리 제외)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -111,9 +115,7 @@
       "priority": "P0",
       "title": "Figma token pipeline, Component Catalog 49종과 Storybook variant",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-001"
-      ],
+      "dependsOn": ["FE-001"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -145,9 +147,7 @@
       "priority": "P0",
       "title": "error boundary, API Problem mapper, MSW fixture",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-001"
-      ],
+      "dependsOn": ["FE-001"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -179,9 +179,7 @@
       "priority": "P0",
       "title": "PWA manifest/service-worker offline shell 최소 구성",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-001"
-      ],
+      "dependsOn": ["FE-001"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -213,9 +211,7 @@
       "priority": "P0",
       "title": "packages/* typecheck를 실제로 실행하는 게이트",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-003"
-      ],
+      "dependsOn": ["FE-003"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -243,28 +239,15 @@
       "priority": "P0",
       "title": "A-1/A-2/A-3 route와 redirect state",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-003",
-        "BA-010"
-      ],
+      "dependsOn": ["FE-003", "BA-010"],
       "operations": [
         "createDemoSession",
         "getCurrentOwner",
         "issueCsrfToken",
         "updatePreferences"
       ],
-      "featureIds": [
-        "FR-ONB-01",
-        "FR-ONB-02",
-        "FR-ONB-03",
-        "FR-SES-03"
-      ],
-      "figmaNodes": [
-        "388:257",
-        "388:277",
-        "388:321",
-        "643:4088"
-      ],
+      "featureIds": ["FR-ONB-01", "FR-ONB-02", "FR-ONB-03", "FR-SES-03"],
+      "figmaNodes": ["388:257", "388:277", "388:321", "643:4088"],
       "designRequests": [],
       "steps": [
         "승인된 example 기반 MSW fixture와 생성 client로 A-1/A-2/A-3 route를 구현한다",
@@ -280,18 +263,30 @@
         },
         {
           "id": "FE-101-T2",
-          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+          "assertion": "A-1 splash가 bootstrap 진행 중·서버 오류·cold start 연결 실패(브라우저가 online이라 믿는 동안 응답 없이 실패한 요청) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-101-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "A-1/A-2/A-3의 keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
         },
         {
           "id": "FE-101-T4",
           "assertion": "언어 화면에서 선택하지 않고 다음으로 넘어가도 화면이 보여 주는 locale을 owner 선호에 저장하고, 이미 저장한 선택은 다시 보내지 않는다"
+        },
+        {
+          "id": "FE-101-T5",
+          "assertion": "A-1/A-2/A-3 화면의 reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-101-T6",
+          "assertion": "프로필에서 연 언어 화면(from=profile)의 다음은 intro 대신 프로필로 돌아간다"
+        },
+        {
+          "id": "FE-101-T7",
+          "assertion": "from이 profile이 아닌 값으로 연 언어 화면의 다음은 그 값이 아니라 intro로 이어진다"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다. 알려진 공백(FE-101-T2가 증명하지 않는다): 브라우저가 offline을 알린 뒤(offline 이벤트) 시작된 bootstrap은 실패하지 않고 pause된다 — TanStack Query 기본 networkMode 'online'이고 query-client.ts가 바꾸지 않는다. 그동안 splash에는 alert도 retry도 없고 status 줄은 800ms hold 동안만 보이며(reduced motion이면 처음부터 없다), 연결이 돌아오면 bootstrap이 이어서 /language로 간다(unit 탐침으로 측정: onlineManager.setOnline(false) 뒤 /를 렌더해 100ms·1.5초에 보고, setOnline(true) 뒤 다시 봤다. test로 남기지 않았다). retry도 상태 줄도 없는 무기한 대기(FR-ONB-01의 retry 제공을 어김)이지만 동작은 바꾸지 않았다. offline을 별도 상태로 그릴지는 제품 결정 대기다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -301,11 +296,7 @@
       "priority": "P0",
       "title": "S14 프로필 shell: `TEST` 계정 표기(A-075), KO/EN, trips, 데이터 안내, 삭제 receipt/status",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-101",
-        "BA-011",
-        "BA-012"
-      ],
+      "dependsOn": ["FE-101", "BA-011", "BA-012"],
       "operations": [
         "getCurrentOwner",
         "listTrips",
@@ -320,9 +311,7 @@
         "FR-SES-04",
         "FR-TRP-04"
       ],
-      "figmaNodes": [
-        "422:2925"
-      ],
+      "figmaNodes": ["422:2925"],
       "designRequests": [],
       "steps": [
         "S14 프로필 shell을 `TEST` 계정 표기(A-075)·여행 목록·데이터 안내 진입으로 구현한다",
@@ -338,14 +327,26 @@
         },
         {
           "id": "FE-105-T2",
-          "assertion": "기본/loading/empty/error/offline/stale 상태를 각각 렌더한다"
+          "assertion": "프로필 여행 목록이 기본·loading·empty·서버 오류·연결 실패(브라우저가 online이라 믿는 동안 응답 없이 실패한 요청) 상태를 각각 렌더한다"
         },
         {
           "id": "FE-105-T3",
-          "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+          "assertion": "프로필의 keyboard 이동·접근성 이름과 360px·200% zoom을 검증한다"
+        },
+        {
+          "id": "FE-105-T4",
+          "assertion": "프로필의 여행 삭제 확인이 닫힌 뒤 focus가 document나 닫힌 dialog에 남지 않고 화면 안으로 돌아간다"
+        },
+        {
+          "id": "FE-105-T5",
+          "assertion": "프로필 화면의 reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-105-T6",
+          "assertion": "프로필의 언어 행이 언어 화면을 키보드로 다시 연다"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다. 알려진 공백(FE-105-T2가 증명하지 않는다): 사용 중 브라우저가 offline을 알린 뒤(offline 이벤트) 프로필을 열면 여행 목록 query는 실패하지 않고 pause된다 — TanStack Query 기본 networkMode 'online'이고 query-client.ts가 바꾸지 않는다. 그래서 목록은 오류·재시도 대신 연결이 돌아올 때까지 loading 줄에 머물고 재시도 control이 없다(unit 탐침으로 측정: onlineManager.setOnline(false) 뒤 /profile을 렌더하면 1.5초 뒤 loading만 있고 재시도 control은 0개이며, setOnline(true) 뒤 목록이 그려진다. test로 남기지 않았다). 동작은 바꾸지 않았다. offline을 별도 상태로 그릴지(LiveScreen이 onlineManager를 구독하는 선례가 있다)는 제품 결정 대기다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Trip list and optimization history are served by provisional mock fixtures; listTrips and listOptimizationHistory have no approved example yet. Swap when BA-030/BA-053 land."
@@ -356,28 +357,11 @@
       "priority": "P0",
       "title": "S02-4B/C 수동 입력과 장소 검색 integration",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-101",
-        "BA-022"
-      ],
-      "operations": [
-        "searchPlaces",
-        "addTripCandidate"
-      ],
-      "featureIds": [
-        "FR-TRC-04",
-        "FR-TRC-05",
-        "FR-TRC-08"
-      ],
-      "figmaNodes": [
-        "438:3158",
-        "400:1201",
-        "438:3199"
-      ],
-      "designRequests": [
-        "FCR-029",
-        "FCR-039"
-      ],
+      "dependsOn": ["FE-101", "BA-022"],
+      "operations": ["searchPlaces", "addTripCandidate"],
+      "featureIds": ["FR-TRC-04", "FR-TRC-05", "FR-TRC-08"],
+      "figmaNodes": ["438:3158", "400:1201", "438:3199"],
+      "designRequests": ["FCR-029", "FCR-039", "FCR-038", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -400,6 +384,82 @@
         {
           "id": "FE-103-T4",
           "assertion": "장소 검색은 현재 UI locale을 요청 body와 cache key에 싣는다"
+        },
+        {
+          "id": "FE-103-T5",
+          "assertion": "장소 검색의 다음 page 요청은 직전 page가 준 cursor를 같은 query·locale과 함께 보낸다"
+        },
+        {
+          "id": "FE-103-T6",
+          "assertion": "다음 page의 결과는 이미 받은 결과를 대체하지 않고 그 뒤에 이어 붙는다"
+        },
+        {
+          "id": "FE-103-T7",
+          "assertion": "page가 hasMore=false로 답하면 cursor가 함께 와도 다음 page를 요청하지 않는다"
+        },
+        {
+          "id": "FE-103-T8",
+          "assertion": "다음 page 요청이 실패해도 이미 받은 결과를 지우지 않는다"
+        },
+        {
+          "id": "FE-103-T9",
+          "assertion": "다음 page 요청이 실패하면 계속하기의 실패 문구로 알린다"
+        },
+        {
+          "id": "FE-103-T10",
+          "assertion": "키보드로 누른 계속하기는 새로 추가된 첫 결과로 focus를 옮긴다"
+        },
+        {
+          "id": "FE-103-T11",
+          "assertion": "검색 결과의 혼잡 예보는 page마다 따로 batch로 요청한다"
+        },
+        {
+          "id": "FE-103-T12",
+          "assertion": "page별 혼잡 예보 응답은 그 page 안의 index로 결과 카드에 붙는다"
+        },
+        {
+          "id": "FE-103-T13",
+          "assertion": "다음 page를 받는 동안 계속하기 control은 이름과 aria-busy로 불러오는 중임을 알린다"
+        },
+        {
+          "id": "FE-103-T14",
+          "assertion": "다음 page를 받는 동안 다시 눌러도 다음 page 요청은 한 번만 간다"
+        },
+        {
+          "id": "FE-103-T15",
+          "assertion": "다음 page를 받는 사이 검색어가 바뀌면 그 요청이 끝나도 focus를 옮기지 않는다"
+        },
+        {
+          "id": "FE-103-T16",
+          "assertion": "다음 page가 와도 이미 받은 page의 혼잡 예보 batch를 다시 요청하지 않는다"
+        },
+        {
+          "id": "FE-103-T17",
+          "assertion": "마지막 page(hasMore=false)를 받으면 계속하기 control을 더 보이지 않는다"
+        },
+        {
+          "id": "FE-103-T18",
+          "assertion": "실패한 다음 page는 같은 계속하기 control을 다시 눌러 요청하고 그 page를 받는다"
+        },
+        {
+          "id": "FE-103-T19",
+          "assertion": "다음 page 요청이 실패해도 화면의 첫 page 검색 실패 알림을 띄우지 않는다"
+        },
+        {
+          "id": "FE-103-T20",
+          "assertion": "다음 page 요청이 CURSOR_EXPIRED·CURSOR_INVALID로 거절되면 계속하기 control은 거절된 cursor를 다시 보내지 않고 cursor 없이 첫 page부터 다시 조회한다"
+        },
+        {
+          "id": "FE-103-T21",
+          "assertion": "거절된 cursor 뒤 첫 page부터 다시 조회하는 동안 화면의 첫 page 검색 실패 알림을 띄우지 않는다"
+        },
+        {
+          "id": "FE-103-T22",
+          "assertion": "다음 page를 받는 사이 focus가 계속하기 control을 떠나 다른 요소로 가면 검색어가 같아도 그 page가 도착해 focus를 옮기지 않는다"
+        },
+        {
+          "id": "FE-103-T23",
+          "assertion": "거절된 cursor 뒤 첫 page부터 다시 조회하는 동안 계속하기를 다시 눌러도 거절된 cursor로 요청을 보내지 않는다"
         },
         {
           "id": "FE-103-T30",
@@ -537,19 +597,10 @@
       "priority": "P0",
       "title": "S15 데이터 안내의 source/state/freshness/confidence 설명 (서울 source는 B10에 추가)",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-105",
-        "BA-023"
-      ],
-      "operations": [
-        "getDemoReadiness"
-      ],
-      "featureIds": [
-        "FR-DAT-01"
-      ],
-      "figmaNodes": [
-        "423:2967"
-      ],
+      "dependsOn": ["FE-105", "BA-023"],
+      "operations": ["getDemoReadiness"],
+      "featureIds": ["FR-DAT-01"],
+      "figmaNodes": ["423:2967"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -579,7 +630,7 @@
           "assertion": "데이터 안내는 배포 UI에 없는 되돌리기를 약속하지 않는다(A-074)"
         }
       ],
-      "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-ATT-004 행(기준시각과 source state를 숨기지 않음)을 FE 쪽에서 이 카드가 소유한다 — 매트릭스 행이 FE 소유 카드를 FE-404로 적으므로 이 카드에도 같은 사실을 적어 양쪽에 남긴다. 지금 그 절을 재는 test는 FE-404-T1(data-guide.test.tsx, 여섯 state를 구분하고 결측을 채우지 않는다)과 FE-403-T1(live.test.tsx와 게이트의 live-replay-matrix.spec.ts, REPLAY를 live로 표시하지 않는다)이다. 기준시각 쪽인 '관측 시각을 서울 시각으로 표시'는 FE-403-T1을 단 testcase가 함께 단언하지만 FE-403-T1의 절('REPLAY를 live로 표시하지 않고 degraded 상태를 명시한다')이 아니고, 그것을 소유한 FE 절 ID가 없다 — 알려진 구멍이다(#195의 빌린 ID 모양). 서울 시간대를 실제로 재는 것은 reference-time.test.ts의 FE-403-T1 case와, 고정 문자열('오후 2:00'·'2:00 PM')과 대조하는 게이트의 live-replay-matrix.spec.ts다. live.test.tsx의 두 case는 기대값을 같은 formatReferenceTime으로 만들므로 시간대를 UTC로 바꿔도 초록이다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI",
       "note": "Static explanatory screen: no API and no mock data. State list is asserted against the OpenAPI SourceState enum."
@@ -590,10 +641,7 @@
       "priority": "P0",
       "title": "S02-1/2/3 wizard, resume, validation, 확인·결정적 draft",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-103",
-        "BA-030"
-      ],
+      "dependsOn": ["FE-103", "BA-030"],
       "operations": [
         "previewTripDraft",
         "confirmTripImport",
@@ -659,21 +707,10 @@
       "priority": "P0",
       "title": "여행 선택과 여행별 관심사 전체 교체 UI/ETag conflict",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-105",
-        "BA-031"
-      ],
-      "operations": [
-        "getTrip",
-        "listTrips",
-        "replaceTripInterests"
-      ],
-      "featureIds": [
-        "FR-PRO-05"
-      ],
-      "figmaNodes": [
-        "422:2925"
-      ],
+      "dependsOn": ["FE-105", "BA-031"],
+      "operations": ["getTrip", "listTrips", "replaceTripInterests"],
+      "featureIds": ["FR-PRO-05"],
+      "figmaNodes": ["422:2925"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -705,26 +742,11 @@
       "priority": "P0",
       "title": "S03-F0/F1 feed card states와 pagination",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-101",
-        "BA-032"
-      ],
-      "operations": [
-        "listFeed",
-        "listTrips"
-      ],
-      "featureIds": [
-        "FR-FED-01",
-        "FR-FED-02",
-        "FR-FED-03"
-      ],
-      "figmaNodes": [
-        "391:310",
-        "396:2926"
-      ],
-      "designRequests": [
-        "FCR-024"
-      ],
+      "dependsOn": ["FE-101", "BA-032"],
+      "operations": ["listFeed", "listTrips"],
+      "featureIds": ["FR-FED-01", "FR-FED-02", "FR-FED-03"],
+      "figmaNodes": ["391:310", "396:2926"],
+      "designRequests": ["FCR-024"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -743,6 +765,10 @@
         {
           "id": "FE-201-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-201-T4",
+          "assertion": "feed 카드는 혼잡 판독의 단계 문구를 그 판독 source가 발행한 단계로 적는다(서울 판독에 일반 5단계 문구를 쓰지 않는다)"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -755,22 +781,10 @@
       "priority": "P0",
       "title": "S03-D 게시물 상세/SavedPost",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-201",
-        "BA-032"
-      ],
-      "operations": [
-        "getPost",
-        "savePost",
-        "unsavePost"
-      ],
-      "featureIds": [
-        "FR-PST-01",
-        "FR-PST-02"
-      ],
-      "figmaNodes": [
-        "398:611"
-      ],
+      "dependsOn": ["FE-201", "BA-032"],
+      "operations": ["getPost", "savePost", "unsavePost"],
+      "featureIds": ["FR-PST-01", "FR-PST-02"],
+      "figmaNodes": ["398:611"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -802,27 +816,10 @@
       "priority": "P0",
       "title": "S03-C1~C4, S06 sheet, saved/duplicate/error variant",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-202",
-        "BA-034"
-      ],
-      "operations": [
-        "addTripCandidate",
-        "listTrips"
-      ],
-      "featureIds": [
-        "FR-CAN-01",
-        "FR-CAN-02",
-        "FR-CAN-03",
-        "FR-CAN-04"
-      ],
-      "figmaNodes": [
-        "399:658",
-        "399:843",
-        "399:1011",
-        "399:1179",
-        "409:1595"
-      ],
+      "dependsOn": ["FE-202", "BA-034"],
+      "operations": ["addTripCandidate", "listTrips"],
+      "featureIds": ["FR-CAN-01", "FR-CAN-02", "FR-CAN-03", "FR-CAN-04"],
+      "figmaNodes": ["399:658", "399:843", "399:1011", "399:1179", "409:1595"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -863,22 +860,11 @@
       "priority": "P0",
       "title": "S07-1 day/item/candidate 수와 empty state",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-102",
-        "BA-030"
-      ],
-      "operations": [
-        "getTrip"
-      ],
-      "featureIds": [
-        "FR-TRP-01"
-      ],
-      "figmaNodes": [
-        "410:1738"
-      ],
-      "designRequests": [
-        "FCR-030"
-      ],
+      "dependsOn": ["FE-102", "BA-030"],
+      "operations": ["getTrip"],
+      "featureIds": ["FR-TRP-01"],
+      "figmaNodes": ["410:1738"],
+      "designRequests": ["FCR-030", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -888,7 +874,7 @@
       "tests": [
         {
           "id": "FE-301-T1",
-          "assertion": "day/item/candidate 수가 empty state와 구분되고 잘못된 합계를 만들지 않는다"
+          "assertion": "day/item 수와 후보 상태가 empty state와 구분되고 제거 이력을 담아둔 장소 수로 표시하지 않는다"
         },
         {
           "id": "FE-301-T2",
@@ -909,22 +895,10 @@
       "priority": "P0",
       "title": "S07-2 edit buffer, dirty-exit, save/conflict recovery",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-301",
-        "BA-031"
-      ],
-      "operations": [
-        "updateTrip"
-      ],
-      "featureIds": [
-        "FR-TRP-02",
-        "FR-TRP-05",
-        "FR-TRP-03"
-      ],
-      "figmaNodes": [
-        "411:1837",
-        "413:2020"
-      ],
+      "dependsOn": ["FE-301", "BA-031"],
+      "operations": ["updateTrip"],
+      "featureIds": ["FR-TRP-02", "FR-TRP-05", "FR-TRP-03"],
+      "figmaNodes": ["411:1837", "413:2020"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -956,28 +930,16 @@
       "priority": "P0",
       "title": "S07-8 후보 panel과 일정화 flow",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-301",
-        "BA-042"
-      ],
+      "dependsOn": ["FE-301", "BA-042"],
       "operations": [
         "addTripItem",
         "getCandidateTripMatches",
         "listTripCandidates",
         "removeTripCandidate"
       ],
-      "featureIds": [
-        "FR-CAN-05",
-        "FR-CAN-06",
-        "FR-CAN-07",
-        "FR-ITM-02"
-      ],
-      "figmaNodes": [
-        "412:1912"
-      ],
-      "designRequests": [
-        "FCR-031"
-      ],
+      "featureIds": ["FR-CAN-05", "FR-CAN-06", "FR-CAN-07", "FR-ITM-02"],
+      "figmaNodes": ["412:1912"],
+      "designRequests": ["FCR-031", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -1012,21 +974,10 @@
       "priority": "P0",
       "title": "lock control, unlock/date-lock confirm",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-302",
-        "BA-041"
-      ],
-      "operations": [
-        "removeTripItemConstraint"
-      ],
-      "featureIds": [
-        "FR-CON-05",
-        "FR-CON-02"
-      ],
-      "figmaNodes": [
-        "413:2081",
-        "527:3876"
-      ],
+      "dependsOn": ["FE-302", "BA-041"],
+      "operations": ["removeTripItemConstraint"],
+      "featureIds": ["FR-CON-05", "FR-CON-02"],
+      "figmaNodes": ["413:2081", "527:3876"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1058,10 +1009,7 @@
       "priority": "P0",
       "title": "검색/추가/교체/날짜 이동 variant",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-302",
-        "BA-040"
-      ],
+      "dependsOn": ["FE-302", "BA-040"],
       "operations": [
         "addTripItem",
         "listRelatedPlaces",
@@ -1108,6 +1056,10 @@
         {
           "id": "FE-305-T3",
           "assertion": "keyboard 이동·focus 복귀·접근성 이름과 360px·200% zoom·reduced motion을 검증한다"
+        },
+        {
+          "id": "FE-305-T4",
+          "assertion": "날짜를 묶지 않는 잠금(MUST_VISIT)만 있는 항목을 키보드로 다른 날로 옮긴 뒤 focus가 <body>로 떨어지지 않고 페이지 안에 남는다"
         }
       ],
       "handoff": "keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
@@ -1120,24 +1072,11 @@
       "priority": "P0",
       "title": "날짜 범위 변경 시 영향 preview/cancel/명시 처리",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-302",
-        "BA-031"
-      ],
-      "operations": [
-        "updateTrip"
-      ],
-      "featureIds": [
-        "FR-TRP-05",
-        "FR-CON-06"
-      ],
-      "figmaNodes": [
-        "411:1837"
-      ],
-      "designRequests": [
-        "FCR-032",
-        "FCR-037"
-      ],
+      "dependsOn": ["FE-302", "BA-031"],
+      "operations": ["updateTrip"],
+      "featureIds": ["FR-TRP-05", "FR-CON-06"],
+      "figmaNodes": ["411:1837"],
+      "designRequests": ["FCR-032", "FCR-037"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -1180,23 +1119,11 @@
       "priority": "P0",
       "title": "item 편집 시트에서 잠금 종류별 독립 설정",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-304",
-        "BA-041"
-      ],
-      "operations": [
-        "setTripItemConstraint"
-      ],
-      "featureIds": [
-        "FR-CON-01",
-        "FR-CON-03"
-      ],
-      "figmaNodes": [
-        "411:1837"
-      ],
-      "designRequests": [
-        "FCR-033"
-      ],
+      "dependsOn": ["FE-304", "BA-041"],
+      "operations": ["setTripItemConstraint"],
+      "featureIds": ["FR-CON-01", "FR-CON-03"],
+      "figmaNodes": ["411:1837"],
+      "designRequests": ["FCR-033"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -1227,22 +1154,11 @@
       "priority": "P0",
       "title": "S09-0 scope/item setup, 미지원 P1 state",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-301",
-        "BA-050"
-      ],
-      "operations": [
-        "createOptimization"
-      ],
-      "featureIds": [
-        "FR-OPT-01"
-      ],
-      "figmaNodes": [
-        "415:2268"
-      ],
-      "designRequests": [
-        "FCR-010"
-      ],
+      "dependsOn": ["FE-301", "BA-050"],
+      "operations": ["createOptimization"],
+      "featureIds": ["FR-OPT-01"],
+      "figmaNodes": ["415:2268"],
+      "designRequests": ["FCR-010"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -1273,19 +1189,10 @@
       "priority": "P0",
       "title": "S09-1 loading/polling/background resume",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-501",
-        "BA-050"
-      ],
-      "operations": [
-        "getOptimization"
-      ],
-      "featureIds": [
-        "FR-OPT-03"
-      ],
-      "figmaNodes": [
-        "415:2413"
-      ],
+      "dependsOn": ["FE-501", "BA-050"],
+      "operations": ["getOptimization"],
+      "featureIds": ["FR-OPT-03"],
+      "figmaNodes": ["415:2413"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1321,21 +1228,10 @@
       "priority": "P0",
       "title": "before/after MetricDelta, 근거, decision bar",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-502",
-        "BA-051"
-      ],
-      "operations": [
-        "decideOptimization"
-      ],
-      "featureIds": [
-        "FR-OPT-04",
-        "FR-OPT-07",
-        "FR-OPT-08"
-      ],
-      "figmaNodes": [
-        "655:4067"
-      ],
+      "dependsOn": ["FE-502", "BA-051"],
+      "operations": ["decideOptimization"],
+      "featureIds": ["FR-OPT-04", "FR-OPT-07", "FR-OPT-08"],
+      "figmaNodes": ["655:4067"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example의 READY proposal로 before/after·provenance·lock validation을 렌더한다",
@@ -1371,10 +1267,7 @@
       "priority": "P0",
       "title": "오류 6종·stale·no improvement 상태",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-502",
-        "BA-050"
-      ],
+      "dependsOn": ["FE-502", "BA-050"],
       "operations": [],
       "featureIds": [
         "FR-OPT-12",
@@ -1383,10 +1276,7 @@
         "FR-OPT-15",
         "FR-OPT-10"
       ],
-      "figmaNodes": [
-        "417:2567",
-        "485:3517"
-      ],
+      "figmaNodes": ["417:2567", "485:3517"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1419,20 +1309,10 @@
       "title": "applied/undo/recompute flow (undo 진입점 퇴역, A-074)",
       "status": "deferred",
       "reason": "A-074(오너 2026-09-25): 여행 화면의 24시간 되돌리기 진입점은 93de5679(2026-09-21)에서 빠졌고 퇴역으로 기록했다. revertOptimizationDecision(BA-053)과 TripAppliedPanel 코드는 남아 있지만 앱이 mount하지 않는다. 안전 기본값은 적용 결과에서 되돌리기를 약속하지 않는 것이다. applied-panel.spec.ts가 게이트에서 패널·되돌리기 버튼·이력 요청의 부재를 지키고, 데이터 안내도 되돌리기를 약속하지 않는다(FE-404-T5). 다시 여는 것은 오너 결정이다.",
-      "dependsOn": [
-        "FE-503",
-        "BA-052",
-        "BA-053"
-      ],
-      "operations": [
-        "revertOptimizationDecision"
-      ],
-      "featureIds": [
-        "FR-OPT-09"
-      ],
-      "figmaNodes": [
-        "417:2412"
-      ],
+      "dependsOn": ["FE-503", "BA-052", "BA-053"],
+      "operations": ["revertOptimizationDecision"],
+      "featureIds": ["FR-OPT-09"],
+      "figmaNodes": ["417:2412"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1468,20 +1348,10 @@
       "priority": "P0",
       "title": "S14 최적화 이력 상태/scope/시각/decision과 상세 진입",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-105",
-        "BA-053"
-      ],
-      "operations": [
-        "getOptimization",
-        "listOptimizationHistory"
-      ],
-      "featureIds": [
-        "FR-PRO-04"
-      ],
-      "figmaNodes": [
-        "422:2925"
-      ],
+      "dependsOn": ["FE-105", "BA-053"],
+      "operations": ["getOptimization", "listOptimizationHistory"],
+      "featureIds": ["FR-PRO-04"],
+      "figmaNodes": ["422:2925"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1513,23 +1383,10 @@
       "priority": "P0",
       "title": "browser-first 한국어 parser와 correction UI",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-102",
-        "BA-060"
-      ],
-      "operations": [
-        "parseTripImport",
-        "remapTripImport",
-        "confirmTripImport"
-      ],
-      "featureIds": [
-        "FR-TRC-06",
-        "FR-TRC-07",
-        "FR-TRC-09"
-      ],
-      "figmaNodes": [
-        "401:1221"
-      ],
+      "dependsOn": ["FE-102", "BA-060"],
+      "operations": ["parseTripImport", "remapTripImport", "confirmTripImport"],
+      "featureIds": ["FR-TRC-06", "FR-TRC-07", "FR-TRC-09"],
+      "figmaNodes": ["401:1221"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -1566,9 +1423,7 @@
       "priority": "P0",
       "title": "전체 P0 responsive/긴 텍스트/200% zoom pass",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-505"
-      ],
+      "dependsOn": ["FE-505"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -1604,9 +1459,7 @@
       "priority": "P0",
       "title": "Lighthouse/performance budget와 bundle 분석",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-601"
-      ],
+      "dependsOn": ["FE-601"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -1638,22 +1491,14 @@
       "priority": "P1",
       "title": "S12 알림 목록·읽음·allowlisted deep link",
       "status": "planned",
-      "dependsOn": [
-        "FE-003",
-        "BA-085"
-      ],
+      "dependsOn": ["FE-003", "BA-085"],
       "operations": [
         "listNotifications",
         "markNotificationRead",
         "markAllNotificationsRead"
       ],
-      "featureIds": [
-        "FR-NOT-01",
-        "FR-NOT-02"
-      ],
-      "figmaNodes": [
-        "442:3344"
-      ],
+      "featureIds": ["FR-NOT-01", "FR-NOT-02"],
+      "figmaNodes": ["442:3344"],
       "designRequests": [],
       "steps": [
         "알림 type별 내부 route builder와 삭제·만료 대상 fallback을 승인된 계약에 맞춰 고정한다",
@@ -1686,19 +1531,11 @@
       "title": "FCR-017 확정 뒤 시간/duration 편집",
       "status": "deferred",
       "reason": "오너 결정으로 제출 P0 범위에서 제외했다. 시간 편집 node가 없고 FCR-017이 Open이므로 FE가 입력 UI를 임의로 만들지 않는다. 공유 인벤토리 우선순위는 BA-040도 FR-ITM-04를 P0로 claim하므로 BE/AI와 함께 갱신하기 전까지 보존한다. 안전 기본값은 일정의 시간과 duration을 읽기 전용으로 표시하는 것이다.",
-      "dependsOn": [
-        "FE-305"
-      ],
-      "operations": [
-        "updateTripItem"
-      ],
-      "featureIds": [
-        "FR-ITM-04"
-      ],
+      "dependsOn": ["FE-305"],
+      "operations": ["updateTripItem"],
+      "featureIds": ["FR-ITM-04"],
       "figmaNodes": [],
-      "designRequests": [
-        "FCR-017"
-      ],
+      "designRequests": ["FCR-017"],
       "steps": [
         "FCR-017에서 시간과 duration 입력 node·저장·취소 상태를 먼저 확정한다",
         "승인된 node와 OpenAPI example을 기준으로 updateTripItem 입력 UI를 구현한다",
@@ -1728,19 +1565,11 @@
       "phase": "B09",
       "priority": "P1",
       "title": "독립 검색 route·filter·recent-search privacy",
-      "status": "blocked",
-      "reason": "디자이너가 /search 신규 화면을 제작 중이고 BA-080의 filter·sort·recent-search privacy 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 독립 /search route를 노출하지 않고 기존 P0 검색만 유지하는 것이다.",
-      "dependsOn": [
-        "FE-103",
-        "BA-080"
-      ],
-      "operations": [
-        "searchPlaces"
-      ],
-      "featureIds": [
-        "FR-SRC-01",
-        "FR-FED-05"
-      ],
+      "status": "deferred",
+      "reason": "A-064(오너 2026-09-21)가 이번 B09 범위에서 BA-080을 deferred로 뺐다. 이 카드가 기다리던 filter·sort·recent-search privacy 계약을 만들 카드가 없으므로 blocked가 아니라 deferred다. 안전 기본값은 독립 /search route를 노출하지 않고(routes.tsx에 없다) 기존 P0 검색만 유지하는 것이다. 다시 여는 것은 오너 결정이다.",
+      "dependsOn": ["FE-103", "BA-080"],
+      "operations": ["searchPlaces"],
+      "featureIds": ["FR-SRC-01", "FR-FED-05"],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
@@ -1763,7 +1592,7 @@
           "assertion": "loading·no-result·error·offline·비교 불가와 keyboard·360px·ko/en 상태를 각각 검증한다"
         }
       ],
-      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-080 계약·example·generated client, privacy 문구와 cursor reset 검증이 모두 있어야 blocked를 해제한다.",
+      "handoff": "오너가 BA-080과 함께 다시 연 뒤에 착수한다. 그때 사용자의 디자인 완료 확인, 확정 Figma node, BA-080 계약·example·generated client, privacy 문구와 cursor reset 검증이 모두 있어야 한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -1771,40 +1600,67 @@
       "id": "FE-P1-104",
       "phase": "B09",
       "priority": "P1",
-      "title": "게시물 작성·media upload·moderation 상태",
-      "status": "blocked",
-      "reason": "디자이너가 /posts/new 신규 화면을 제작 중이고 BA-082의 upload·moderation·license 계약도 승인 전이다. 사용자가 디자인 완료를 알리기 전에는 해당 Figma 작업물을 열거나 구현 기준으로 삼지 않는다. 안전 기본값은 /posts/new 진입점을 노출하지 않고 upload 요청을 보내지 않는 것이다.",
-      "dependsOn": [
-        "FE-202",
-        "BA-082"
+      "title": "게시물 작성 /posts/new: 표지 업로드·장소 연결·즉시 공개(A-058)",
+      "status": "in-progress",
+      "dependsOn": ["FE-202", "BA-082"],
+      "operations": [
+        "createPostImageUpload",
+        "createPost",
+        "searchPlaces",
+        "listTrips"
       ],
-      "operations": [],
-      "featureIds": [
-        "FR-PUB-01"
-      ],
+      "featureIds": ["FR-PUB-01"],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "사용자가 /posts/new 디자인 완료를 알린 뒤 확정 node와 작성·업로드 상태를 handoff에 등록한다",
-        "승인된 upload session·moderation·license 계약과 generated client를 검토한다",
-        "draft·progress·cancel·expiry·failure·pending·rejected 상태와 이탈 복구를 구현한다"
+        "post-create.test.tsx의 '#312' case 여섯을 본문과 대조해 ID를 단다. 이름만 옮기지 않는다. 본문 대조로 그대로 증명되는 것은 넷이다: 여행 없는 feed의 진입점 부재(T6, 진입점이 보이는 case가 그 대조군), 직접 진입의 여행 만들기 링크(T7), 여행 조회 실패(T8), 모호한 게시 실패의 같은 key·body 재시도(T5). T4는 업로드 실패 case가 실패만 재므로 업로드 중·취소 case를 더한다. T2는 재시도 case가 실패 뒤 작성 화면에 남는 것을 암묵적으로만 보므로 201 전 이동·'게시됨' 표시가 없음을 직접 단언하는 case를 더한다. T1(권리 문구)을 재는 case는 아직 없으므로 새로 쓴다",
+        "브라우저 증거가 게이트에서 제외되는 post-create.mock.spec.ts뿐이므로 composed spec을 만들지, mock spec을 게이트에서 돌릴지 정한다",
+        "FR-PUB-01을 P0로 올리려면 FUNCTIONAL_INVENTORY와 BA-082 priority를 같은 PR에서 바꾼다. validate_docs.py가 부르는 validate_backend_plan이 카드와 inventory의 우선순위 불일치를 거절한다(inventory만 P0로 바꾸면 'BA-082: feature priority differs from inventory: FR-PUB-01')"
       ],
-      "safety": "디자인과 계약 승인 전에는 /posts/new route·CTA·upload 요청을 추가하지 않는다. 권리 확인 전 publish하지 않고 moderation 사유를 응답 근거 없이 만들어내지 않는다.",
+      "safety": "여행이 없거나 여행 조회가 실패하면 작성 입력을 그리지 않는다. 표지는 표준 파일 입력 하나이고(capture 없음, 계약 형식 JPEG·PNG) 카메라를 직접 열지 않는다(A-057). 권리 동의는 체크박스가 아니라 문구로 알린다(#312). createPost가 201로 답하기 전에는 게시됐다고 표시하지 않고, 결과를 모르는 실패는 같은 Idempotency-Key와 body로만 다시 보낸다. 서버가 주지 않은 거절 사유를 만들어내지 않는다.",
       "tests": [
         {
           "id": "FE-P1-104-T1",
-          "assertion": "upload progress·cancel·expiry·failure가 draft를 조용히 잃지 않고 권리 확인 전 publish하지 않는다"
+          "assertion": "권리 동의는 체크박스 없이 게시 버튼 곁의 문구로 보인다(#312)"
         },
         {
           "id": "FE-P1-104-T2",
-          "assertion": "moderation pending·rejected를 구분하고 서버가 주지 않은 거절 사유를 만들어내지 않는다"
+          "assertion": "createPost가 201로 답하기 전에는 게시됐다고 표시하거나 게시물로 이동하지 않는다(A-058 동기 완결, moderation 대기 상태 없음)"
         },
         {
           "id": "FE-P1-104-T3",
-          "assertion": "작성 중 이탈·복구와 focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+          "assertion": "focus·keyboard·360px·ko/en 긴 문구를 검증한다"
+        },
+        {
+          "id": "FE-P1-104-T4",
+          "assertion": "표지 업로드가 끝나지 않았으면(실패·취소 포함) 게시 요청을 보낼 수 없다"
+        },
+        {
+          "id": "FE-P1-104-T5",
+          "assertion": "결과를 모르는 게시 실패는 같은 Idempotency-Key와 같은 body로만 다시 보낸다"
+        },
+        {
+          "id": "FE-P1-104-T6",
+          "assertion": "여행이 없는 owner의 feed에는 게시물 작성 진입점이 없다"
+        },
+        {
+          "id": "FE-P1-104-T7",
+          "assertion": "여행이 없는 owner가 /posts/new에 바로 들어오면 업로드 입력 대신 여행 만들기 링크를 보인다"
+        },
+        {
+          "id": "FE-P1-104-T8",
+          "assertion": "여행 조회 실패를 여행 없음으로 읽지 않는다"
+        },
+        {
+          "id": "FE-P1-104-T9",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 NavBar의 '피드로 돌아가기'(Back to feed) control은 화면을 떠나기 전에 버릴지 묻는다"
+        },
+        {
+          "id": "FE-P1-104-T10",
+          "assertion": "표지·제목·본문 중 하나라도 입력돼 있으면 탭 닫기·새로고침에 브라우저의 떠나기 경고(beforeunload)를 건다"
         }
       ],
-      "handoff": "사용자의 디자인 완료 확인, 확정 Figma node, BA-082 계약·example·generated client, upload 취소·expiry와 moderation 상태가 모두 있어야 blocked를 해제한다.",
+      "handoff": "출시 상태: /posts/new(routes.tsx)와 feed 진입점(여행이 있을 때만), PostCreateScreen(createPostImageUpload → S3 PUT → createPost). FE 절반은 #312(CLOSED 2026-09-24), BE 절반은 BA-082다. A-058로 제출 범위이고 자동 기술 검증을 통과하면 즉시 공개라 moderation 대기·거절 상태가 없다. 작성 중 초안은 어디에도 저장하지 않으므로 복구가 없다. 입력을 지키는 장치는 NavBar의 '피드로 돌아가기' control이 여는 버리기 확인(T9, ConfirmDialog)과 탭 닫기·새로고침의 브라우저 떠나기 경고(T10, beforeunload) 둘이고, 모든 이탈을 덮지는 않는다. 알려진 구멍: 앱 안에서 이 화면으로 온 뒤 브라우저·시스템 뒤로 가기처럼 history를 되돌리면 react-router의 history 이동(popstate)이라 문서가 내려가지 않아 beforeunload가 불리지 않고, PostCreateScreen에는 useBlocker가 없어(NavBar의 onBack만 막는다) ConfirmDialog도 뜨지 않으므로 입력을 묻지 않고 버린다. TripEditForm.tsx는 같은 구멍을 useBlocker로 닫았다. 이 구멍을 재는 절 ID는 아직 없다. 예전 T3은 '이탈·복구'를 접근성 절과 한 ID에 묶고 이 화면에 없는 복구를 약속했으므로, T3을 접근성 절로 좁히고 이탈을 T9·T10으로 나눴다. 증거 상태: T9는 게이트 밖 post-create.mock.spec.ts만 잰다(입력 뒤 '피드로 돌아가기' 누름 → dialog → Escape로 입력과 focus 유지). Vitest case는 없다. T10을 재는 case는 아직 없다. 지금 test 제목에는 '#312'와 FE-603-T5만 있어 이 카드의 ID가 하나도 집계되지 않으므로 in-progress다. FR-PUB-01은 inventory와 BA-082 모두 아직 P1이다. PostCreateScreen 주석이 적은 Figma 920:257은 02 UI Design 목록(FIGMA_HANDOFF) 밖이고 열어 보지 않았으므로 figmaNodes에 넣지 않았다 — 넣으면 validate_docs.py가 'unverified Figma node'로 거절하므로, node를 확인해 FIGMA_HANDOFF에 먼저 등록해야 한다. keyboard/focus, 360px, 200% zoom, ko/en 긴 문구, reduced motion을 검증한다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -1814,24 +1670,10 @@
       "priority": "P1",
       "title": "S02-6 AI draft와 S09-D1 DAY preview capability",
       "status": "planned",
-      "dependsOn": [
-        "FE-503",
-        "BA-083",
-        "BA-084"
-      ],
-      "operations": [
-        "createOptimization",
-        "getOptimization"
-      ],
-      "featureIds": [
-        "FR-TRC-11",
-        "FR-OPT-02",
-        "FR-RTE-01"
-      ],
-      "figmaNodes": [
-        "440:3244",
-        "439:3104"
-      ],
+      "dependsOn": ["FE-503", "BA-083", "BA-084"],
+      "operations": ["createOptimization", "getOptimization"],
+      "featureIds": ["FR-TRC-11", "FR-OPT-02", "FR-RTE-01"],
+      "figmaNodes": ["440:3244", "439:3104"],
       "designRequests": [],
       "steps": [
         "BA-083·BA-084의 AI draft provenance와 DAY target·route matrix 계약을 승인된 example로 검토한다",
@@ -1862,18 +1704,12 @@
       "phase": "B09",
       "priority": "P1",
       "title": "프로필 정식 로그인과 익명 owner 데이터 승계·복구",
-      "status": "planned",
-      "dependsOn": [
-        "FE-105",
-        "BA-081"
-      ],
+      "status": "deferred",
+      "reason": "A-064(오너 2026-09-21)가 이번 B09 범위에서 BA-081을 deferred로 뺐다 — 로그인은 FE가 흉내만 내고 백엔드는 구현하지 않는다. 계정·승계 계약을 만들 카드가 없으므로 이 카드도 deferred다. 안전 기본값은 A-075(오너 2026-09-25)가 유지한 로그인 흉내 /sign-in(요청 0건)과 프로필 `TEST` 계정 표기이고, 인증·승계 요청은 보내지 않는다. 다시 여는 것은 오너 결정이다.",
+      "dependsOn": ["FE-105", "BA-081"],
       "operations": [],
-      "featureIds": [
-        "FR-AUT-01"
-      ],
-      "figmaNodes": [
-        "422:2925"
-      ],
+      "featureIds": ["FR-AUT-01"],
+      "figmaNodes": ["422:2925"],
       "designRequests": [],
       "steps": [
         "BA-081의 magic-link·transfer preview·confirm·conflict·recovery 계약을 승인된 example로 검토한다",
@@ -1905,10 +1741,7 @@
       "priority": "P0",
       "title": "S11-1 list-first와 DataStateLabel, 승인 시 map capability",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-404",
-        "BA-091"
-      ],
+      "dependsOn": ["FE-404", "BA-091"],
       "operations": [
         "queryLiveAreas",
         "listLiveAreaPlaces",
@@ -1916,11 +1749,7 @@
         "getPlace",
         "getLivePlace"
       ],
-      "featureIds": [
-        "FR-LIV-01",
-        "FR-LIV-02",
-        "FR-LIV-11"
-      ],
+      "featureIds": ["FR-LIV-01", "FR-LIV-02", "FR-LIV-11"],
       "figmaNodes": [
         "716:4377",
         "718:4521",
@@ -1975,15 +1804,8 @@
       "priority": "P0",
       "title": "S11-2 상세/S11-3 대안/S11-N 없음",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-401",
-        "BA-091"
-      ],
-      "operations": [
-        "getLivePlace",
-        "listRelatedPlaces",
-        "addTripCandidate"
-      ],
+      "dependsOn": ["FE-401", "BA-091"],
+      "operations": ["getLivePlace", "addTripCandidate"],
       "featureIds": [
         "FR-LIV-03",
         "FR-LIV-04",
@@ -1991,11 +1813,7 @@
         "FR-LIV-06",
         "FR-LIV-09"
       ],
-      "figmaNodes": [
-        "419:2617",
-        "420:2821",
-        "420:2950"
-      ],
+      "figmaNodes": ["419:2617", "420:2821", "420:2950"],
       "designRequests": [],
       "steps": [
         "getLivePlace의 장소·혼잡·출처·relation 상태를 하나의 상세 화면으로 렌더한다",
@@ -2035,17 +1853,10 @@
       "priority": "P0",
       "title": "S11-R replay mode와 degraded UI",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-401",
-        "BA-092"
-      ],
+      "dependsOn": ["FE-401", "BA-092"],
       "operations": [],
-      "featureIds": [
-        "FR-LIV-07"
-      ],
-      "figmaNodes": [
-        "421:2850"
-      ],
+      "featureIds": ["FR-LIV-07"],
+      "figmaNodes": ["421:2850"],
       "designRequests": [],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
@@ -2085,19 +1896,10 @@
       "priority": "P1",
       "title": "S10 주변 장소와 S11-4 동의 기반 재계획 진입",
       "status": "planned",
-      "dependsOn": [
-        "FE-403",
-        "BA-093"
-      ],
+      "dependsOn": ["FE-403", "BA-093"],
       "operations": [],
-      "featureIds": [
-        "FR-NBY-01",
-        "FR-LIV-10"
-      ],
-      "figmaNodes": [
-        "442:3370",
-        "501:3750"
-      ],
+      "featureIds": ["FR-NBY-01", "FR-LIV-10"],
+      "figmaNodes": ["442:3370", "501:3750"],
       "designRequests": [],
       "steps": [
         "BA-093의 위치 동의·거부·철회와 preview-only replan 계약을 승인된 example로 검토한다",
@@ -2129,9 +1931,7 @@
       "priority": "P0",
       "title": "공모전 준수 REQUIRED 행을 기계가 지키게 한다 (CMP-LOC-002·ATT-001·ATT-002·ATT-003)",
       "status": "integration-ready",
-      "dependsOn": [
-        "FE-601"
-      ],
+      "dependsOn": ["FE-601"],
       "operations": [],
       "featureIds": [],
       "figmaNodes": [],
@@ -2188,9 +1988,17 @@
         {
           "id": "FE-603-T11",
           "assertion": "출처 링크는 버튼·링크·선택 컨트롤(radio 등) 안에 두지 않는다"
+        },
+        {
+          "id": "FE-603-T12",
+          "assertion": "서버가 준 URL은 https일 때만 href·src에 넣고, 그 밖의 scheme이면 링크·이미지로 그리지 않는다"
+        },
+        {
+          "id": "FE-603-T13",
+          "assertion": "표지 URL이 거부된 feed 카드에도 게시물을 여는 표지 control이 보이고 가로·세로 44px 이상이다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-LOC-002·CMP-ATT-001·CMP-ATT-002·CMP-ATT-003 네 행을 이 카드가 소유한다. 검사는 e2e/location-off.spec.ts, src/shared/ui/__tests__/image-assets.test.ts, src/shared/ui/__tests__/attribution-coverage.test.ts에 있고 전부 통과 중이다. ATT-001의 T4는 처음에 파일 단위(sourceAttribution을 읽는 파일 ↔ DataAttribution을 그리는 파일)였는데, 한 파일 안의 다른 행(여행 생성 manual 단계의 담긴 행)과 sourceAttribution을 한 번도 읽지 않는 파일(붙여넣기 가져오기)을 보지 못해 R4에서 타입 기반 자리 단위 검사로 바꿨다. 단위별 렌더(T5)와 PlaceAttribution의 텍스트 출처·구분 문맥·중복 제거(T6~T8), 제안 카드의 이을 수 없는 장소 표시(T9)가 그 옆에 있다. 서버 URL이 href·src에 닿는 다섯 자리(출처 링크 둘, 장소 썸네일, feed·게시물 표지)는 isSafeUrl(https만)을 거치고, 자리마다 거부·통과 양방향 render test가 있다(T12, src/shared/url/__tests__/safe-url-sites.test.tsx·post.test.tsx). feed 표지는 게시물을 여는 유일한 control인데 크기가 이미지에서만 나와, 거부되면 0px로 접혀 보이지도 눌리지도 않았다 — 표지 크기의 빈 면을 대신 그리고, jsdom에는 layout이 없어 브라우저에서 잰다(T13, e2e/feed-refused-cover.spec.ts). ATT-001은 매트릭스가 \"DOM/visual coverage 100%\"를 요구하지만 그 수치는 화면에 실제 KTO 데이터가 있어야 측정되고 catalog 게이트가 닫히면 대상 0건으로 공허하게 통과한다 — 그래서 코드를 재고 대상이 0건이면 실패시킨다(#188). verified 승격은 두 required check가 완주한 run URL을 evidence.report에 적은 뒤에 한다 — 로컬 report는 .artifacts가 gitignore라 커밋할 수 없다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     },
@@ -2198,24 +2006,19 @@
       "id": "FE-604",
       "phase": "B08",
       "priority": "P0",
-      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003)",
+      "title": "배포 URL이 필요한 제출 준수 행 (CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003; CMP-SUB-004는 검토)",
       "status": "blocked",
-      "reason": "다섯 행 모두 배포된 제출 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못하고, 심사 녹화·smoke·스크린샷은 그 URL이 서기 전에는 촬영 자체가 불가능하다. 안전 기본값: 그 전까지 이 다섯 행은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다. BA-071(staging)이 서면 해제된다.",
-      "dependsOn": [
-        "FE-603",
-        "BA-071"
-      ],
+      "reason": "네 행 모두 최종 제출 release의 배포 URL에서만 증명된다. 로컬 Compose는 internal network라 외부망 익명 접속을 재현하지 못한다. 해제 조건은 #305 1단계(마지막 배포)로 최종 release가 동결되는 것이다. 그 동결은 카드가 아니라 사건이라 dependsOn edge로 적지 않는다 — 그것을 담은 카드 BA-073을 edge로 걸면 BA-073이 BA-071에 기대므로 아래에서 뺀 조건이 한 단계 아래로 돌아오고, BA-073-T1은 이 카드의 step 1과 같은 walk라 이 카드가 자기 walk가 끝내는 카드를 기다리는 모양이 된다. 예전 조건 'BA-071(staging)이 서면'은 staging이 이미 서 있어(BA-071 T1~T3 증명) 참인데도 이 카드를 풀지 못했고, BA-071은 오너가 T4(rollback 연습)를 빼서 끝나지 않으므로 조건으로 쓰지 않는다. 동결 전에 모은 증거는 재배포로 무효가 된다(#305). 안전 기본값: 그 전까지 이 행들은 준수 매트릭스에서 미충족으로 남고 제출물에 '검증됨'으로 적지 않는다.",
+      "dependsOn": ["FE-603"],
       "operations": [],
-      "featureIds": [
-        "FR-OPS-12"
-      ],
+      "featureIds": ["FR-OPS-12"],
       "figmaNodes": [],
       "designRequests": [],
       "steps": [
-        "배포 URL에서 session·shell E2E를 재실행해 익명 접속으로 핵심 흐름이 완결되는지 확인한다",
-        "외부망 익명창에서 심사 흐름을 녹화하고 360px·200% zoom 접근성 조건을 함께 만족하는지 기록한다",
+        "#305 1단계로 최종 release가 동결되면 외부망 익명창에서 로그인 없이 핵심 흐름을 사람이 직접 밟고 녹화한다(#305 3단계·BA-073-T1과 같은 walk). Playwright를 배포 URL에 겨누지 않는다 — 오너의 작업 규칙 'test는 live demo/dev database에 대고 돌리지 않는다'(LOCAL_DEVELOPMENT.md가 인용하는 같은 규칙)와 충돌하므로 겨누려면 오너 승인이 먼저다",
+        "같은 walk에서 360px·200% zoom 접근성 조건을 만족하는지 기록한다",
         "촬영 대상 화면 목록을 사전 확정하고 준비 중 화면과 개인 입력이 담긴 화면을 제외한다",
-        "배포 직후 smoke를 돌려 제출 직전 상태를 증거로 남긴다"
+        "#305 1단계의 배포 smoke 결과를 그 release 이름과 함께 증거로 연결한다"
       ],
       "safety": "준비 중 화면과 P1 기능을 구현 완료로 제출하지 않는다. 촬영물에 개인 입력·붙여넣기 원문·좌표가 남지 않게 하고, 로그인 없이 완결되는 흐름만 증거로 쓴다.",
       "tests": [
@@ -2232,7 +2035,7 @@
           "assertion": "촬영 목록에 준비 중 화면과 개인 입력 화면이 포함되지 않는다"
         }
       ],
-      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-004·005·007, CMP-ACC-001, CMP-LOC-003 다섯 행을 이 카드가 소유한다. 셋은 responsive.spec·session.spec·shell.spec이 뼈대를 이미 갖고 있어 배포 URL에 겨누기만 하면 된다. 마감 2026-09-21 16:00.",
+      "handoff": "COMPETITION_COMPLIANCE_MATRIX의 CMP-SUB-005·007, CMP-ACC-001, CMP-LOC-003 네 행을 이 카드가 소유한다. CMP-SUB-004(외부 접속 URL)는 매트릭스대로 DRI가 BE·AI이고 FE는 검토한다 — 증거가 배포 작업인 HTTPS smoke라서다(bbc58308). responsive.spec·session.integration.spec·shell.spec은 로컬·게이트의 뼈대이고 배포 URL 증거는 step 1의 사람 walk로 모은다.",
       "owner": "FE_DRI",
       "reviewer": "BE_AI_DRI"
     }

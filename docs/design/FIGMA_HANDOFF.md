@@ -389,7 +389,7 @@ S12 P1 범위 정합성:
 | 최적화 예외 `417:2567`, `485:3517` | code별 copy/CTA, 일정 미변경 표시 | 정확한 code/status, recompute guard | 6 error code fixture 전부 |
 | Live 목록/지도 `418:2523` | 목록 필수, map은 provider capability, 동일 filter/selection | `queryLiveAreas`/`listLiveAreaPlaces`, freshness/source state | map OFF/list와 map ON 전환 상태 유지 |
 | Live 상세 `419:2617` | crowd/freshness/action, unavailable UX | `getLivePlace`, source mapping/fallback | state·source·시각 100% 표시 |
-| Live 대안 `420:2821`, `420:2950` | relation/reason/empty CTA | `listRelatedPlaces`, comparison eligibility | fake ranking/candidate 0 |
+| Live 대안 `420:2821`, `420:2950` | relation/reason/empty CTA | `getLivePlace`의 `related`, comparison eligibility | fake ranking/candidate 0 |
 | Replay `421:2850` | replay badge/snapshot time을 상시 표시 | immutable replay dataset/readiness | 현재 Live로 오인 가능성 0 |
 | Live 재계획 `501:3750` | P1 위치 동의/취소·목적 안내 | consent-bounded replan, 보존 가드 | 동의 없이 서버 위치 0건 |
 | 프로필 `422:2925` | `TEST` 계정 표기(A-075), trips/history/interests/data UI | owner/trips/interests, `listOptimizationHistory` | 비로그인 P0 전 상태 QA |

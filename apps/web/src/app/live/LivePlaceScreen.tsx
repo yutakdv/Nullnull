@@ -17,24 +17,13 @@ import {
   DataAttribution,
   NavBar,
   PlaceAttribution,
-  type SourceState,
   StateLabel,
-  type StateWording,
 } from '../../shared/ui/index.js';
 import styles from './LivePlaceScreen.module.css';
 import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
 import { readLiveReturn } from './live-return.js';
-
-const STATES: SourceState[] = [
-  'LIVE',
-  'FORECAST',
-  'QUALITATIVE',
-  'STALE',
-  'UNAVAILABLE',
-  'REPLAY',
-];
 
 type CrowdMetric = components['schemas']['CrowdMetric'];
 
@@ -87,10 +76,6 @@ export function LivePlaceScreen() {
   const addKey = useRef<{ placeId: string; value: string } | null>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const restoreSaveFocus = useRef(false);
-  const stateLabels = Object.fromEntries([
-    ...STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-    ['PROVIDER_INCIDENT', t('crowd.providerIncident')],
-  ]) as Partial<Record<StateWording, string>>;
 
   useEffect(() => {
     if (!addCandidate.isPending && restoreSaveFocus.current) {
@@ -184,7 +169,6 @@ export function LivePlaceScreen() {
           <div className={styles.titleRow}>
             <h1 id="live-place-heading">{detail.data.place.name}</h1>
             <StateLabel
-              labels={stateLabels}
               observedAt={referenceLabel(detail.data.crowd?.provenance ?? null)}
               qualityFlags={detail.data.crowd?.provenance.qualityFlags}
               state={detail.data.dataState}
@@ -199,7 +183,6 @@ export function LivePlaceScreen() {
             <h2 id="live-place-crowd">{t('live.detail.crowd')}</h2>
             <CrowdLevel
               crowd={detail.data.crowd ?? null}
-              stateLabels={stateLabels}
               unavailableReason={t('live.noReading')}
             />
             {detail.data.crowd ? (
@@ -224,7 +207,6 @@ export function LivePlaceScreen() {
                     {canCompareCrowd(detail.data.crowd ?? null, item.crowd ?? null) ? (
                       <CrowdLevel
                         crowd={item.crowd ?? null}
-                        stateLabels={stateLabels}
                         unavailableReason={t('live.noReading')}
                       />
                     ) : item.crowd ? (
@@ -232,11 +214,7 @@ export function LivePlaceScreen() {
                         {t('live.related.ineligible')}
                       </span>
                     ) : (
-                      <CrowdLevel
-                        crowd={null}
-                        stateLabels={stateLabels}
-                        unavailableReason={t('live.noReading')}
-                      />
+                      <CrowdLevel crowd={null} unavailableReason={t('live.noReading')} />
                     )}
                     {/* The place and the relation are two records: the place
                         is a catalogue entry, the relation is why it is

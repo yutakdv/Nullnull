@@ -1,24 +1,14 @@
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import type { MessageKey } from '../../i18n/messages.js';
 import { DataAttribution } from '../ui/components/DataAttribution.js';
 import { sourceContext, type AttributionSource } from '../ui/components/credits.js';
-import { StateLabel, type SourceState } from '../ui/components/StateLabel.js';
+import { StateLabel } from '../ui/components/StateLabel.js';
 import { busiestCrowdPoint, crowdTargetDate } from './forecast.js';
 import { formatReferenceTime } from './reference-time.js';
 import styles from './CrowdForecastReading.module.css';
 
 type CrowdMetric = components['schemas']['CrowdMetric'];
 type CrowdSeries = components['schemas']['CrowdSeries'];
-
-const STATES: SourceState[] = [
-  'LIVE',
-  'FORECAST',
-  'QUALITATIVE',
-  'STALE',
-  'UNAVAILABLE',
-  'REPLAY',
-];
 
 /**
  * Credits already drawn in the same unit — the place's, when the reading sits
@@ -51,16 +41,13 @@ export function CrowdForecastReading({
   );
   const referenceAt = point.provenance.observedAt ?? point.provenance.fetchedAt;
   const referenceLabel = formatReferenceTime(referenceAt, locale);
-  const stateLabels = Object.fromEntries(
-    STATES.map((state) => [state, t(`state.${state}` as MessageKey)]),
-  ) as Partial<Record<SourceState, string>>;
 
   return (
     <span className={styles.reading}>
       <span className={styles.summary}>
         <span>{t('crowd.relativeIndex', { value })}</span>
         {dateLabel ? <span>{t('crowd.targetDate', { date: dateLabel })}</span> : null}
-        <StateLabel labels={stateLabels} state={point.state} />
+        <StateLabel state={point.state} />
         <span>
           {point.provenance.observedAt
             ? t('crowd.observedAt', { date: referenceLabel })

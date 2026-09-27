@@ -15,6 +15,7 @@ import {
   CrowdForecastCardReading,
   CrowdForecastQueryState,
 } from '../../shared/crowd/CrowdForecastReading.js';
+import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './MustVisitScreen.module.css';
 
 type PlaceSummary = components['schemas']['PlaceSummary'];
@@ -51,7 +52,7 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // a lock (`trip_constraints.trip_item_id` is NOT NULL), so it stays an
 // intention until scheduling promotes it to a `MUST_VISIT` constraint.
 //
-// So 이대로 채우기 is `createTrip` followed by one `addTripCandidate` per pick
+// So the primary action is `createTrip` followed by one `addTripCandidate` per pick
 // (TripWizardScreen `savePicks`), and those N+1 requests are not one
 // transaction (invariant 5). When the trip is created and only some picks land,
 // this step names the ones that did not and offers 다시 시도 for exactly those
@@ -63,9 +64,9 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // generated client, so BA-022 landing removes the fixture and handler only.
 //
 // The Figma card's crowd reading comes from queryPlaceCrowdForecasts, not from
-// PlaceSummary. The ordered response is joined to search results by index and
-// preserves the chosen point's own provenance; no ordinal is derived from the
-// KTO relative index (FCR-029).
+// PlaceSummary. Each search page is its own batch, and its ordered response is
+// joined to that page's results by index, preserving the chosen point's own
+// provenance; no ordinal is derived from the KTO relative index (FCR-029).
 
 export interface MustVisitStepProps {
   /** The places chosen so far, held by the wizard so going back keeps them. */
@@ -114,8 +115,9 @@ export function MustVisitStep({
   const [query, setQuery] = useState('');
   const search = usePlaceSearch(query, locale);
   const searchResults = search.data?.items ?? [];
+  const resultList = useRef<HTMLUListElement>(null);
   const forecasts = usePlaceCrowdForecasts(
-    searchResults.map((place) => place.id),
+    (search.data?.pages ?? []).map((page) => page.map((place) => place.id)),
     startDate,
     endDate,
   );
@@ -193,12 +195,14 @@ export function MustVisitStep({
                 {t('mustVisit.searching')}
               </p>
             ) : null}
-            {search.isError ? (
+            {/* A failed search. A failed later page leaves the results
+                standing and reports beside its own control (searchFailed). */}
+            {searchFailed(search) ? (
               <p className={styles.state} role="alert">
                 {t('mustVisit.searchError')}
               </p>
             ) : null}
-            {search.isSuccess && search.data.items.length === 0 ? (
+            {search.isSuccess && searchResults.length === 0 ? (
               <p className={styles.state}>{t('mustVisit.noResults')}</p>
             ) : null}
             {searchResults.length > 0 ? (
@@ -208,9 +212,13 @@ export function MustVisitStep({
                 series={undefined}
               />
             ) : null}
-            {search.isSuccess && search.data.items.length > 0 ? (
-              <ul className={styles.list} aria-labelledby="search-results">
-                {search.data.items.map((place, index) => (
+            {searchResults.length > 0 ? (
+              <ul
+                className={styles.list}
+                aria-labelledby="search-results"
+                ref={resultList}
+              >
+                {searchResults.map((place, index) => (
                   <li className={styles.card} key={place.id}>
                     {/* 438:3171: a 66px thumbnail. Decorative — the name beside
                       it is the accessible content. */}
@@ -230,7 +238,7 @@ export function MustVisitStep({
                       <PlaceAttribution compact place={place} />
                       <CrowdForecastCardReading
                         alongside={unitCredits([place])}
-                        series={forecasts.data?.items[index]}
+                        series={forecasts.items[index]}
                       />
                     </span>
                     <button
@@ -253,6 +261,7 @@ export function MustVisitStep({
                 ))}
               </ul>
             ) : null}
+            <PlaceSearchMore list={resultList} search={search} />
           </div>
         ) : null}
 
@@ -326,8 +335,8 @@ export function MustVisitStep({
 
       {/* The two exits now do different things, which is the whole point of
           #185: both used to call navigate('/feed'), so a traveller who picked
-          places and pressed 이대로 채우기 got the same trip as one who pressed
-          건너뛰기, and the picks vanished with no word. 이대로 채우기 carries
+          places and pressed the primary action got the same trip as one who
+          pressed 건너뛰기, and the picks vanished with no word. 여행 만들기 carries
           them into the trip; 건너뛰기 states that there are none.
 
           Both create the trip, so both are blocked while one is in flight —

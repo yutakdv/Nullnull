@@ -273,7 +273,7 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-303` | B05 | S07-8 후보 panel과 일정화 flow | `412:1912` |
 | `FE-304` | B05 | lock control, unlock/date-lock confirm | `413:2081`, `527:3876` |
 | `FE-305` | B05 | 검색/추가/교체/날짜 이동 variant | `527:4085`, `414:2347`, `527:4537`, `476:3409`, `479:3497`, `479:3816`, `527:4380`, `521:3976`, `527:4695` |
-| `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | 미지정 · S07 편집 흐름 |
+| `FE-306` | B05 | 날짜 범위 변경 시 영향 preview/cancel/명시 처리 | `411:1837` · 영향 목록 state는 FCR-032(디자인 부재) · 진입 control은 FCR-037(node 없음, FE placeholder) |
 | `FE-307` | B05 | item 편집 시트에서 잠금 종류별 독립 설정 | `411:1837` |
 | `FE-501` | B06 | S09-0 scope/item setup, 미지원 P1 state | `415:2268` |
 | `FE-502` | B06 | S09-1 loading/polling/background resume | `415:2413` |
@@ -285,13 +285,13 @@ Frontend 실행 ID: `FE-401`, `FE-402`, `FE-403`, `FE-P1-102`
 | `FE-601` | B08 | 전체 P0 responsive/긴 텍스트/200% zoom pass | 전 P0 화면 |
 | `FE-602` | B08 | Lighthouse/performance budget와 bundle 분석 | 전 P0 화면 |
 | `FE-603` | B08 | 공모전 준수 REQUIRED 행을 기계가 지키게 한다 (위치 0건·출처 coverage·이미지·TourAPI 단독 표기) | 전 P0 화면 |
-| `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — staging이 서기 전까지 blocked | 전 P0 화면 |
+| `FE-604` | B08 | 배포 URL이 필요한 제출 준수 행 — 최종 release가 동결되기 전까지 blocked(#305 1단계) | 전 P0 화면 |
 | `FE-P1-101` | B09 | S12 알림 목록/empty/unread/read-all/allowlisted deep link | `442:3344` |
 | `FE-308` | B09 | FCR-017 확정 뒤 시간/duration 편집 | 미지정 · FCR-017 |
-| `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy | 미지정 · P1 seed |
-| `FE-P1-104` | B09 | 게시물 작성/media/moderation 상태 | 미지정 · P1 seed |
+| `FE-P1-103` | B09 | 독립 검색 route/filter/recent-search privacy — A-064로 deferred(BA-080) | 미지정 · P1 seed |
+| `FE-P1-104` | B09 | 게시물 작성 /posts/new·표지 업로드·장소 연결·즉시 공개(A-058, #312) | 미지정 · 02 UI Design 밖 |
 | `FE-P1-105` | B09 | S02-6 AI draft와 S09-D1 DAY preview capability | `440:3244`, `439:3104` |
-| `FE-P1-106` | B09 | 프로필 정식 로그인/익명 데이터 승계·복구 UI | `422:2925` |
+| `FE-P1-106` | B09 | 프로필 정식 로그인/익명 데이터 승계·복구 UI — A-064로 deferred(BA-081) | `422:2925` |
 | `FE-401` | B10 | S11-1 list-first와 DataStateLabel, 승인 시 map capability | `716:4377`, `718:4521`, `718:4584`, `718:4647`, `718:4710`, `684:4156`, `684:4330`, `684:4366`, `684:4402` |
 | `FE-402` | B10 | S11-2 상세/S11-3 대안/S11-N 없음 | `419:2617`, `420:2821`, `420:2950` |
 | `FE-403` | B10 | S11-R replay mode와 degraded UI | `421:2850` |

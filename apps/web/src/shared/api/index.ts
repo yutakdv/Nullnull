@@ -52,6 +52,8 @@ export {
   usePlaceDetail,
   usePlaceCrowdForecast,
   usePlaceCrowdForecasts,
+  type PlaceCrowdForecastPages,
+  type PlaceSearchResults,
   usePost,
   useSavePost,
   useUnsavePost,

@@ -135,11 +135,33 @@ export function ScheduleCandidateSheet({
   }
 
   const eligible = match === null ? [] : eligibleSlots(match);
-  const blocked = match === null ? [] : blockedSlots(match);
-  // CHECKING and UNKNOWN are not "no dates" — the server has not finished
-  // looking, or has no basis to say. NONE is the only state that decided
-  // nothing fits, and each says its own thing.
+  const blocked =
+    match === null
+      ? []
+      : match.state === 'UNKNOWN'
+        ? match.slots
+            .filter((slot) => slot.reasonCode !== 'OPENING_HOURS_UNKNOWN')
+            .sort((a, b) => a.date.localeCompare(b.date))
+        : blockedSlots(match);
+  // Unknown opening hours are not a verified recommendation. The traveller
+  // can still pick that date explicitly, as the card's UNKNOWN copy promises.
+  const manual =
+    match?.state === 'UNKNOWN'
+      ? match.slots
+          .filter((slot) => slot.reasonCode === 'OPENING_HOURS_UNKNOWN')
+          .sort((a, b) => a.date.localeCompare(b.date))
+      : [];
+  // Only an UNKNOWN date with missing opening hours can be chosen manually.
+  // Other ineligible dates are never promoted to selectable dates.
   const undecided = match !== null && !hasDecision(match);
+  const dateRows = [
+    ...eligible.map((slot) => ({ slot, usable: true })),
+    ...manual.map((slot) => ({ slot: { ...slot, suggestedTime: null }, usable: true })),
+    ...blocked.map((slot) => ({ slot, usable: false })),
+  ];
+  if (match?.state === 'UNKNOWN') {
+    dateRows.sort((a, b) => a.slot.date.localeCompare(b.slot.date));
+  }
 
   /**
    * A sentence for the server's `reasonCode`, or the general one.
@@ -256,19 +278,16 @@ export function ScheduleCandidateSheet({
           </p>
         ) : null}
 
-        {/* NONE / CHECKING / UNKNOWN are NOT repeated here. The card already
-            carries the state in its relation badge, and printing it a second
-            time inside the sheet puts the same sentence on screen twice — a
-            screen reader reads both, and a test asking "does it say NONE?"
-            matches two nodes and cannot tell which one it measured.
-            What the sheet owes these states is the absence of dates. NOT_ACTIVE
-            instead explains that the candidate changed: the card badge is
-            outside the modal and cannot be read while it is open. */}
+        {/* The modal repeats UNKNOWN even when no dates are offered: its card
+            badge is outside the modal, and the traveller needs the warning
+            before choosing. NOT_ACTIVE also needs its own explanation. */}
         {undecided && !loading && !failed ? (
           <p className={styles.state} role="status">
             {match?.state === 'NOT_ACTIVE'
               ? t('candidates.match.NOT_ACTIVE')
-              : t('candidates.sheet.noDates')}
+              : match?.state === 'UNKNOWN'
+                ? t('candidates.match.UNKNOWN')
+                : t('candidates.sheet.noDates')}
           </p>
         ) : null}
 
@@ -278,15 +297,14 @@ export function ScheduleCandidateSheet({
           series={forecast.data}
         />
 
-        {eligible.length > 0 || blocked.length > 0 ? (
+        {dateRows.length > 0 ? (
           <>
             <p className={styles.pick}>{t('candidates.sheet.pickDate')}</p>
             {/* Named so the list is not an unlabelled group of bare dates to a
                 screen reader, and so a test can address the dates rather than
                 whatever list happens to be on screen. */}
             <ul aria-label={t('candidates.pickDate')} className={styles.days}>
-              {eligible.map((slot) => dayRow(slot, true))}
-              {blocked.map((slot) => dayRow(slot, false))}
+              {dateRows.map(({ slot, usable }) => dayRow(slot, usable))}
             </ul>
           </>
         ) : null}

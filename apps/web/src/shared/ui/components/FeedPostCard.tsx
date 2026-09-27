@@ -1,4 +1,5 @@
 import type { components } from '@nullnull/api-client';
+import { isSafeUrl } from '../../url/safe-url.js';
 import { CrowdLevel } from './CrowdLevel.js';
 import { PlaceAttribution } from './PlaceAttribution.js';
 import type { StateWording } from './StateLabel.js';
@@ -25,13 +26,18 @@ export interface FeedPostCardProps {
   onAddCandidate?: (placeId: string) => void;
   /** Overrides the derived button state while a save is in flight or failed. */
   addState?: TripAddState;
-  /** Localized copy from the caller; each falls back to the component default. */
+  /**
+   * Localized copy from the caller; each falls back to the component default.
+   *
+   * There are no stage words here on purpose: CrowdLevel picks them by the
+   * reading's source (Seoul publishes its own four), and one map for every
+   * card would override that. There is no licence label either — the card's
+   * credit is compact and never draws the licence link.
+   */
   labels?: {
     add?: Partial<Record<TripAddState, string>>;
     state?: Partial<Record<StateWording, string>>;
-    crowdStages?: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
     crowdLevel?: string;
-    licenseTerms?: string;
   };
 }
 
@@ -64,14 +70,23 @@ export function FeedPostCard({
         onClick={() => onOpenPost?.(post.id)}
         aria-label={post.title}
       >
-        <img src={post.coverUrl} alt="" loading="lazy" />
+        {/* Only an https cover is drawn (FE-603-T12). The button stays either
+            way: it is the control that opens the post, not the picture's.
+            Its size came only from the image, so a refused cover used to
+            leave a 0px button - focusable, invisible, untappable. The empty
+            box keeps the cover's size and says nothing about a source
+            (FE-603-T13, measured in a browser: jsdom has no layout). */}
+        {isSafeUrl(post.coverUrl) ? (
+          <img src={post.coverUrl} alt="" loading="lazy" />
+        ) : (
+          <span aria-hidden="true" className={styles.coverPlaceholder} />
+        )}
       </button>
 
       <div className={styles.body}>
         <CrowdLevel
           crowd={crowd ?? null}
           levelLabel={labels?.crowdLevel}
-          levelLabels={labels?.crowdStages}
           stateLabels={labels?.state}
         />
         <h3 className={styles.title}>{post.title}</h3>
@@ -87,7 +102,6 @@ export function FeedPostCard({
           also={crowd ? [crowd.provenance] : undefined}
           compact
           place={primaryPlace}
-          termsLabel={labels?.licenseTerms}
         />
       </div>
 
