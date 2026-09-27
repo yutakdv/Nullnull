@@ -71,8 +71,8 @@ class FlywayMigrationIT {
     // list plus the count below is the recalculation. V046 creates no table of its own, so
     // nothing new waits behind upload_intents.
     //
-    // V049 (BA-092) was the head and said its replay tables would join this list when a later
-    // migration became the head. V050 (BA-086) is that migration, so they are here now.
+    // V049 (BA-092) replay tables and V050 (BA-086) localization links are all in V051's
+    // previous schema.
     private static final List<String> PREVIOUS_SCHEMA_TABLES = List.of(
             "analytics_events", "background_jobs", "owners", "idempotency_records",
             "demo_sessions", "demo_session_csrf_tokens", "deletion_requests",
@@ -88,7 +88,7 @@ class FlywayMigrationIT {
             "optimization_proposals", "optimization_changes",
             "optimization_decisions", "notifications",
             "live_areas", "seoul_live_area_maps", "upload_intents", "seoul_live_refresh_claims",
-            "replay_manifests", "replay_manifest_entries");
+            "replay_manifests", "replay_manifest_entries", "place_localization_sources");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -153,43 +153,9 @@ class FlywayMigrationIT {
             // since everything up to the previous version is already inside rowsBefore. So it moves
             // as the last migration moves. V021 seeded three (A-024's source, its first registry
             // revision and the 1st-party asset licence) and they are long inside rowsBefore now.
-            // V046 is the last one today ON THIS BRANCH and seeds one row, which is why the number below is 1
-            // rather than 0. V044, now the previous schema, seeds nothing: it creates live_areas and
-            // seoul_live_area_maps (BA-090) and adds the foreign key crowd_snapshots.live_area_id
-            // had been waiting for, and writes no row. V037 seeds nothing either: it creates the
-            // notifications table (BA-085) and writes no row into it, because nothing produces a
-            // notification yet - and with V044 ahead of it, V037 is now the previous schema, so
-            // PREVIOUS_SCHEMA_TABLES above DOES carry notifications. V036
-            // seeded nothing either: it swaps three foreign keys on
-            // optimization_decisions and optimization_runs, which creates no row
-            // and no table and holds
-            // for the decision rows populateEveryTable wrote under V035. V035 seeded nothing either: it
-            // replaced the run failure_code CHECK with a wider one, which every run row already
-            // satisfies. V034 seeded nothing either - it added two nullable columns
-            // and a CHECK to optimization_proposals, which the proposal rows satisfy with both columns
-            // null - and neither did V033, V032, V031, V030, V029,
-            // V028, V027, V026. V025's two rows - the NULLNULL_CURATED_HOURS
-            // source and its first registry revision - are long inside rowsBefore now. Hence this
-            // line changing again the next time a migration seeds anything, which is the point of
-            // the count being exact.
-            //
-            // V045 (BA-082) seeded three - the USER_UPLOAD source, its first registry revision and
-            // the one asset licence that source's assets point at, the same three shapes V021
-            // seeded for A-024. Those three are NOT counted here any more: V046 is the last
-            // migration now, so V045 runs in the first migrate step and its rows are inside
-            // rowsBefore. The count is what the LAST migration alone seeds.
-            //
-            // V046 seeds ONE row: the source_registry_revisions entry (version 2) that the Seoul
-            // promotion writes beside its UPDATE. The UPDATE itself adds nothing. This number
-            // moving is how this assertion works - it is what notices a migration that quietly
-            // plants data - so it is edited with a reason, never deleted. It moved 0 -> 3 -> 1 in
-            // one day because two branches each had a different last migration.
-            //
-            // V049 (BA-092) seeded nothing and is now the previous schema, so its replay tables are
-            // populated above. V050 (BA-086) is last and seeds TWO rows: the KTO_ENG_SERVICE
-            // source_registry row and its first source_registry_revisions row. Its own table,
-            // place_localization_sources, is created empty - links come only from the owner's plan.
-            long seededAfterPreviousSchema = 2;
+            // V051 only removes two disproven palace-to-gate decisions. The representative V050
+            // link below is different and must survive, so this upgrade changes no row count.
+            long seededAfterPreviousSchema = 0;
             assertThat(totalRowsInUpgradeSchema()).isEqualTo(rowsBefore + seededAfterPreviousSchema);
             assertThat(columnsInUpgradeSchema()).containsAll(columnsBefore);
             // A row that references the owner created before the upgrade is still accepted.
@@ -479,6 +445,12 @@ class FlywayMigrationIT {
                                                      external_id, external_type, verified_at)
                     VALUES (gen_random_uuid(), v_place, 'KTO_KOR_SERVICE_2', 2,
                             'upgrade-' || gen_random_uuid()::text, 'CONTENT_ID', v_at);
+                    INSERT INTO place_localization_sources
+                        (id, place_id, locale, source_code, external_id, external_type, reviewed_at,
+                         created_at, updated_at)
+                    VALUES (gen_random_uuid(), v_place, 'en', 'KTO_ENG_SERVICE',
+                            'upgrade-' || gen_random_uuid()::text, 'KTO_CONTENT_TYPE:76', v_at,
+                            v_at, v_at);
                     INSERT INTO asset_licenses (id, source_code, source_registry_version,
                                                 external_license_code, license_name, license_url,
                                                 attribution_template, redistribution_allowed,

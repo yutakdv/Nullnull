@@ -14,7 +14,7 @@ public final class ImplementedOperationsRegistry {
                     "searchPlaces", "getPlace", "listRelatedPlaces", "getPlaceCrowdForecast",
                     "queryPlaceCrowdForecasts",
                     "listTrips", "createTrip", "getTrip", "updateTrip", "deleteTrip",
-                    "listFeed", "getPost", "savePost", "unsavePost", "recordFeedFeedback",
+                    "listFeed", "listSavedPosts", "getPost", "savePost", "unsavePost", "recordFeedFeedback",
                     // BA-082 post authoring. The pair is one flow: the ticket is signed here
                     // and spent by createPost, which is why neither is useful alone.
                     "createPostImageUpload", "createPost",

@@ -2,12 +2,17 @@ package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.catalog.application.CatalogHoursQuery;
+import io.nullnull.catalog.application.CatalogHoursQuery.CatalogOpeningWindow;
 import io.nullnull.identity.domain.IdempotencyRecord;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
@@ -16,12 +21,14 @@ import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -42,6 +49,34 @@ class TripItemMutationIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean CatalogHoursQuery hours;
+
+    @Test
+    @DisplayName("FR-ITM-03 adding to a verified closed date is refused without changing the trip")
+    void verifiedClosedDateCannotBeAdded() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID place = place("휴무 검증 장소");
+        UUID tripId = createTrip(owner, "2026-10-04", "2026-10-05");
+        LocalDate date = LocalDate.parse("2026-10-05");
+        when(hours.windowsFor(eq(place), eq(date), eq(date), any()))
+                .thenReturn(Map.of(date, new CatalogOpeningWindow(
+                        CatalogOpeningWindow.State.CLOSED, null, null)));
+
+        mvc.perform(post("/api/v1/trips/" + tripId + "/items")
+                        .cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .header("Idempotency-Key", "add-" + UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"placeId\":\"" + place + "\",\"date\":\"" + date
+                                + "\",\"position\":0}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Closed"));
+        assertThat(version(tripId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_items WHERE trip_id = ?",
+                Integer.class, tripId)).isZero();
+    }
 
     @Test
     @DisplayName("BA-040-T2 scheduling a candidate and restoring it move the candidate with the item")

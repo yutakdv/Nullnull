@@ -65,6 +65,7 @@ tags:
 | FR-FED-04 | P0 | 허용된 피드 노출·상호작용 피드백 기록 | feed | `recordFeedFeedback` | allowlist event만 수집, 중복·PII 차단 |
 | FR-PST-01 | P0 | 게시물 상세와 연결 장소 조회 | `398:611` | `getPost` | deep link/404 처리 |
 | FR-PST-02 | P0 | 게시물 자체 저장/해제 | post/feed | `savePost`, `unsavePost` | TripCandidate/TripItem과 독립 |
+| FR-PST-03 | P0 | 저장한 게시물 목록에서 상세로 이동하거나 저장 해제 | 프로필 `422:2925`의 저장한 글 진입 | `listSavedPosts`, `getPost`, `unsavePost` | 익명 owner 범위·공개 글만 표시·cursor 페이지·후보와 일정 불변 |
 | FR-PLC-01 | P0 | 표준 장소 상세를 화면 간 일관되게 조회 | post/search/Live | `getPlace` | canonical ID·출처 유지, 404 구분 |
 | FR-CAN-01 | P0 | `+`에서 대상 여행 picker 열기 | `399:658`, `409:1595` | `listTrips` | focus trap/복귀, empty/new trip |
 | FR-CAN-02 | P0 | 장소를 여행 후보로 저장 | `399:843` | `addTripCandidate` | 201, 날짜/time 없음, version 미변경 |

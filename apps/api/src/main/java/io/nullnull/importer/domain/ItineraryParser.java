@@ -32,10 +32,14 @@ public final class ItineraryParser {
     /** {@code 2026-03-15}, {@code 2026.3.15}, {@code 2026/3/15}, {@code 2026년 3월 15일}. */
     private static final Pattern FULL_DATE = Pattern.compile(
             "^\\s*(\\d{4})\\s*[-./년]\\s*(\\d{1,2})\\s*[-./월]\\s*(\\d{1,2})\\s*일?\\s*$");
+    private static final Pattern FULL_DATE_WITH_PLACE = Pattern.compile(
+            "^\\s*(\\d{4})\\s*[-./년]\\s*(\\d{1,2})\\s*[-./월]\\s*(\\d{1,2})\\s*일?\\s+(.+)$");
 
     /** {@code 3/15}, {@code 3.15}, {@code 3월 15일} - a day with no year, which nobody completes. */
     private static final Pattern DATE_ONLY = Pattern.compile(
             "^\\s*(\\d{1,2})\\s*[-./월]\\s*(\\d{1,2})\\s*일?\\s*$");
+    private static final Pattern DATE_WITH_PLACE = Pattern.compile(
+            "^\\s*(\\d{1,2}\\s*[-./월]\\s*\\d{1,2}\\s*일?)\\s+(.+)$");
 
     /** A leading {@code 09:00} or {@code 9:00}, followed by the rest of the line. */
     private static final Pattern LEADING_TIME = Pattern.compile("^\\s*(\\d{1,2}):(\\d{2})\\s+(.+)$");
@@ -106,10 +110,33 @@ public final class ItineraryParser {
                     ? new ParsedLine(number, ParsedLine.Kind.PLACE, null, null, null, lookup(line))
                     : new ParsedLine(number, ParsedLine.Kind.DATE_HEADER, null, date, null, null);
         }
+        Matcher fullWithPlace = FULL_DATE_WITH_PLACE.matcher(line);
+        if (fullWithPlace.matches()) {
+            LocalDate date = date(Integer.parseInt(fullWithPlace.group(1)),
+                    Integer.parseInt(fullWithPlace.group(2)), Integer.parseInt(fullWithPlace.group(3)));
+            if (date != null) {
+                String rest = fullWithPlace.group(4).strip();
+                Matcher timedPlace = LEADING_TIME.matcher(rest);
+                if (timedPlace.matches()) {
+                    LocalTime time = time(Integer.parseInt(timedPlace.group(1)),
+                            Integer.parseInt(timedPlace.group(2)));
+                    if (time != null) {
+                        return new ParsedLine(number, ParsedLine.Kind.PLACE, null, date, time,
+                                lookup(timedPlace.group(3).strip()));
+                    }
+                }
+                return new ParsedLine(number, ParsedLine.Kind.PLACE, null, date, null, lookup(rest));
+            }
+        }
         Matcher dayOnly = DATE_ONLY.matcher(line);
         if (dayOnly.matches()) {
             // The fragment is safe to echo BECAUSE it matched: digits and one separator, nothing else.
             return new ParsedLine(number, ParsedLine.Kind.AMBIGUOUS_DATE, line, null, null, null);
+        }
+        Matcher dayWithPlace = DATE_WITH_PLACE.matcher(line);
+        if (dayWithPlace.matches()) {
+            return new ParsedLine(number, ParsedLine.Kind.AMBIGUOUS_DATE,
+                    dayWithPlace.group(1).strip(), null, null, lookup(dayWithPlace.group(2).strip()));
         }
         Matcher timed = LEADING_TIME.matcher(line);
         if (timed.matches()) {

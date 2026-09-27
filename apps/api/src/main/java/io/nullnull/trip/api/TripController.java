@@ -471,12 +471,13 @@ public class TripController {
     }
 
     public record TripItemResponse(UUID id, PlaceSummaryResponse place, LocalDate date, int position,
-            String startTime, Integer durationMinutes, String note, List<Object> constraints) {
+            String hoursState, String startTime, Integer durationMinutes, String note, List<Object> constraints) {
 
         static TripItemResponse from(TripItemView view) {
             TripItem item = view.item();
             return new TripItemResponse(item.id(), PlaceSummaryResponse.from(view.place()),
-                    item.date(), item.position(), wallClock(item.startTime()), item.durationMinutes(),
+                    item.date(), item.position(), view.hoursState().name(), wallClock(item.startTime()),
+                    item.durationMinutes(),
                     item.note(), item.constraints().stream().map(TripItemResponse::constraint).toList());
         }
 

@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EngTextLinkImporter {
 
+    private static final UUID GYEONGBOKGUNG = UUID.fromString("01a0b825-4f15-7e7b-b30c-87cf71861c9c");
+    private static final UUID DEOKSUGUNG = UUID.fromString("01a0b9f7-8020-74c6-bdca-dac05aadc82e");
+
     private final EngTextStore store;
     private final Clock clock;
 
@@ -69,6 +72,12 @@ public class EngTextLinkImporter {
         Objects.requireNonNull(plan, "plan");
         Instant now = clock.instant();
         for (Link link : plan.links().stream().sorted(Comparator.comparing(Link::placeId)).toList()) {
+            // A-03: the rc.26 public audit disproved these exact palace-to-gate identity decisions.
+            if ("76".equals(link.contentTypeId())
+                    && ((GYEONGBOKGUNG.equals(link.placeId()) && "264329".equals(link.contentId()))
+                    || (DEOKSUGUNG.equals(link.placeId()) && "1942577".equals(link.contentId())))) {
+                throw new IllegalArgumentException("disproven English place link");
+            }
             if (link.reviewedAt().isAfter(now)) {
                 throw new IllegalArgumentException("a future review cannot be imported");
             }

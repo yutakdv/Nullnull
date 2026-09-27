@@ -2,6 +2,8 @@ package io.nullnull.trip.application;
 
 import io.nullnull.catalog.application.CatalogPlaceProjectionService;
 import io.nullnull.catalog.application.CatalogPlaceQuery.CatalogPlaceSummary;
+import io.nullnull.catalog.application.CatalogHoursQuery;
+import io.nullnull.catalog.application.CatalogHoursQuery.CatalogOpeningWindow;
 import io.nullnull.identity.application.IdempotencyGuard;
 import io.nullnull.identity.application.IdempotencyGuard.CommandOutcome;
 import io.nullnull.identity.application.OwnerContext;
@@ -77,6 +79,7 @@ public class TripService {
     private final TripStore trips;
     private final CandidateStore candidates;
     private final CatalogPlaceProjectionService places;
+    private final CatalogHoursQuery hours;
     private final IdempotencyGuard idempotency;
     private final TripCursorProperties cursors;
     private final Clock clock;
@@ -84,13 +87,14 @@ public class TripService {
     private final TransactionTemplate transactions;
 
     public TripService(TripStore trips, CandidateStore candidates,
-            CatalogPlaceProjectionService places,
+            CatalogPlaceProjectionService places, CatalogHoursQuery hours,
             IdempotencyGuard idempotency, TripCursorProperties cursors,
             Clock clock, ObjectMapper json, PlatformTransactionManager transactionManager) {
         this.transactions = new TransactionTemplate(transactionManager);
         this.trips = trips;
         this.candidates = Objects.requireNonNull(candidates, "candidates");
         this.places = Objects.requireNonNull(places, "places");
+        this.hours = Objects.requireNonNull(hours, "hours");
         this.idempotency = idempotency;
         this.cursors = cursors;
         this.clock = clock;
@@ -289,11 +293,15 @@ public class TripService {
         if (items.isEmpty()) {
             return List.of();
         }
+        List<UUID> placeIds = items.stream().map(TripItem::placeId).distinct().toList();
         Map<UUID, CatalogPlaceSummary> byId = new java.util.HashMap<>();
-        for (CatalogPlaceSummary summary : places.embeddedSummaries(context,
-                items.stream().map(TripItem::placeId).distinct().toList())) {
+        for (CatalogPlaceSummary summary : places.embeddedSummaries(context, placeIds)) {
             byId.put(summary.id(), summary);
         }
+        LocalDate firstDate = items.stream().map(TripItem::date).min(LocalDate::compareTo).orElseThrow();
+        LocalDate lastDate = items.stream().map(TripItem::date).max(LocalDate::compareTo).orElseThrow();
+        Map<UUID, Map<LocalDate, CatalogOpeningWindow>> windows =
+                hours.windowsForAll(placeIds, firstDate, lastDate, clock.instant());
         List<TripItemView> views = new ArrayList<>(items.size());
         for (TripItem item : items) {
             CatalogPlaceSummary place = byId.get(item.placeId());
@@ -301,13 +309,22 @@ public class TripService {
                 throw new ApiException(ProblemCode.SOURCE_UNAVAILABLE,
                         "A scheduled place is not available.");
             }
-            views.add(new TripItemView(item, place));
+            CatalogOpeningWindow window = windows.getOrDefault(item.placeId(), Map.of()).get(item.date());
+            TripItemView.HoursState state = window == null ? TripItemView.HoursState.UNKNOWN
+                    : switch (window.state()) {
+                        case OPEN -> TripItemView.HoursState.OPEN;
+                        case CLOSED -> TripItemView.HoursState.CLOSED;
+                    };
+            views.add(new TripItemView(item, place, state));
         }
         return List.copyOf(views);
     }
 
     private Projection persist(UUID ownerId, CreateTripCommand command) {
         Instant now = clock.instant();
+        for (TripItem item : command.seedItems()) {
+            requireNotVerifiedClosed(item.placeId(), item.date(), now, "seedItems[].date");
+        }
         Trip trip = new Trip(UUID.randomUUID(), ownerId, command.title(), command.range(),
                 command.planningLevel(), TripStatus.DRAFT, 1L, command.interests(), now, now, null);
         String snapshot = snapshot(trip, command.seedItems());
@@ -570,6 +587,7 @@ public class TripService {
         TripScheduleRules.requireInsideRange(current.range(), List.of(item));
         TripScheduleRules.requireWithinCaps(after);
         TripScheduleRules.requireDistinctPositions(after);
+        requireNotVerifiedClosed(item.placeId(), item.date(), now, "date");
         trips.insertItem(tripId, item, now);
         scheduleCandidate(ownerId, tripId, command, item, now);
         Trip bumped = raiseVersion(current, now);
@@ -672,6 +690,9 @@ public class TripService {
                         "this trip has no such item");
             }
             requireLocksAllow(item, entry, now);
+            if (!item.date().equals(entry.date())) {
+                requireNotVerifiedClosed(item.placeId(), entry.date(), now, "items[].date");
+            }
             moved.add(item.id());
             after.add(new TripItem(item.id(), item.placeId(), entry.date(), entry.position(),
                     item.startTime(), item.durationMinutes(), item.note(), item.constraints()));
@@ -780,6 +801,8 @@ public class TripService {
                     "the item already holds this place");
         }
         Instant now = clock.instant();
+        requireNotVerifiedClosed(command.replacementPlaceId(), item.date(), now,
+                "replacementPlaceId");
         requirePlaceLocksReleased(item, command);
         // The outgoing place first, while the item still names it: after the update this row would
         // say nothing about where the candidate came from.
@@ -885,6 +908,9 @@ public class TripService {
             TripScheduleRules.requireWithinCaps(after);
             TripScheduleRules.requireDistinctPositions(after);
             Instant now = clock.instant();
+            if (!stored.date().equals(patched.date())) {
+                requireNotVerifiedClosed(patched.placeId(), patched.date(), now, "date");
+            }
             trips.updateItem(tripId, patched, now);
             Trip bumped = raiseVersion(current, now);
             String snapshot = snapshot(bumped, after);
@@ -904,6 +930,16 @@ public class TripService {
             UpdateTripItemCommand patch) {
         applyTemporalLockRules(stored, patched.date(), patched.startTime(), patched.durationMinutes(),
                 patch.releaseConstraints(), "The edit is refused by locks this request did not release: ");
+    }
+
+    /** Unknown or stale hours are not a closure; only verified CLOSED prevents placement. */
+    private void requireNotVerifiedClosed(UUID placeId, LocalDate date, Instant now, String field) {
+        Map<LocalDate, CatalogOpeningWindow> windows = hours.windowsFor(placeId, date, date, now);
+        CatalogOpeningWindow window = windows == null ? null : windows.get(date);
+        if (window != null && window.state() == CatalogOpeningWindow.State.CLOSED) {
+            throw new TripValidationException(field, "Closed",
+                    "this place is verified closed on the selected date");
+        }
     }
 
     /**

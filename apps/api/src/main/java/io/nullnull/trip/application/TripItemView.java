@@ -12,9 +12,13 @@ import java.util.Objects;
  * keeps the controller from reaching for a second lookup - {@code TripItem.place} is required by the
  * contract, so an item without one is not a response this server may send.
  */
-public record TripItemView(TripItem item, CatalogPlaceSummary place) {
+public record TripItemView(TripItem item, CatalogPlaceSummary place, HoursState hoursState) {
+    /** Current verified window for the scheduled date, or no usable evidence for that date. */
+    public enum HoursState { OPEN, CLOSED, UNKNOWN }
+
     public TripItemView {
         Objects.requireNonNull(item, "item");
         Objects.requireNonNull(place, "place");
+        Objects.requireNonNull(hoursState, "hoursState");
     }
 }

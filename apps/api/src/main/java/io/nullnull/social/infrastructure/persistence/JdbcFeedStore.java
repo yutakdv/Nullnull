@@ -94,6 +94,32 @@ public class JdbcFeedStore implements FeedStore {
     }
 
     @Override
+    public List<SavedPostEntry> savedPage(UUID ownerId, SavedPageKey after, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT p.id, p.status, p.title, p.body, p.cover_url, p.cover_asset_id,
+                       p.published_at, saved.created_at AS saved_at
+                  FROM saved_posts saved
+                  JOIN posts p ON p.id = saved.post_id
+                 WHERE saved.owner_id = ? AND p.status = 'PUBLISHED'
+                """);
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(ownerId);
+        if (after != null) {
+            sql.append(" AND (saved.created_at < ? OR (saved.created_at = ? AND p.id > ?))");
+            Timestamp at = Timestamp.from(after.savedAt());
+            parameters.add(at);
+            parameters.add(at);
+            parameters.add(after.postId());
+        }
+        sql.append(" ORDER BY saved.created_at DESC, p.id ASC LIMIT ?");
+        parameters.add(limit);
+        return jdbc.sql(sql.toString()).params(parameters)
+                .query((ResultSet row, int index) -> new SavedPostEntry(
+                        map(row, List.of()), row.getTimestamp("saved_at").toInstant()))
+                .list();
+    }
+
+    @Override
     public SavedPostState save(UUID ownerId, UUID postId, Instant now) {
         // ON CONFLICT DO NOTHING, then read back. The primary key makes the insert idempotent, and
         // reading afterwards is what returns the ORIGINAL savedAt on a repeat rather than moving it.

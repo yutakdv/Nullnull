@@ -1,6 +1,8 @@
 package io.nullnull.importer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -71,6 +73,60 @@ class TripImportParseIT {
         });
         seededOwners.clear();
         seededPlaces.clear();
+    }
+
+    @Test
+    @DisplayName("FR-TRC-08 same-line full dates resolve while yearless dates stay questions")
+    void sameLineDatesKeepPlaceIdentityAndDoNotGuessTheYear() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID palace = place("경복궁" + tag, null);
+
+        parse(owner, "key-inline-full-date-1", "2026-10-03 경복궁" + tag)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].place.id").value(palace.toString()))
+                .andExpect(jsonPath("$.items[0].date").value("2026-10-03"))
+                .andExpect(jsonPath("$.dates.startDate").value("2026-10-03"));
+
+        parse(owner, "key-inline-yearless-1", "10월 3일 경복궁" + tag)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.unresolved[0].kind").value("DATE"))
+                .andExpect(jsonPath("$.unresolved[0].label").value("10월 3일"))
+                .andExpect(jsonPath("$.unresolved[0].suggestions[0].id")
+                        .value(palace.toString()))
+                .andExpect(jsonPath("$.dates.startDate").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("FR-TRC-08 an owner can resolve a yearless place line with a full date")
+    void yearlessLineCanBeResolvedWithoutPersistingTheOriginalText() throws Exception {
+        SessionService.Bootstrap owner = owner();
+        UUID palace = place("경복궁" + tag, null);
+        String response = parse(owner, "key-inline-remap-1", "10월 3일 경복궁" + tag)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var parsed = tools.jackson.databind.json.JsonMapper.builder().build().readTree(response);
+        String draftId = parsed.get("id").asText();
+        String tokenKey = parsed.get("unresolved").get(0).get("clientKey").asText();
+
+        mvc.perform(patch("/api/v1/trip-imports/" + draftId)
+                        .cookie(new Cookie("__Host-nullnull_session", owner.cookie))
+                        .header("Origin", ORIGIN).header("X-CSRF-Token", owner.csrf.token)
+                        .header("If-Match", "\"1\"")
+                        .contentType("application/json")
+                        .content("{\"updates\":[{\"clientKey\":\"" + tokenKey
+                                + "\",\"placeId\":\"" + palace
+                                + "\",\"date\":\"2026-10-03\"}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("READY"))
+                .andExpect(jsonPath("$.items[0].place.id").value(palace.toString()))
+                .andExpect(jsonPath("$.items[0].date").value("2026-10-03"))
+                .andExpect(jsonPath("$.unresolved.length()").value(0))
+                .andExpect(jsonPath("$.dates.startDate").value("2026-10-03"));
+
+        String saved = jdbc.queryForObject("SELECT structured_draft::text FROM itinerary_import_drafts"
+                + " WHERE id = ?::uuid", String.class, draftId);
+        assertThat(saved).doesNotContain("경복궁" + tag).doesNotContain("10월 3일");
     }
 
     @Test

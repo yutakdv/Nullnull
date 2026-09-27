@@ -1,23 +1,30 @@
 package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.catalog.application.CatalogHoursQuery;
+import io.nullnull.catalog.application.CatalogHoursQuery.CatalogOpeningWindow;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -42,6 +49,30 @@ class TripItemReplaceIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean CatalogHoursQuery hours;
+
+    @Test
+    @DisplayName("FR-ITM-03 replacement cannot put a closed place on the same date")
+    void verifiedClosedReplacementIsRefusedWithoutRestoringOutgoingCandidate() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID outgoing = place("기존 장소");
+        UUID incoming = place("휴무 장소");
+        UUID itemId = insertItem(tripId, outgoing, DAY_ONE, 0, null);
+        when(hours.windowsFor(eq(incoming), eq(DAY_ONE), eq(DAY_ONE), any()))
+                .thenReturn(Map.of(DAY_ONE, new CatalogOpeningWindow(
+                        CatalogOpeningWindow.State.CLOSED, null, null)));
+
+        replace(owner, tripId, itemId, "\"1\"",
+                "{\"replacementPlaceId\":\"" + incoming + "\"}")
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Closed"));
+        assertThat(jdbc.queryForObject("SELECT place_id FROM trip_items WHERE id = ?", UUID.class,
+                itemId)).isEqualTo(outgoing);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trip_candidates WHERE trip_id = ?",
+                Integer.class, tripId)).isZero();
+        assertThat(version(tripId)).isEqualTo(1);
+    }
 
     @Test
     @DisplayName("BA-040 BA-042-T3 the place changes, the schedule does not, and the outgoing place returns as a candidate")

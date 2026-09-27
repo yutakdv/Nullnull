@@ -1,23 +1,30 @@
 package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.catalog.application.CatalogHoursQuery;
+import io.nullnull.catalog.application.CatalogHoursQuery.CatalogOpeningWindow;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +51,27 @@ class TripItemReorderIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean CatalogHoursQuery hours;
+
+    @Test
+    @DisplayName("FR-ITM-03 a verified closure cannot be bypassed by moving an existing item")
+    void aVerifiedClosedDateRefusesTheMoveWithoutChangingTheTrip() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID tripId = createTrip(owner);
+        UUID placeId = place("검증된 휴무 장소");
+        UUID itemId = insertItem(tripId, placeId, DAY_ONE, 0);
+        when(hours.windowsFor(eq(placeId), eq(DAY_TWO), eq(DAY_TWO), any()))
+                .thenReturn(Map.of(DAY_TWO, new CatalogOpeningWindow(
+                        CatalogOpeningWindow.State.CLOSED, null, null)));
+
+        reorder(owner, tripId, "\"1\"", "[{\"itemId\":\"" + itemId + "\",\"date\":\"" + DAY_TWO
+                + "\",\"position\":0}]")
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        assertThat(slots(tripId)).containsExactly(itemId + "@2026-10-04#0");
+        assertThat(version(tripId)).isEqualTo(1);
+    }
 
     @Test
     @DisplayName("BA-040-T1 two items swap slots in one request, which no per-statement check allows")

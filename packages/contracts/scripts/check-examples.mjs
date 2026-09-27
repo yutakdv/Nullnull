@@ -30,6 +30,8 @@ const FIXTURE_OF = {
   statusExpired: 'problems/deletion-status-expired.json',
   feedPage: 'feed/page.json',
   emptyFeed: 'feed/page-empty.json',
+  savedPosts: 'feed/saved-post-page.json',
+  emptySavedPosts: 'feed/saved-post-page-empty.json',
   post: 'posts/post-detail.json',
   savedPost: 'posts/post-detail-saved.json',
   candidates: 'candidates/candidate-page.json',
