@@ -22,8 +22,8 @@ type FeedCard = components['schemas']['FeedCard'];
 /** The shape a browser runs from an `<a href>` on click. */
 const SCRIPT = 'javascript:alert(1)';
 const SAFE = 'https://cdn.example.test/a.jpg';
-const OFFICIAL = 'https://api.example.test/official';
-const LICENSE = 'https://api.example.test/licence';
+const OFFICIAL = 'https://www.data.go.kr/data/15101578/openapi.do';
+const LICENSE = 'https://www.data.go.kr/ugs/selectPortalPolicyView.do';
 const CREDIT = '출처: ⓒ한국관광공사';
 
 describe('FE-603-T12 DataAttribution links only to an https page', () => {
@@ -59,6 +59,29 @@ describe('FE-603-T12 DataAttribution links only to an https page', () => {
     expect(screen.queryByRole('link', { name: 'TERMS' })).toBeNull();
     expect(screen.queryByText('TERMS')).toBeNull();
     // Only the licence link goes: the credit keeps its own, safe, link.
+    expect(screen.getByRole('link', { name: CREDIT })).toHaveAttribute('href', OFFICIAL);
+  });
+
+  it.each([
+    'https://evil.example/',
+    'https://www.data.go.kr.evil.example/',
+    'https://evil@www.data.go.kr/',
+    'https://www.data.go.kr:8443/',
+  ])('keeps the required credit but drops a non-policy official link: %s', (url) => {
+    render(<DataAttribution provenance={{ ...credit, officialUrl: url }} />);
+    expect(screen.getByText(CREDIT)).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('does not link unapproved licence terms', () => {
+    render(
+      <DataAttribution
+        provenance={{ ...credit, licenseUrl: 'https://www.data.go.kr:8443/licence' }}
+        showLicense
+        termsLabel="TERMS"
+      />,
+    );
+    expect(screen.queryByRole('link', { name: 'TERMS' })).toBeNull();
     expect(screen.getByRole('link', { name: CREDIT })).toHaveAttribute('href', OFFICIAL);
   });
 });

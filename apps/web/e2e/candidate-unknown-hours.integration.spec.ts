@@ -53,9 +53,10 @@ test('FE-303-T2 an unknown opening time still lets the owner choose a day by key
   await page.goto(`/trip/${tripId}`);
   await expect(page.getByText('아직 일정이 없어요', { exact: true })).toBeVisible();
   const savedPlaces = page.getByRole('link', {
-    name: '담아둔 장소에서 날짜 고르기',
+    name: '담아둔 장소 확인하기',
   });
   await expect(savedPlaces).toBeVisible();
+  await expect(page.getByRole('link', { name: '장소 추가' })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
   ).toBe(true);
@@ -63,7 +64,9 @@ test('FE-303-T2 an unknown opening time still lets the owner choose a day by key
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/trip/${tripId}/candidates$`));
   const card = page.getByRole('article').filter({ hasText: '경복궁' });
-  await expect(card).toContainText('판단할 근거가 부족해요. 날짜를 직접 골라주세요');
+  await expect(card).toContainText(
+    '판단할 근거가 부족해요. 가능한 날짜가 있으면 직접 골라주세요',
+  );
   const trigger = card.getByRole('button', { name: '일정에 추가' });
   await trigger.focus();
   await page.keyboard.press('Enter');

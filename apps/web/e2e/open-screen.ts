@@ -36,8 +36,7 @@ const fixture = (path: string) =>
 
 /**
  * The message in either locale, as an anchored pattern. A `{…}` placeholder
- * matches any value, so `Saved places {count}` matches "Saved places 0" and not
- * the bare "Saved places" the not-found state keeps.
+ * matches any value, while a fixed label matches exactly.
  */
 function named(key: MessageKey): RegExp {
   const alternatives = (['ko-KR', 'en-US'] as const).map((locale) => {

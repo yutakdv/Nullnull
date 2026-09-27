@@ -132,7 +132,7 @@ describe('FE-001-T4 a shared component speaks the locale with no labels passed',
       <DataAttribution
         provenance={{
           attribution: 'Source: Example',
-          licenseUrl: 'https://example.test/licence',
+          licenseUrl: 'https://www.kogl.or.kr/licence',
         }}
         showLicense
       />,
@@ -140,7 +140,7 @@ describe('FE-001-T4 a shared component speaks the locale with no labels passed',
     );
     expect(screen.getByRole('link', { name: en['license.terms'] })).toHaveAttribute(
       'href',
-      'https://example.test/licence',
+      'https://www.kogl.or.kr/licence',
     );
   });
 
@@ -202,7 +202,7 @@ describe('a caller that passes words still gets its own words', () => {
         <NavBar backLabel="BACK-OWN" onBack={() => undefined} />
         <MustVisitBadge label="MUST-OWN" />
         <DataAttribution
-          provenance={{ attribution: 'Source', licenseUrl: 'https://example.test/l' }}
+          provenance={{ attribution: 'Source', licenseUrl: 'https://www.kogl.or.kr/l' }}
           showLicense
           termsLabel="TERMS-OWN"
         />
@@ -238,7 +238,7 @@ describe('with no I18nProvider the Korean defaults still render', () => {
         <NavBar onBack={() => undefined} />
         <MustVisitBadge />
         <DataAttribution
-          provenance={{ attribution: 'Source', licenseUrl: 'https://example.test/l' }}
+          provenance={{ attribution: 'Source', licenseUrl: 'https://www.kogl.or.kr/l' }}
           showLicense
         />
         <CandidateCard candidate={candidate} />

@@ -129,8 +129,7 @@ export const SCREENS: ReadonlyArray<Screen> = [
     path: '/trip/018f4a10-2c31-7d42-9a55-6b1f0c3e8a01/candidates',
     name: 'saved places',
     gate: 'own-trip',
-    // The heading carries the trip's count only once the trip has loaded; the
-    // not-found state keeps the bare title.
+    // The heading stays count-free: candidateCount includes dismissed history.
     shows: { role: 'heading', key: 'candidates.open' },
   },
   { path: '/about-data', name: 'data guide' },

@@ -361,7 +361,7 @@
       "operations": ["searchPlaces", "addTripCandidate"],
       "featureIds": ["FR-TRC-04", "FR-TRC-05", "FR-TRC-08"],
       "figmaNodes": ["438:3158", "400:1201", "438:3199"],
-      "designRequests": ["FCR-029", "FCR-039", "FCR-038"],
+      "designRequests": ["FCR-029", "FCR-039", "FCR-038", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -864,7 +864,7 @@
       "operations": ["getTrip"],
       "featureIds": ["FR-TRP-01"],
       "figmaNodes": ["410:1738"],
-      "designRequests": ["FCR-030"],
+      "designRequests": ["FCR-030", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",
@@ -874,7 +874,7 @@
       "tests": [
         {
           "id": "FE-301-T1",
-          "assertion": "day/item/candidate 수가 empty state와 구분되고 잘못된 합계를 만들지 않는다"
+          "assertion": "day/item 수와 후보 상태가 empty state와 구분되고 제거 이력을 담아둔 장소 수로 표시하지 않는다"
         },
         {
           "id": "FE-301-T2",
@@ -939,7 +939,7 @@
       ],
       "featureIds": ["FR-CAN-05", "FR-CAN-06", "FR-CAN-07", "FR-ITM-02"],
       "figmaNodes": ["412:1912"],
-      "designRequests": ["FCR-031"],
+      "designRequests": ["FCR-031", "FCR-040"],
       "steps": [
         "승인된 OpenAPI example 기반 MSW fixture로 화면과 상태를 먼저 구현한다",
         "default/loading/empty/error/offline/stale/background-refresh를 모두 표현한다",

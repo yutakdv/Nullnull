@@ -1093,18 +1093,27 @@ export function candidatesQueryKey(tripId: string) {
 /** Candidates saved against a trip (FR-CAN-05). */
 export function useTripCandidates(
   tripId: string | null,
-): UseQueryResult<CandidatePage, Problem | Error> {
-  return useQuery({
+): UseInfiniteQueryResult<InfiniteData<CandidatePage>, Problem | Error> {
+  return useInfiniteQuery<CandidatePage, Problem | Error>({
     queryKey: candidatesQueryKey(tripId ?? ''),
     enabled: tripId !== null,
-    queryFn: async () => {
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const cursor = pageParam as string | null;
       const { data, error, response } = await getApiClient().GET(
         '/trips/{tripId}/candidates',
-        { params: { path: { tripId: tripId ?? '' } } },
+        {
+          params: {
+            path: { tripId: tripId ?? '' },
+            query: cursor === null ? {} : { cursor },
+          },
+        },
       );
       if (!data) fail(error, response);
       return data;
     },
+    getNextPageParam: (last) =>
+      last.page.hasMore ? (last.page.nextCursor ?? null) : null,
   });
 }
 

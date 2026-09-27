@@ -278,14 +278,14 @@ export function ScheduleCandidateSheet({
           </p>
         ) : null}
 
-        {/* The modal repeats UNKNOWN when manual dates are offered: its card
+        {/* The modal repeats UNKNOWN even when no dates are offered: its card
             badge is outside the modal, and the traveller needs the warning
             before choosing. NOT_ACTIVE also needs its own explanation. */}
         {undecided && !loading && !failed ? (
           <p className={styles.state} role="status">
             {match?.state === 'NOT_ACTIVE'
               ? t('candidates.match.NOT_ACTIVE')
-              : match?.state === 'UNKNOWN' && manual.length > 0
+              : match?.state === 'UNKNOWN'
                 ? t('candidates.match.UNKNOWN')
                 : t('candidates.sheet.noDates')}
           </p>

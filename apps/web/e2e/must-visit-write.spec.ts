@@ -42,6 +42,7 @@ const COPY = {
     title: 'Add your trip dates',
     next: 'Next',
     mustVisitOnly: /Only the must-visits/,
+    planningBody: 'Save places now, then choose dates in your trip',
     search: 'Search by place name',
     keep: (name: string) => `Keep ${name}`,
     fill: 'Create trip',
@@ -49,13 +50,14 @@ const COPY = {
       `Your trip was created, but ${String(names.length)} of your places couldn't be saved: ${names.join(', ')}`,
     retry: 'Try again',
     openTrip: 'Go to trip',
-    saved: /^Saved places \d+$/,
+    saved: /^Saved places$/,
     badge: 'Must visit',
   },
   'ko-KR': {
     title: '여행 일정 등록',
     next: '다음',
     mustVisitOnly: /꼭 가고 싶은 곳만 정했어요/,
+    planningBody: '장소를 담아두고 여행에서 날짜를 골라요',
     search: '장소 이름으로 검색',
     keep: (name: string) => `${name} 담기`,
     fill: '여행 만들기',
@@ -63,7 +65,7 @@ const COPY = {
       `여행은 만들었어요. ${String(names.length)}곳을 담지 못했어요: ${names.join(', ')}`,
     retry: '다시 시도',
     openTrip: '여행으로 가기',
-    saved: /^담아둔 장소 \d+$/,
+    saved: /^담아둔 장소$/,
     badge: '꼭 가요',
   },
 } as const;
@@ -162,6 +164,7 @@ async function keepBothAndFill(page: Page, locale: Locale = 'en-US') {
   await page.getByRole('button', { name: '23', exact: true }).click();
   await page.getByRole('button', { name: /–/ }).click();
   await page.getByRole('button', { name: copy.next }).click();
+  await expect(page.getByText(copy.planningBody)).toBeVisible();
   await page.getByRole('button', { name: copy.mustVisitOnly }).click();
   await page.getByRole('button', { name: copy.next }).click();
 
@@ -181,6 +184,8 @@ test('FE-103-T30 FE-103-T53 FE-303-T4 kept places become must-visit candidates o
 
   await page.waitForURL(TRIP_PATH, { timeout: 15_000 });
   const tripId = TRIP_PATH.exec(new URL(page.url()).pathname)?.[1];
+  await expect(page.getByText('Nothing scheduled yet')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add a place' })).toBeVisible();
 
   // The request bodies, whole: a `mustVisit: false` or a missing source is a
   // different candidate on the server.

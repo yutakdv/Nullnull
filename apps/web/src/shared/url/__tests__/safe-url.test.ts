@@ -38,7 +38,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isSafeUrl } from '../safe-url.js';
+import { isAllowedSourceLink, isSafeUrl } from '../safe-url.js';
 
 const FIXTURES = resolve(process.cwd(), '../../packages/contracts/fixtures');
 
@@ -152,5 +152,30 @@ describe('isSafeUrl and plain http', () => {
     // allow http should not have to work out which of the twelve rejections
     // are security and which is policy.
     expect(isSafeUrl('http://plain.example/a.jpg')).toBe(false);
+  });
+});
+
+describe('source credit links follow the exact-host policy', () => {
+  it.each([
+    'https://data.seoul.go.kr/dataList/OA-21285/F/1/datasetView.do',
+    'https://www.kogl.or.kr/info/licenseType1.do',
+    'https://data.go.kr/data/15101578/openapi.do',
+    'https://www.data.go.kr/ugs/selectPortalPolicyView.do',
+    'https://api.visitkorea.or.kr/',
+    'https://www.data.go.kr:443/data/15101578/openapi.do',
+  ])('accepts an approved host: %s', (url) => {
+    expect(isAllowedSourceLink(url)).toBe(true);
+  });
+
+  it.each([
+    'https://evil.example/',
+    'https://www.data.go.kr.evil.example/',
+    'https://www.data.go.kr@evil.example/',
+    'https://evil@www.data.go.kr/',
+    'https://www.data.go.kr:8443/',
+    'http://www.data.go.kr/',
+    '//www.data.go.kr/',
+  ])('rejects an unapproved source link: %s', (url) => {
+    expect(isAllowedSourceLink(url)).toBe(false);
   });
 });

@@ -83,3 +83,23 @@ export function isSafeUrl(value: string): boolean {
   }
   return parsed.protocol === 'https:';
 }
+
+/** Source credit links have a narrower policy than image URLs. */
+const SOURCE_LINK_HOSTS = new Set([
+  'data.seoul.go.kr',
+  'www.kogl.or.kr',
+  'data.go.kr',
+  'www.data.go.kr',
+  'api.visitkorea.or.kr',
+]);
+
+export function isAllowedSourceLink(value: string): boolean {
+  if (!isSafeUrl(value)) return false;
+  const url = new URL(value);
+  return (
+    SOURCE_LINK_HOSTS.has(url.hostname) &&
+    url.username === '' &&
+    url.password === '' &&
+    url.port === ''
+  );
+}

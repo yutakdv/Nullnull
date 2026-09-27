@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import type { components } from '@nullnull/api-client';
 import { useOptionalI18n } from '../../../i18n/I18nProvider.js';
-import { isSafeUrl } from '../../url/safe-url.js';
+import { isAllowedSourceLink } from '../../url/safe-url.js';
 import { shownText, type AttributionSource } from './credits.js';
 import styles from './DataAttribution.module.css';
 
@@ -16,10 +16,9 @@ import styles from './DataAttribution.module.css';
 //     back to the full string otherwise. It never truncates by itself.
 //   - officialUrl and licenseUrl come from the response; the client keeps no
 //     provider URL of its own.
-//   - Each becomes a link only when it is https (isSafeUrl, FE-603-T12). An
-//     anchor is where a `javascript:` URL runs, and `rel` says nothing about
-//     the scheme. A refused credit URL draws the words unlinked, exactly as a
-//     null one does, because the credit itself is still owed (CMP-ATT-001).
+//   - Each becomes a link only when it matches the exact source-link host
+//     policy (isAllowedSourceLink, FE-603-T12). A refused credit URL draws the
+//     words unlinked, exactly as a null one does (CMP-ATT-001).
 
 /** Only with no I18nProvider at all (a bare unit test); the app takes `license.terms`. */
 const DEFAULT_TERMS_LABEL = '이용조건';
@@ -68,11 +67,11 @@ export function DataAttribution({
   const i18n = useOptionalI18n();
   const termsLabel = callerTermsLabel ?? i18n?.t('license.terms') ?? DEFAULT_TERMS_LABEL;
   const officialUrl =
-    provenance.officialUrl && isSafeUrl(provenance.officialUrl)
+    provenance.officialUrl && isAllowedSourceLink(provenance.officialUrl)
       ? provenance.officialUrl
       : null;
   const licenseUrl =
-    provenance.licenseUrl && isSafeUrl(provenance.licenseUrl)
+    provenance.licenseUrl && isAllowedSourceLink(provenance.licenseUrl)
       ? provenance.licenseUrl
       : null;
   const text = shownText(provenance, compact);
