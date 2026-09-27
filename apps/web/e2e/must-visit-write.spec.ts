@@ -44,7 +44,7 @@ const COPY = {
     mustVisitOnly: /Only the must-visits/,
     search: 'Search by place name',
     keep: (name: string) => `Keep ${name}`,
-    fill: 'Fill the rest',
+    fill: 'Create trip',
     unsaved: (names: string[]) =>
       `Your trip was created, but ${String(names.length)} of your places couldn't be saved: ${names.join(', ')}`,
     retry: 'Try again',
@@ -58,7 +58,7 @@ const COPY = {
     mustVisitOnly: /꼭 가고 싶은 곳만 정했어요/,
     search: '장소 이름으로 검색',
     keep: (name: string) => `${name} 담기`,
-    fill: '이대로 채우기',
+    fill: '여행 만들기',
     unsaved: (names: string[]) =>
       `여행은 만들었어요. ${String(names.length)}곳을 담지 못했어요: ${names.join(', ')}`,
     retry: '다시 시도',

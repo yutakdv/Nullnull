@@ -52,7 +52,7 @@ type PlaceSummary = components['schemas']['PlaceSummary'];
 // a lock (`trip_constraints.trip_item_id` is NOT NULL), so it stays an
 // intention until scheduling promotes it to a `MUST_VISIT` constraint.
 //
-// So 이대로 채우기 is `createTrip` followed by one `addTripCandidate` per pick
+// So the primary action is `createTrip` followed by one `addTripCandidate` per pick
 // (TripWizardScreen `savePicks`), and those N+1 requests are not one
 // transaction (invariant 5). When the trip is created and only some picks land,
 // this step names the ones that did not and offers 다시 시도 for exactly those
@@ -335,8 +335,8 @@ export function MustVisitStep({
 
       {/* The two exits now do different things, which is the whole point of
           #185: both used to call navigate('/feed'), so a traveller who picked
-          places and pressed 이대로 채우기 got the same trip as one who pressed
-          건너뛰기, and the picks vanished with no word. 이대로 채우기 carries
+          places and pressed the primary action got the same trip as one who
+          pressed 건너뛰기, and the picks vanished with no word. 여행 만들기 carries
           them into the trip; 건너뛰기 states that there are none.
 
           Both create the trip, so both are blocked while one is in flight —

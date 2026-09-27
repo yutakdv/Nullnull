@@ -105,10 +105,34 @@ describe('FE-301-T1 the counts are right and distinct', () => {
     renderTrip();
     await loaded();
     expect(screen.getByText(copy['trip.empty'])).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Choose dates for saved places' }),
+    ).toHaveAttribute('href', `/trip/${trip.id}/candidates`);
     // And not a count of zero, which reads as a working screen with no data.
     expect(
       screen.queryByText(copy['trip.itemCount'].replace('{count}', '0')),
     ).not.toBeInTheDocument();
+  });
+
+  it('offers place search when an empty trip has no saved places', async () => {
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...trip,
+            candidateCount: 0,
+            days: trip.days.map((day) => ({ ...day, items: [] })),
+          },
+          { headers: { ETag: '"3"' } },
+        ),
+      ),
+    );
+    renderTrip();
+    await loaded();
+    expect(screen.getByRole('link', { name: copy['trip.addPlace'] })).toHaveAttribute(
+      'href',
+      `/trip/${trip.id}/add-place`,
+    );
   });
 
   it('orders items by position rather than array order', async () => {

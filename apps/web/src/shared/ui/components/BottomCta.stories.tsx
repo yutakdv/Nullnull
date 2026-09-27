@@ -20,7 +20,7 @@ export const Default: Story = {};
 /** With the secondary link the wizard steps use for "skip". */
 export const WithSecondary: Story = {
   args: {
-    label: '이대로 채우기',
+    label: '여행 만들기',
     secondary: (
       <button type="button" style={{ border: 0, background: 'none' }}>
         건너뛰기

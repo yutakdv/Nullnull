@@ -250,6 +250,73 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('lets the traveller choose a date when only opening hours are unknown', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: 'OPENING_HOURS_UNKNOWN',
+          })),
+        }),
+      ),
+    );
+
+    const { user, sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    const rows = within(dates).getAllByRole('button');
+    expect(rows).toHaveLength(trip.days.length);
+    expect(rows.every((row) => !row.hasAttribute('disabled'))).toBe(true);
+    expect(within(sheet).queryByText(copy['candidates.sheet.noDates'])).toBeNull();
+    expect(sent).toHaveLength(0);
+
+    await user.click(rows[0]!);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body).toMatchObject({
+      candidateId: active.id,
+      date: trip.days[0]?.date,
+      startTime: null,
+    });
+  });
+
+  it('does not enable other unknown reasons as manual dates', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day, index) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: index === 1 ? 'OPENING_HOURS_UNKNOWN' : 'TIME_CONFLICT',
+          })),
+        }),
+      ),
+    );
+
+    const { sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    const rows = within(dates).getAllByRole('button');
+    expect(rows).toHaveLength(trip.days.length);
+    expect(rows[0]).toBeDisabled();
+    expect(rows[1]).toBeEnabled();
+    expect(rows[2]).toBeDisabled();
+    expect(rows[0]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
+    expect(rows[2]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
+    expect(sent).toHaveLength(0);
+  });
+
   it('says NONE only when the server actually decided nothing fits', async () => {
     server.use(
       http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>

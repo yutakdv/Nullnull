@@ -467,6 +467,20 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>{t('trip.empty')}</p>
           <p className={styles.state}>{t('trip.emptyNote')}</p>
+          {editing ? null : (
+            <Link
+              className={styles.emptyAction}
+              to={
+                trip.candidateCount > 0
+                  ? `/trip/${trip.id}/candidates`
+                  : `/trip/${trip.id}/add-place`
+              }
+            >
+              {trip.candidateCount > 0
+                ? t('trip.emptyOpenCandidates')
+                : t('trip.addPlace')}
+            </Link>
+          )}
         </div>
       ) : (
         <p className={`${styles.state} ${styles.srOnly}`} role="status">
