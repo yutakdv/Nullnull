@@ -161,7 +161,7 @@ stateDiagram-v2
 | `438:3012` | S02-1 날짜 | 1 | start/end, timezone; 역전·과도한 범위 차단 | local draft |
 | `438:3108` | S02-2 관심사 | 2 | 다중 chip, 최소 0 허용 후 추천 품질 안내 | local draft |
 | `438:3134` | S02-3 계획 수준 | 3 | `NOTHING`/`MUST_VISIT_ONLY`/`MOSTLY_PLANNED` | local draft |
-| `438:3158` | S02-4B 필수 장소 | 4 | canonical POI 매핑, 검색/제거 | place search |
+| `438:3158` | S02-4B 필수 장소 | 4 | canonical POI 매핑, 검색/제거 | place search, `POST /trips` → `addTripCandidate`(`mustVisit`) |
 | `400:1201` | S02-4C 입력 방식 | 4 | 붙여넣기/직접 입력 선택 | 없음 |
 | `401:1221` | S02-4C-A 붙여넣기 | 4 | 원문 비저장; parse 상태와 수정 제공 | import parse/remap |
 | `438:3199` | S02-4C-C 직접 입력 | 4 | 날짜별 직접 장소 구성. 시간대(`오전`/`오후`)는 표시·순서 전용이고 `startTime`은 보내지 않는다 | place search/local draft |
@@ -370,7 +370,7 @@ S12 P1 범위 정합성:
 | 후보 선택 `399:658`, `409:1595` | focus-trapped sheet, trip picker, new-trip route | trip list/active-trip, owner filter | no-trip·single·multiple 여행 |
 | 후보 결과 `399:843`, `399:1011`, `399:1179` | saving/saved/duplicate/error·exact retry | candidate idempotency/unique key/Problem | 일정 version 미변경 불변식 |
 | 여행 날짜·관심사·계획 `438:3012`, `438:3108`, `438:3134` | wizard draft, field validation, 뒤로가기 복구 | date/timezone/enum/관심사 최종 검증 | step 이동·refresh·경계값 QA |
-| 필수 장소 `438:3158` | search/select/remove, unresolved state | `searchPlaces`, canonical mapping, seed constraint | 동명 장소·미해결 검증 |
+| 필수 장소 `438:3158` | search/select/remove, unresolved state | `searchPlaces`, canonical mapping, `addTripCandidate`(`mustVisit`) | 동명 장소·미해결 검증 |
 | 입력 방식 `400:1201` | 수동/붙여넣기 분기와 draft 보존 | API 호출 없음 | 분기 전환 시 raw text 비영속 |
 | 붙여넣기 `401:1221` | raw text 비영속, parse/remap UI | `parseTripImport`/`remapTripImport`, 비저장·비로그 | unresolved 수정 후에만 confirm |
 | 직접 입력 `438:3199` | 날짜별 item draft/순서 편집 | place validation, create input 검증 | 범위 밖 item·중복 차단 |

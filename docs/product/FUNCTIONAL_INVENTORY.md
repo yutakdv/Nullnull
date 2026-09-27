@@ -45,7 +45,7 @@ tags:
 | FR-TRC-01 | P0 | 여행 시작/종료일 입력 | `438:3012` | `createTrip` | 역전 차단, timezone 일관성 |
 | FR-TRC-02 | P0 | 관심사 다중 선택 | `438:3108` | `replaceTripInterests` | 0개 허용 시 품질 안내, 중복 없음 |
 | FR-TRC-03 | P0 | 계획 수준 선택 | `438:3134` | `PlanningLevel` | 세 enum만 허용 |
-| FR-TRC-04 | P0 | 필수 방문 장소 검색/선택 | `438:3158` | `searchPlaces`, seed constraint | canonical POI 매핑 |
+| FR-TRC-04 | P0 | 필수 방문 장소 검색/선택 | `438:3158` | `searchPlaces`, `addTripCandidate`(`mustVisit`) | canonical POI 매핑 |
 | FR-TRC-05 | P0 | 입력 방법 선택 | `400:1201` | client state | 수동/붙여넣기 분기 복구 |
 | FR-TRC-06 | P0 | 일정 텍스트 붙여넣기/parse | `401:1221` | `parseTripImport` | raw text 비저장·비로그·비echo |
 | FR-TRC-07 | P0 | 불확실 장소/날짜/time remap | 붙여넣기 review | `remapTripImport` | unresolved를 사용자가 수정 |

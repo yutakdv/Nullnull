@@ -452,6 +452,12 @@ export const messages = {
     'mustVisit.remove': '빼기',
     'mustVisit.next': '이대로 채우기',
     'mustVisit.skip': '건너뛰기',
+    // #185: 여행은 만들어졌는데 일부 장소의 후보 저장이 실패한 상태. Figma frame이
+    // 없어 FE placeholder다(FCR-039). 여행은 이미 있으므로 `다시 시도`는 실패한
+    // 장소만 다시 보내고 여행을 새로 만들지 않는다.
+    'mustVisit.unsaved': '여행은 만들었어요. {count}곳을 담지 못했어요: {places}',
+    'mustVisit.retry': '다시 시도',
+    'mustVisit.openTrip': '여행으로 가기',
 
     // S02-1/2/3 trip create wizard (438:3012, 438:3108, 438:3134).
     'wizard.step': 'STEP',
@@ -1519,6 +1525,10 @@ export const messages = {
     'mustVisit.remove': 'Remove',
     'mustVisit.next': 'Fill the rest',
     'mustVisit.skip': 'Skip',
+    'mustVisit.unsaved':
+      "Your trip was created, but {count} of your places couldn't be saved: {places}",
+    'mustVisit.retry': 'Try again',
+    'mustVisit.openTrip': 'Go to trip',
 
     // S02-1/2/3 trip create wizard. Figma has no EN frames.
     'wizard.step': 'STEP',
