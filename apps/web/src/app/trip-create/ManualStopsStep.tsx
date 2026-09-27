@@ -53,6 +53,7 @@ export interface ManualStopsStepProps {
   onAddStop: (date: string, place: PlaceSummary) => void;
   onRemoveStop: (key: string) => void;
   onSetDaypart: (key: string, daypart: Daypart) => void;
+  onSetTime: (key: string, time: string | null) => void;
   /** Create the trip carrying these stops as seedItems. */
   onSubmit: () => void;
   /** Create it with none, which is an answer and not a cancel. */
@@ -67,6 +68,7 @@ export function ManualStopsStep({
   onAddStop,
   onRemoveStop,
   onSetDaypart,
+  onSetTime,
   onSubmit,
   onSkip,
   isSubmitting,
@@ -132,6 +134,7 @@ export function ManualStopsStep({
             </span>
             <select
               className={styles.daypart}
+              disabled={stop.startTime != null}
               value={stop.daypart}
               onChange={(event) => {
                 onSetDaypart(stop.key, event.target.value as Daypart);
@@ -143,6 +146,16 @@ export function ManualStopsStep({
                 </option>
               ))}
             </select>
+          </label>
+          <label className={styles.timeLabel}>
+            <span>{t('manual.exactTime')}</span>
+            <input
+              aria-label={t('manual.exactTimeFor', { place: stop.place.name })}
+              className={styles.timeInput}
+              onChange={(event) => onSetTime(stop.key, event.target.value || null)}
+              type="time"
+              value={stop.startTime ?? ''}
+            />
           </label>
           <button
             type="button"
@@ -170,6 +183,7 @@ export function ManualStopsStep({
             {t('manual.title')}
           </h1>
           <p className={wizard.lead}>{t('manual.lead')}</p>
+          <p className={styles.timeHint}>{t('manual.timeHint')}</p>
         </div>
 
         {days.map((date) => {

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import { isProblem, useTrip, useUpdateTrip } from '../../shared/api/index.js';
+import {
+  isProblem,
+  useReorderTripItems,
+  useTrip,
+  useUpdateTrip,
+} from '../../shared/api/index.js';
 import {
   Chip,
   ConfirmDialog,
@@ -23,11 +28,13 @@ import {
 } from '../../shared/ui/icons/index.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { ItemMoveControls } from './ItemMoveControls.js';
+import { ItemTimeControl } from './ItemTimeControl.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
 import { draftError, draftFrom, toPatch } from './trip-edit.js';
 import { useTripDragReorder } from './useTripDragReorder.js';
+import { schedulePatch, stageSchedule } from './schedule-draft.js';
 import styles from './TripScreen.module.css';
 import {
   daysUntil,
@@ -42,15 +49,8 @@ import {
 
 // Figma: S07-1 trip view `410:1738` (FR-TRP-01, FE-301).
 //
-// Read-only by design. Editing is FE-302, the candidate panel is FE-303 and
-// the lock controls are FE-304; this slice is the day/item/candidate counts and
-// the empty state. Locks are therefore *shown* but not operable — a lock that
-// looked pressable and did nothing would be worse than one that reads as
-// status.
-//
-// MOCK DATA: getTrip has no approved example yet, so the fixture behind it is a
-// schema-valid guess (BA-030/BA-031). The screen calls the real generated
-// client; when those land only the handler and the fixture go.
+// The view exposes immediate item actions. The edit mode stages date/order
+// changes and commits them as one reorder command when the user saves.
 //
 // Two things in the Figma frame are deliberately absent:
 //
@@ -61,13 +61,19 @@ import {
 //   - Route-based distance/time text, already removed from the frame by
 //     FCR-005 because P0 has no route provider.
 //
-// Crowd, by contrast, *is* in the contract on TripItem with a required
-// provenance. The place's own credit renders through DataAttribution below;
-// the crowd reading itself is not shown on this row yet, and this comment used
-// to claim both reached the screen when neither did.
+// Crowd and opening-hour states come from the trip response, never from a
+// client-side guess. The place and crowd credits are rendered on each row.
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripItem = TripDetail['days'][number]['items'][number];
+type TripDay = TripDetail['days'][number];
+type ReorderEntry = components['schemas']['ReorderTripItemsRequest']['items'][number];
+type ScheduleEdit = {
+  tripId: string;
+  etag: string | null;
+  initial: TripDay[];
+  draft: TripDay[];
+};
 
 /** "10.4/일" — the day heading, in the trip's own timezone. */
 function dayLabel(date: string, locale: string, timeZone: string): string {
@@ -106,6 +112,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   const { locale, t } = useI18n();
   const query = useTrip(tripId ?? null);
   const updateTitle = useUpdateTrip(tripId ?? null);
+  const saveSchedule = useReorderTripItems(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -113,20 +120,63 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   const titleEditButton = useRef<HTMLButtonElement>(null);
   const restoreTitleFocus = useRef(false);
   const editing = mode === 'edit';
+  const [scheduleEdit, setScheduleEdit] = useState<ScheduleEdit | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [scheduleError, setScheduleError] = useState<
+    'conflict' | 'closed' | 'failed' | null
+  >(null);
+  const scheduleKey = useRef<string | null>(null);
+  const intentionalClose = useRef(false);
   // The outcome of a removal, held HERE rather than in the control that sent
   // it: a successful remove unmounts the row, so a message owned by the row
   // would be destroyed by the action it reports.
   const [removed, setRemoved] = useState<string | null>(null);
   const trip = query.data?.trip;
   const serverDays = trip?.days ?? [];
+  useEffect(() => {
+    if (editing) return;
+    setScheduleEdit(null);
+    setScheduleError(null);
+    scheduleKey.current = null;
+    intentionalClose.current = false;
+  }, [editing]);
+  useEffect(() => {
+    if (!editing || !trip || scheduleEdit?.tripId === trip.id) return;
+    setScheduleEdit({
+      tripId: trip.id,
+      etag: query.data?.etag ?? null,
+      initial: serverDays,
+      draft: serverDays,
+    });
+  }, [editing, trip, query.data?.etag, scheduleEdit?.tripId, serverDays]);
+  const activeEdit = editing && scheduleEdit?.tripId === tripId ? scheduleEdit : null;
+  const days = activeEdit?.draft ?? serverDays;
+  const pendingOrder = activeEdit
+    ? schedulePatch(activeEdit.initial, activeEdit.draft)
+    : null;
+  const dirty = pendingOrder !== null;
+
+  function stageOrder(order: ReorderEntry[], destination: string) {
+    setScheduleEdit((current) =>
+      current === null
+        ? current
+        : { ...current, draft: stageSchedule(current.draft, order) },
+    );
+    scheduleKey.current = null;
+    setScheduleError(null);
+    if (selectedDay !== null) setSelectedDay(destination);
+  }
   const drag = useTripDragReorder({
-    days: serverDays,
+    days,
     tripId: tripId ?? null,
-    etag: query.data?.etag ?? null,
+    etag: scheduleEdit?.etag ?? query.data?.etag ?? null,
     selectedDay,
+    onStageOrder: editing ? stageOrder : undefined,
   });
-  const days = drag.days;
-  const shown = useMemo(() => visibleDays(days, selectedDay), [days, selectedDay]);
+  const shown = useMemo(
+    () => visibleDays(drag.days, selectedDay),
+    [drag.days, selectedDay],
+  );
 
   useEffect(() => {
     if (editingTitle || !restoreTitleFocus.current) return;
@@ -240,6 +290,48 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
         },
         onError: () => {
           setTitleError(t('trip.titleSaveFailed'));
+        },
+      },
+    );
+  }
+
+  function closeScheduleEditor() {
+    intentionalClose.current = true;
+    setScheduleEdit(null);
+    void navigate(`/trip/${loadedTrip.id}`);
+  }
+
+  function commitSchedule() {
+    if (pendingOrder === null) {
+      closeScheduleEditor();
+      return;
+    }
+    if (scheduleEdit?.etag == null) {
+      setScheduleError('failed');
+      return;
+    }
+    saveSchedule.mutate(
+      {
+        order: pendingOrder,
+        etag: scheduleEdit.etag,
+        idempotencyKey: (scheduleKey.current ??= crypto.randomUUID()),
+      },
+      {
+        onSuccess: closeScheduleEditor,
+        onError: (error) => {
+          if (isProblem(error) && error.code === 'TRIP_CHANGED') {
+            setScheduleError('conflict');
+          } else if (
+            isProblem(error) &&
+            error.code === 'VALIDATION_FAILED' &&
+            error.fieldErrors?.some(
+              (field) => field.field === 'items[].date' && field.code === 'Closed',
+            )
+          ) {
+            setScheduleError('closed');
+          } else {
+            setScheduleError('failed');
+          }
         },
       },
     );
@@ -547,6 +639,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
                     etag={query.data.etag}
                     item={item}
                     onAnnounce={setRemoved}
+                    onStageOrder={editing ? stageOrder : undefined}
                     tripId={tripId ?? null}
                   />
                 </li>
@@ -584,11 +677,42 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
 
       {editing ? (
         <div className={styles.editActions}>
+          {scheduleError ? (
+            <p role="alert">
+              {t(
+                scheduleError === 'conflict'
+                  ? 'trip.conflict'
+                  : scheduleError === 'closed'
+                    ? 'trip.move.closed'
+                    : 'trip.move.failed',
+              )}
+              {scheduleError === 'conflict' ? (
+                <button
+                  onClick={() => {
+                    void query.refetch().then((fresh) => {
+                      if (!fresh.data) return;
+                      setScheduleEdit({
+                        tripId: fresh.data.trip.id,
+                        etag: fresh.data.etag,
+                        initial: fresh.data.trip.days,
+                        draft: fresh.data.trip.days,
+                      });
+                      setScheduleError(null);
+                    });
+                  }}
+                  type="button"
+                >
+                  {t('trip.conflict.reload')}
+                </button>
+              ) : null}
+            </p>
+          ) : null}
           <button
             className={styles.editCancel}
-            disabled={drag.busy}
+            disabled={saveSchedule.isPending}
             onClick={() => {
-              void navigate(`/trip/${trip.id}`);
+              if (dirty) setDiscardOpen(true);
+              else closeScheduleEditor();
             }}
             type="button"
           >
@@ -596,17 +720,69 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
           </button>
           <button
             className={styles.editSave}
-            disabled={drag.busy}
-            onClick={() => {
-              void navigate(`/trip/${trip.id}`);
-            }}
+            disabled={saveSchedule.isPending || scheduleEdit === null}
+            onClick={commitSchedule}
             type="button"
           >
             {t('trip.editSave')}
           </button>
         </div>
       ) : null}
+      {editing ? (
+        <ScheduleDiscardGuard
+          dirty={dirty}
+          intentionalClose={intentionalClose}
+          onClose={closeScheduleEditor}
+          open={discardOpen}
+          setOpen={setDiscardOpen}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ScheduleDiscardGuard({
+  dirty,
+  intentionalClose,
+  onClose,
+  open,
+  setOpen,
+}: {
+  dirty: boolean;
+  intentionalClose: { current: boolean };
+  onClose: () => void;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const blocker = useBlocker(() => dirty && !intentionalClose.current);
+  useEffect(() => {
+    if (blocker.state === 'blocked') setOpen(true);
+  }, [blocker.state, setOpen]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  return (
+    <ConfirmDialog
+      body={t('trip.discard.body')}
+      cancelLabel={t('trip.discard.keep')}
+      confirmLabel={t('trip.discard.leave')}
+      destructive
+      onCancel={() => {
+        setOpen(false);
+        if (blocker.state === 'blocked') blocker.reset();
+      }}
+      onConfirm={() => {
+        setOpen(false);
+        if (blocker.state === 'blocked') blocker.proceed();
+        else onClose();
+      }}
+      open={open}
+      title={t('trip.discard.title')}
+    />
   );
 }
 
@@ -626,6 +802,7 @@ function TripItemRow({
   tripId,
   etag,
   onAnnounce,
+  onStageOrder,
 }: {
   item: TripItem;
   days: readonly TripDetail['days'][number][];
@@ -634,8 +811,10 @@ function TripItemRow({
   tripId: string | null;
   etag: string | null;
   onAnnounce: (message: string) => void;
+  onStageOrder?: (order: ReorderEntry[], destination: string) => void;
 }) {
   const { locale, t } = useI18n();
+  const hoursState = item.hoursState ?? 'UNKNOWN';
   const mustVisit = item.constraints.some(
     (constraint) => constraint.type === 'MUST_VISIT',
   );
@@ -678,16 +857,14 @@ function TripItemRow({
           </button>
           <h3 className={styles.itemName}>{item.place.name}</h3>
           <span className={styles.itemTime}>{scheduleLabel}</span>
-          <ItemMoveControls compact days={days} etag={etag} item={item} tripId={tripId}>
-            <LockRow etag={etag} item={item} tripId={tripId} />
-            <RemoveItemControl
-              compact
-              etag={etag}
-              item={item}
-              onAnnounce={onAnnounce}
-              tripId={tripId}
-            />
-          </ItemMoveControls>
+          <ItemMoveControls
+            compact
+            days={days}
+            etag={etag}
+            item={item}
+            onStageOrder={onStageOrder}
+            tripId={tripId}
+          />
         </div>
 
         {editMeta.length > 0 ? (
@@ -696,6 +873,10 @@ function TripItemRow({
               <span key={value}>{value}</span>
             ))}
           </p>
+        ) : null}
+
+        {hoursState !== 'OPEN' ? (
+          <p className={styles.hoursState}>{t(`trip.hours.${hoursState}`)}</p>
         ) : null}
 
         {unitCredits([item.place]).length > 0 ? (
@@ -718,6 +899,24 @@ function TripItemRow({
           </span>
         ) : null}
         <span className={styles.itemTime}>{scheduleLabel}</span>
+        <ItemMoveControls
+          actionsOnly
+          compact
+          days={days}
+          etag={etag}
+          item={item}
+          tripId={tripId}
+        >
+          <ItemTimeControl etag={etag} item={item} tripId={tripId} />
+          <LockRow etag={etag} item={item} tripId={tripId} />
+          <RemoveItemControl
+            compact
+            etag={etag}
+            item={item}
+            onAnnounce={onAnnounce}
+            tripId={tripId}
+          />
+        </ItemMoveControls>
       </div>
 
       {viewMeta.length > 0 ? (
@@ -729,6 +928,10 @@ function TripItemRow({
             </span>
           ))}
         </p>
+      ) : null}
+
+      {hoursState !== 'OPEN' ? (
+        <p className={styles.hoursState}>{t(`trip.hours.${hoursState}`)}</p>
       ) : null}
 
       {item.crowd ? <CrowdLevel crowd={item.crowd} /> : null}

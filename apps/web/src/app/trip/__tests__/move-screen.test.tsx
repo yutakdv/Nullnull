@@ -180,6 +180,26 @@ describe('FE-305-T2 the controls reflect where the item sits', () => {
   });
 });
 
+describe('FR-TRP-03 schedule edit save and cancel', () => {
+  it('keeps a reordered day local until save and discards it on cancel', async () => {
+    const user = userEvent.setup();
+    renderTrip();
+    const card = await cardFor('인사동');
+    await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+
+    expect(sent).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: copy['trip.editCancel'] }));
+    const discard = await screen.findByRole('dialog', {
+      name: copy['trip.discard.title'],
+    });
+    await user.click(
+      within(discard).getByRole('button', { name: copy['trip.discard.leave'] }),
+    );
+    await screen.findByRole('heading', { level: 1, name: trip.title });
+    expect(sent).toHaveLength(0);
+  });
+});
+
 // Invariant 6: a retry of the same press must replay one command, not queue a
 // second one.
 //
@@ -202,10 +222,12 @@ describe('FE-305-T1 a retry replays the move rather than queueing another', () =
     const up = within(card).getByRole('button', { name: upName('인사동') });
 
     await user.click(up);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });
-    await user.click(up);
+    await screen.findByText(copy['trip.move.failed']);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await waitFor(() => {
       expect(sent).toHaveLength(2);
     });
@@ -230,14 +252,17 @@ describe('FE-305-T1 a retry replays the move rather than queueing another', () =
     await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
     const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
     await user.click(within(sheet).getByRole('button', { name: /Day 3/ }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await waitFor(() => {
       expect(sent).toHaveLength(1);
     });
+    await screen.findByText(copy['trip.move.failed']);
 
     const nextCard = await cardFor('인사동');
     await user.click(within(nextCard).getByRole('button', { name: moveName('인사동') }));
     const again = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
     await user.click(within(again).getByRole('button', { name: /Day 4/ }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await waitFor(() => {
       expect(sent).toHaveLength(2);
     });
@@ -252,6 +277,8 @@ describe('FE-305-T1 a reorder sends the whole day in one request', () => {
     renderTrip();
     const card = await cardFor('인사동');
     await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    expect(sent).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -263,6 +290,7 @@ describe('FE-305-T1 a reorder sends the whole day in one request', () => {
       items: [
         { itemId: insadong.id, date: '2026-10-04', position: 0 },
         { itemId: gyeongbok.id, date: '2026-10-04', position: 1 },
+        { itemId: myeongdong.id, date: '2026-10-05', position: 0 },
       ],
     });
   });
@@ -326,6 +354,8 @@ describe('FE-305-T1 a date move asks before releasing a lock', () => {
     await user.click(within(card).getByRole('button', { name: moveName('인사동') }));
     const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
     await user.click(within(sheet).getByRole('button', { name: /Day 3/ }));
+    expect(sent).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -374,6 +404,8 @@ describe('FE-305-T1 a date move asks before releasing a lock', () => {
     await user.click(
       within(confirm).getByRole('button', { name: copy['trip.move.dateLock.confirm'] }),
     );
+    expect(sent).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -403,6 +435,7 @@ describe('FE-305-T1 a date move asks before releasing a lock', () => {
         await screen.findByRole('dialog', { name: copy['trip.move.dateLock.title'] }),
       ).getByRole('button', { name: copy['trip.move.dateLock.confirm'] }),
     );
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -425,6 +458,7 @@ describe('FE-305-T1 a date move asks before releasing a lock', () => {
     await user.click(within(card).getByRole('button', { name: moveName('명동') }));
     const sheet = await screen.findByRole('dialog', { name: copy['trip.move.title'] });
     await user.click(within(sheet).getByRole('button', { name: /Day 1/ }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     await waitFor(() => {
       expect(sent).toHaveLength(1);
@@ -503,13 +537,14 @@ describe('FE-305-T2 a failed move says so and changes nothing', () => {
     renderTrip();
     const card = await cardFor('인사동');
     await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
 
     expect(await screen.findByText(copy['trip.conflict'])).toBeInTheDocument();
     const names = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(names.slice(0, 2)).toEqual(['경복궁', '인사동']);
+    expect(names.slice(0, 2)).toEqual(['인사동', '경복궁']);
   });
 
-  it('reloads the trip so the next press carries a current ETag', async () => {
+  it('reloads the trip only when the user chooses to discard the conflicting draft', async () => {
     // The cached ETag is stale the moment the server says TRIP_CHANGED, so
     // without a refetch every later press sends the same If-Match and fails
     // identically — every move control on every item is dead until the page is
@@ -531,7 +566,10 @@ describe('FE-305-T2 a failed move says so and changes nothing', () => {
     const card = await cardFor('인사동');
     const before = reads;
     await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await screen.findByText(copy['trip.conflict']);
+    expect(reads).toBe(before);
+    await user.click(screen.getByRole('button', { name: copy['trip.conflict.reload'] }));
 
     await waitFor(() => {
       expect(reads).toBeGreaterThan(before);
@@ -555,6 +593,7 @@ describe('FE-305-T2 a failed move says so and changes nothing', () => {
     renderTrip();
     const card = await cardFor('인사동');
     await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     await screen.findByText(copy['trip.move.failed']);
     const after = reads;
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -569,6 +608,7 @@ describe('FE-305-T2 a failed move says so and changes nothing', () => {
     renderTrip();
     const card = await cardFor('인사동');
     await user.click(within(card).getByRole('button', { name: upName('인사동') }));
+    await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
     expect(await screen.findByText(copy['trip.move.failed'])).toBeInTheDocument();
   });
 });

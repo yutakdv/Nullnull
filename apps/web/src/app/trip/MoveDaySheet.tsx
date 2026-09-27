@@ -229,6 +229,7 @@ export function MoveDaySheet({
         {/* What survives the move. The server preserves the wall-clock time, so
             this is a statement about behaviour rather than reassurance. */}
         <p className={styles.footnote}>{t('trip.move.keepsTime')}</p>
+        <p className={styles.footnote}>{t('trip.move.hoursReview')}</p>
       </div>
     </dialog>
   );

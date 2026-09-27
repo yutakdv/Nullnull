@@ -52,6 +52,7 @@ function item(constraints: TripConstraint[]): TripItem {
     },
     date: '2026-10-04',
     position: 0,
+    hoursState: 'UNKNOWN',
     constraints,
   };
 }

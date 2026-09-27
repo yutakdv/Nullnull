@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import {
   isProblem,
@@ -30,6 +30,7 @@ import styles from './PostScreen.module.css';
 export function PostScreen() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const { postId = null } = useParams<{ postId: string }>();
   const post = usePost(postId);
   const save = useSavePost(postId ?? '');
@@ -39,7 +40,9 @@ export function PostScreen() {
   const failed = save.isError || unsave.isError;
 
   function back() {
-    void navigate('/feed');
+    void navigate(
+      location.state?.from === '/profile/saved-posts' ? '/profile/saved-posts' : '/feed',
+    );
   }
 
   if (post.isPending) {
@@ -103,6 +106,8 @@ export function PostScreen() {
   const coverBlocked =
     !isSafeUrl(detail.coverUrl) ||
     (asset?.attributionRequired === true && coverCredit === null);
+  const excerptRepeatsBody =
+    !!detail.excerpt && detail.body.trimStart().startsWith(detail.excerpt.trim());
 
   return (
     <section aria-labelledby="post-heading" className={styles.screen}>
@@ -134,7 +139,9 @@ export function PostScreen() {
         <h1 className={styles.title} id="post-heading">
           {detail.title}
         </h1>
-        {detail.excerpt ? <p className={styles.excerpt}>{detail.excerpt}</p> : null}
+        {detail.excerpt && !excerptRepeatsBody ? (
+          <p className={styles.excerpt}>{detail.excerpt}</p>
+        ) : null}
         <p className={styles.body}>{detail.body}</p>
       </div>
 

@@ -19,6 +19,7 @@ import {
   rangeLength,
   removeStop,
   seedItemsOf,
+  setStopTime,
   selectDay,
   toggleStopMustVisit,
   toCreateRequest,
@@ -251,6 +252,13 @@ describe('sending manually entered stops', () => {
     const items = seedItemsOf(twoDays);
     expect(items).not.toHaveLength(0);
     expect(items.every((item) => item.startTime === null)).toBe(true);
+  });
+
+  it('persists an exact time only when the traveller enters one, and can clear it', () => {
+    const timed = setStopTime(twoDays, 'k1', '14:35');
+    expect(seedItemsOf(timed)[0]?.startTime).toBe('14:35:00');
+    expect(timed.stops[0]?.daypart).toBe('AFTERNOON');
+    expect(seedItemsOf(setStopTime(timed, 'k1', null))[0]?.startTime).toBeNull();
   });
 
   it('numbers positions per day, restarting at zero', () => {

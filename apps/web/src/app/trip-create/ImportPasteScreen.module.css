@@ -81,6 +81,34 @@
   gap: 2px;
 }
 
+.recovery {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.recovery label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.recovery input {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
 /* One rule for both: a pick and a drop differ in what they say, not in how
    they are built. Splitting them cost more gzip than the distinction earned. */
 .pick,

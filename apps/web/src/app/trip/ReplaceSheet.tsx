@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import type { MessageKey } from '../../i18n/messages.js';
@@ -70,6 +71,7 @@ export function ReplaceSheet({
   onCancel,
 }: ReplaceSheetProps) {
   const { t } = useI18n();
+  const { tripId } = useParams();
   // Unique per instance, not a literal: this screen mounts one sheet PER trip
   // item, so a hardcoded id put the same value on every dialog in the document.
   // getElementById returns the first match, so every sheet after the first was
@@ -177,12 +179,24 @@ export function ReplaceSheet({
 
         {/* Each non-deciding state says its own thing. An empty items array is
             not an answer on its own. */}
-        {result && !hasAlternatives(result) && !loading ? (
-          <p className={styles.state} role="status">
-            {t(
-              `replace.state.${result.state === 'EXACT' || result.state === 'SIMILAR' ? 'NONE' : result.state}` as MessageKey,
-            )}
-          </p>
+        {result && !hasAlternatives(result) && !loading && !failed ? (
+          <div className={styles.state} role="status">
+            <p>
+              {result.reason === 'SOURCE_DISABLED'
+                ? t('replace.state.SOURCE_DISABLED')
+                : t(
+                    `replace.state.${result.state === 'EXACT' || result.state === 'SIMILAR' ? 'NONE' : result.state}` as MessageKey,
+                  )}
+            </p>
+            {result.state !== 'CHECKING' ? (
+              <>
+                <p>{t('replace.emptyRecovery')}</p>
+                {tripId ? (
+                  <Link to={`/trip/${tripId}/add-place`}>{t('trip.addPlace')}</Link>
+                ) : null}
+              </>
+            ) : null}
+          </div>
         ) : null}
 
         {options.length > 0 ? (

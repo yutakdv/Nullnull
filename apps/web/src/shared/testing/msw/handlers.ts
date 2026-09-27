@@ -9,6 +9,7 @@ import {
   feedFixtures,
   liveFixtures,
   postFixtures,
+  savedPostFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -173,6 +174,7 @@ function createdTripFrom(input: CreateTripRequest): TripDetail | null {
       place,
       date: seed.date,
       position: seed.position,
+      hoursState: 'UNKNOWN',
       startTime: seed.startTime ?? null,
       durationMinutes: null,
       note: null,
@@ -200,7 +202,7 @@ function createdTripFrom(input: CreateTripRequest): TripDetail | null {
  * The trip as an item MUTATION answers it (#16).
  *
  * `crowd` is dropped, and that is not cosmetic tidying: `TripItemResponse` has
- * eight record components — id, place, date, position, startTime,
+ * nine record components — id, place, date, position, hoursState, startTime,
  * durationMinutes, note, constraints — and `crowd` is not among them, so the
  * server cannot emit it on this path whatever the stored item holds. A record
  * component that does not exist is not something `@JsonInclude` can restore,
@@ -923,6 +925,17 @@ export const handlers = [
   // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
   // example (BA-032). Stateful so a save actually round-trips: a handler that
   // always answered `saved: false` would let a broken toggle pass.
+  http.get(`${API_BASE}/me/saved-posts`, () => {
+    const items = [...feedFixtures.page.items, ...feedFixtures.pageTwo.items]
+      .filter((card) => savedPosts.has(card.post.id))
+      .map((card) => ({ post: card.post, savedAt: postFixtures.savedState.savedAt }))
+      .sort((a, b) => a.post.id.localeCompare(b.post.id));
+    return HttpResponse.json(
+      items.length === 0
+        ? savedPostFixtures.pageEmpty
+        : { ...savedPostFixtures.page, items },
+    );
+  }),
   http.get(`${API_BASE}/posts/:postId`, ({ params }) => {
     const postId = String(params.postId);
     const detail = postDetailFor(postId);
@@ -1520,6 +1533,7 @@ export const handlers = [
                   place: candidate?.place ?? findPlace(body.placeId),
                   date: body.date,
                   position: body.position,
+                  hoursState: 'UNKNOWN',
                   startTime: body.startTime ?? null,
                   durationMinutes: null,
                   note: null,

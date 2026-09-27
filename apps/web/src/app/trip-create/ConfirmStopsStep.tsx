@@ -185,7 +185,8 @@ export function ConfirmStopsStep({
                         <span className={styles.row1}>
                           <span className={styles.name}>{stop.place.name}</span>
                           <span className={styles.daypart}>
-                            {t(`manual.daypart.${stop.daypart}` as MessageKey)}
+                            {stop.startTime ??
+                              t(`manual.daypart.${stop.daypart}` as MessageKey)}
                           </span>
                         </span>
                         {meta(stop) ? (

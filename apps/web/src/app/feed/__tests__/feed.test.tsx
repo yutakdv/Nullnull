@@ -348,6 +348,9 @@ describe('FE-201-T2 the feed renders each of its states', () => {
     const { router } = renderFeed();
     await screen.findByText(firstTitle);
 
+    // The limitation is visible before a user presses the search icon.
+    expect(screen.getByText('Search is coming soon')).toBeVisible();
+
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
     expect(screen.getByRole('status')).toHaveTextContent('Search is coming soon');

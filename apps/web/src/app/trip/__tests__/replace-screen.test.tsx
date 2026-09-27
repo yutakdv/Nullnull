@@ -21,6 +21,7 @@ import { createQueryClient } from '../../../shared/api/index.js';
 import { API_BASE, problemResponse } from '../../../shared/testing/msw/handlers.js';
 import { server } from '../../../shared/testing/msw/server.js';
 import { routes } from '../../routes.js';
+import { ReplaceSheet } from '../ReplaceSheet.js';
 
 const copy = messages['en-US'];
 const trip = tripFixtures.detailScheduled;
@@ -74,7 +75,6 @@ function renderTrip() {
 async function openReplace(name: string) {
   const user = userEvent.setup();
   renderTrip();
-  await user.click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
   const heading = await screen.findByRole('heading', { level: 3, name });
   const card = heading.closest('article');
   if (!card) throw new Error('card not found');
@@ -315,7 +315,6 @@ describe('FE-305-T1 the replace request preserves the schedule', () => {
       </QueryClientProvider>,
     );
     await screen.findByRole('heading', { level: 3, name: '경복궁' });
-    await user.click(screen.getByRole('button', { name: copy['trip.editStart'] }));
     const heading = await screen.findByRole('heading', { level: 3, name: '경복궁' });
     const card = heading.closest('article') as HTMLElement;
     await user.click(
@@ -419,6 +418,51 @@ describe('FE-305-T2 the five relation states each say their own thing', () => {
     expect(
       within(sheet).queryByRole('button', { name: copy['replace.confirm'] }),
     ).not.toBeInTheDocument();
+  });
+
+  it('explains disabled relation evidence and links to manual place search', async () => {
+    const item = trip.days
+      .flatMap((day) => day.items)
+      .find((stop) => stop.place.name === '경복궁');
+    if (!item) throw new Error('trip fixture lost 경복궁');
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/trip/:tripId',
+          element: (
+            <I18nProvider>
+              <ReplaceSheet
+                busy={false}
+                failed={false}
+                item={item}
+                loading={false}
+                onCancel={() => undefined}
+                onConfirm={() => undefined}
+                open
+                result={{
+                  ...relatedFixtures.none,
+                  state: 'UNKNOWN',
+                  reason: 'SOURCE_DISABLED',
+                }}
+              />
+            </I18nProvider>
+          ),
+        },
+      ],
+      { initialEntries: [`/trip/${trip.id}`] },
+    );
+    render(<RouterProvider router={router} />);
+    const sheet = await screen.findByRole('dialog', { name: copy['replace.title'] });
+    expect(
+      await within(sheet).findByText(copy['replace.state.SOURCE_DISABLED']),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByText(copy['replace.emptyRecovery'])).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole('link', { name: copy['trip.addPlace'] }),
+    ).toHaveAttribute('href', `/trip/${trip.id}/add-place`);
+    expect(
+      within(sheet).queryByRole('button', { name: copy['replace.confirm'] }),
+    ).toBeNull();
   });
 
   it('reports a failed lookup instead of an empty sheet', async () => {

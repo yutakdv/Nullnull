@@ -108,6 +108,17 @@ export function ProfileScreen() {
         </div>
       </div>
 
+      <div className={styles.card}>
+        <Link className={styles.row} to="/profile/saved-posts">
+          <span className={styles.rowText}>
+            <span className={styles.rowTitle}>{t('profile.savedPosts')}</span>
+          </span>
+          <span className={styles.rowValue} aria-hidden="true">
+            <IconChevronRight size={18} />
+          </span>
+        </Link>
+      </div>
+
       {/* Labelled section, not a bare div: the trip list and the history list
           both render links titled after a trip, so without a name on each
           group a screen reader hears two identical sets of links. */}

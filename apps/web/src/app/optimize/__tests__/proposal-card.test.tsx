@@ -43,6 +43,19 @@ const LABELS = {
   placeCreditPending: 'PLACE_CREDIT_PENDING',
   placeCreditMissingAll: 'PLACE_CREDIT_MISSING_ALL',
   placeCreditMissingSome: 'PLACE_CREDIT_MISSING_SOME',
+  provenanceTitle: 'PROVENANCE_TITLE',
+  targetAt: 'TARGET_{date}',
+  targetUnknown: 'TARGET_UNKNOWN',
+  observedAt: 'OBSERVED_{date}',
+  observedUnknown: 'OBSERVED_UNKNOWN',
+  fetchedAt: 'FETCHED_{date}',
+  fetchedUnknown: 'FETCHED_UNKNOWN',
+  freshness: {
+    FRESH: 'FRESH_LABEL',
+    AGING: 'AGING_LABEL',
+    STALE: 'STALE_LABEL',
+    UNKNOWN: 'UNKNOWN_LABEL',
+  },
 };
 
 /**
@@ -318,6 +331,88 @@ describe('FE-503-T1 eligible metrics keep provenance (FCR-004 trace)', () => {
     // card that echoed it would show a token for any value added later.
     expect(screen.queryByText(/SAME_SOURCE_SCOPE_SET/)).toBeNull();
     expect(screen.getByText('COMPARISON_UNAVAILABLE')).toBeInTheDocument();
+  });
+});
+
+describe('A-09 proposal comparison keeps both source readings visible', () => {
+  it('shows each forecast target, collection time, and freshness without inventing an observation', () => {
+    render(<ProposalCard labels={LABELS} proposal={proposal()} />);
+
+    const basis = screen.getByRole('region', { name: 'PROVENANCE_TITLE' });
+    const readings = within(basis).getAllByRole('listitem');
+    expect(readings).toHaveLength(2);
+    expect(readings[0]).toHaveTextContent('TARGET_');
+    expect(readings[1]).toHaveTextContent('TARGET_');
+    expect(readings[0]).toHaveTextContent('OBSERVED_UNKNOWN');
+    expect(readings[1]).toHaveTextContent('OBSERVED_UNKNOWN');
+    for (const reading of readings) {
+      expect(reading).toHaveTextContent('FETCHED_');
+      expect(reading).toHaveTextContent('FRESH_LABEL');
+      expect(reading.querySelector('[data-state="FORECAST"]')).not.toBeNull();
+    }
+    expect(
+      readings[0]?.querySelector('time[datetime="2026-10-03T15:00:00Z"]'),
+    ).not.toBeNull();
+    expect(
+      readings[1]?.querySelector('time[datetime="2026-10-06T15:00:00Z"]'),
+    ).not.toBeNull();
+    expect(within(basis).queryAllByText(/^OBSERVED_(?!UNKNOWN)/)).toHaveLength(0);
+  });
+
+  it('uses an actual observation and the server freshness state when present', () => {
+    const input = proposal();
+    const first = input.dataProvenance[0];
+    if (!first) throw new Error('fixture lost its first provenance record');
+    first.observedAt = '2026-10-01T06:30:00Z';
+    first.freshness = 'STALE';
+
+    render(<ProposalCard labels={LABELS} proposal={input} />);
+
+    const firstReading = within(
+      screen.getByRole('region', { name: 'PROVENANCE_TITLE' }),
+    ).getAllByRole('listitem')[0];
+    expect(firstReading).toHaveTextContent('OBSERVED_');
+    expect(firstReading).not.toHaveTextContent('OBSERVED_UNKNOWN');
+    expect(firstReading).toHaveTextContent('STALE_LABEL');
+    expect(
+      firstReading?.querySelector('time[datetime="2026-10-01T06:30:00Z"]'),
+    ).not.toBeNull();
+    expect(firstReading).toHaveTextContent('FETCHED_');
+  });
+
+  it('states missing target and unknown freshness without filling either value', () => {
+    const input = proposal();
+    const first = input.dataProvenance[0];
+    if (!first) throw new Error('fixture lost its first provenance record');
+    first.targetAt = null;
+    first.freshness = 'UNKNOWN';
+
+    render(<ProposalCard labels={LABELS} proposal={input} />);
+
+    const firstReading = within(
+      screen.getByRole('region', { name: 'PROVENANCE_TITLE' }),
+    ).getAllByRole('listitem')[0];
+    expect(firstReading).toHaveTextContent('TARGET_UNKNOWN');
+    expect(firstReading).toHaveTextContent('UNKNOWN_LABEL');
+    expect(firstReading).not.toHaveTextContent('TARGET_2026');
+    expect(
+      firstReading?.querySelector('time[datetime="2026-10-03T15:00:00Z"]'),
+    ).toBeNull();
+  });
+
+  it('states a missing collection time if a response violates the required field', () => {
+    const input = proposal();
+    const first = input.dataProvenance[0];
+    if (!first) throw new Error('fixture lost its first provenance record');
+    first.fetchedAt = '';
+
+    render(<ProposalCard labels={LABELS} proposal={input} />);
+
+    const firstReading = within(
+      screen.getByRole('region', { name: 'PROVENANCE_TITLE' }),
+    ).getAllByRole('listitem')[0];
+    expect(firstReading).toHaveTextContent('FETCHED_UNKNOWN');
+    expect(firstReading).not.toHaveTextContent('FETCHED_Invalid');
   });
 });
 

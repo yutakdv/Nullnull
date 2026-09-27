@@ -64,9 +64,7 @@ test('FE-303-T2 an unknown opening time still lets the owner choose a day by key
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/trip/${tripId}/candidates$`));
   const card = page.getByRole('article').filter({ hasText: '경복궁' });
-  await expect(card).toContainText(
-    '판단할 근거가 부족해요. 가능한 날짜가 있으면 직접 골라주세요',
-  );
+  await expect(card).toContainText('가능한 날짜를 판단할 근거가 부족해요.');
   const trigger = card.getByRole('button', { name: '일정에 추가' });
   await trigger.focus();
   await page.keyboard.press('Enter');

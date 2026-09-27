@@ -96,6 +96,11 @@ export const SCREENS: ReadonlyArray<Screen> = [
   // trip count's message is a bare `{count}` that would match any text. So a
   // loading or error frame of the trip list is not excluded here.
   { path: '/profile', name: 'profile', shows: { role: 'heading', key: 'profile.title' } },
+  {
+    path: '/profile/saved-posts',
+    name: 'saved posts',
+    shows: { role: 'heading', key: 'savedPosts.title' },
+  },
   // `activeTripId` is nullable even when trips exist. The My Trip tab routes
   // that state here so the owner can choose the representative trip instead
   // of silently landing on the account screen.

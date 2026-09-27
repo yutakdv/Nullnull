@@ -149,3 +149,32 @@ test.describe('BA-092-T16 an optimization is decided by keyboard alone', () => {
     });
   }
 });
+
+test('A-09 the forecast comparison retains both timestamps, freshness, and keyboard source access', async ({
+  page,
+}) => {
+  const { unexpected } = await serve(page, READY);
+  await page.goto(`/trip/${READY.tripId}/optimizations/${READY.id}`);
+
+  const basis = page.getByRole('region', {
+    name: EN['run.proposal.provenanceTitle'],
+  });
+  await expect(basis).toBeVisible();
+  const readings = basis.getByRole('listitem');
+  await expect(readings).toHaveCount(2);
+  await expect(
+    readings.nth(0).locator('time[datetime="2026-10-03T15:00:00Z"]'),
+  ).toBeVisible();
+  await expect(
+    readings.nth(1).locator('time[datetime="2026-10-06T15:00:00Z"]'),
+  ).toBeVisible();
+  for (const reading of await readings.all()) {
+    await expect(reading).toContainText(EN['run.proposal.observedUnknown']);
+    await expect(reading).toContainText(EN['run.proposal.freshness.FRESH']);
+    await expect(reading.locator('time[datetime="2026-10-02T00:00:00Z"]')).toBeVisible();
+  }
+  const source = basis.getByRole('link').first();
+  await tabTo(page, source);
+  await expect(source).toBeFocused();
+  expect(unexpected).toEqual([]);
+});

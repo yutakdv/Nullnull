@@ -27,6 +27,7 @@ function item(position: number, name: string): TripDay['items'][number] {
     },
     date: '2026-10-04',
     position,
+    hoursState: 'UNKNOWN',
     constraints: [],
   };
 }

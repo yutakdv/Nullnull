@@ -171,6 +171,8 @@ export function TripEditForm({ trip, etag, onClose }: TripEditFormProps) {
   /** The server's message for one field, if it named it. */
   function errorFor(field: keyof TripDraft): string | null {
     const match = fieldErrors.find((e) => fieldToInput(e.field) === field);
+    if (match?.code === 'ItemOutsideRange') return t('trip.range.error.items');
+    if (match?.code === 'LockedDateOutsideRange') return t('trip.range.error.locked');
     return match?.message ?? null;
   }
 

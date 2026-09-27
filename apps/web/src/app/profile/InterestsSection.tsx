@@ -125,7 +125,8 @@ export function InterestsSection() {
           >
             {tripItems.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.title}
+                {item.title} · {item.startDate}
+                {item.startDate === item.endDate ? '' : `–${item.endDate}`}
               </option>
             ))}
           </select>

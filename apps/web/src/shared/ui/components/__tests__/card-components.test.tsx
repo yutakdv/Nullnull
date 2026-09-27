@@ -182,6 +182,7 @@ describe('FE-603-T5 the shared place cards credit their place', () => {
             place: sourced,
             date: '2026-10-04',
             position: 0,
+            hoursState: 'UNKNOWN',
             startTime: '09:30:00',
             constraints: [],
           } as TripItem

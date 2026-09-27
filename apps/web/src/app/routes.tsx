@@ -19,6 +19,7 @@ import { CandidatesScreen } from './trip/CandidatesScreen.js';
 import { TripScreen } from './trip/TripScreen.js';
 import { TripSelectScreen } from './trip-select/TripSelectScreen.js';
 import { ProfileScreen } from './profile/ProfileScreen.js';
+import { SavedPostsScreen } from './profile/SavedPostsScreen.js';
 import { ImportPasteScreen } from './trip-create/ImportPasteScreen.js';
 import { TripWizardScreen } from './trip-create/TripWizardScreen.js';
 
@@ -67,6 +68,7 @@ export const routes: RouteObject[] = [
       // Sub-pages reached by a back control, so they carry a NavBar instead.
       { path: 'posts/new', element: <PostCreateScreen /> },
       { path: 'posts/:postId', element: <PostScreen /> },
+      { path: 'profile/saved-posts', element: <SavedPostsScreen /> },
       { path: 'trip/:tripId/candidates', element: <CandidatesScreen /> },
       { path: 'trip/:tripId/add-place', element: <AddPlaceScreen /> },
       // S07-2 is a focused edit state: the tab bar is replaced by its fixed

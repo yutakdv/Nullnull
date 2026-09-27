@@ -36,6 +36,21 @@
   outline-offset: 2px;
 }
 
+.searchControl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.searchAvailability {
+  max-width: 112px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: end;
+}
+
 .searchButton {
   display: inline-flex;
   align-items: center;

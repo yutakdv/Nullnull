@@ -7,6 +7,7 @@ import {
   useConfirmTripImport,
   useParseTripImport,
   useRemapTripImport,
+  usePlaceSearch,
   type ImportDraftWithETag,
 } from '../../shared/api/index.js';
 import { BottomCta, NavBar, PlaceAttribution } from '../../shared/ui/index.js';
@@ -35,7 +36,7 @@ import styles from './ImportPasteScreen.module.css';
 // step 4 and deleted it.
 
 export function ImportPasteScreen() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const sourceDraft =
@@ -44,6 +45,13 @@ export function ImportPasteScreen() {
   const [raw, setRaw] = useState('');
   const [draft, setDraft] = useState<ImportDraftWithETag | null>(null);
   const [announced, setAnnounced] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<{
+    key: string;
+    date: string;
+    time: string;
+    query: string;
+  } | null>(null);
+  const placeSearch = usePlaceSearch(recovery?.query ?? '', locale);
 
   const parse = useParseTripImport();
   const remap = useRemapTripImport(draft?.draft.id ?? null);
@@ -73,7 +81,7 @@ export function ImportPasteScreen() {
       {
         request: {
           rawText: text,
-          locale: 'ko-KR',
+          locale,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
         idempotencyKey: parseKey.current.key,
@@ -81,6 +89,7 @@ export function ImportPasteScreen() {
       {
         onSuccess: (result) => {
           setDraft(result);
+          setRecovery(null);
           // The paste is done its job. Holding it after this would be a copy
           // of the user's itinerary living in memory for no purpose.
           setRaw('');
@@ -124,7 +133,7 @@ export function ImportPasteScreen() {
     confirm.mutate(
       {
         request: {
-          title: draft.draft.title ?? t('import.title'),
+          title: draft.draft.title ?? t('import.tripTitle'),
           planningLevel: 'MOSTLY_PLANNED',
           interests: created?.interests ?? [],
         },
@@ -180,6 +189,7 @@ export function ImportPasteScreen() {
           <label className={styles.note} htmlFor="import-text">
             {t('import.label')}
           </label>
+          <p className={styles.note}>{t('import.formatNote')}</p>
           <textarea
             className={styles.textarea}
             id="import-text"
@@ -293,28 +303,111 @@ export function ImportPasteScreen() {
                   </span>
                 </span>
                 <span className={styles.actions}>
-                  {/* Each offered place with its own credit, beside the button
-                      rather than inside it: a link nested in a button can be
-                      reached by neither a pointer nor a screen reader. */}
-                  {token.suggestions.map((place) => (
-                    <span className={styles.offer} key={place.id}>
-                      <button
-                        className={styles.pick}
-                        disabled={remap.isPending}
-                        onClick={() => {
-                          sendUpdate({
-                            clientKey: token.clientKey,
-                            placeId: place.id,
-                            date: current.dates.startDate ?? null,
-                          });
-                        }}
-                        type="button"
-                      >
-                        {t('import.token.pick', { name: place.name })}
-                      </button>
-                      <PlaceAttribution compact place={place} />
-                    </span>
-                  ))}
+                  <button
+                    className={styles.pick}
+                    disabled={remap.isPending}
+                    onClick={() =>
+                      setRecovery({
+                        key: token.clientKey,
+                        date: '',
+                        time: '',
+                        query: '',
+                      })
+                    }
+                    type="button"
+                  >
+                    {t('import.token.resolve')}
+                  </button>
+                  {recovery?.key === token.clientKey ? (
+                    <div className={styles.recovery}>
+                      <label>
+                        {t('import.token.date')}
+                        <input
+                          onChange={(event) =>
+                            setRecovery(
+                              (current) =>
+                                current && {
+                                  ...current,
+                                  date: event.target.value,
+                                },
+                            )
+                          }
+                          type="date"
+                          value={recovery.date}
+                        />
+                      </label>
+                      {token.kind === 'TIME' ? (
+                        <label>
+                          {t('import.token.time')}
+                          <input
+                            onChange={(event) =>
+                              setRecovery(
+                                (current) =>
+                                  current && {
+                                    ...current,
+                                    time: event.target.value,
+                                  },
+                              )
+                            }
+                            type="time"
+                            value={recovery.time}
+                          />
+                        </label>
+                      ) : null}
+                      <label>
+                        {t('import.token.search')}
+                        <input
+                          onChange={(event) =>
+                            setRecovery(
+                              (current) =>
+                                current && {
+                                  ...current,
+                                  query: event.target.value,
+                                },
+                            )
+                          }
+                          type="search"
+                          value={recovery.query}
+                        />
+                      </label>
+                      {placeSearch.isError ? (
+                        <p role="alert">{t('import.token.searchFailed')}</p>
+                      ) : null}
+                      {/* Only catalog results and reviewed suggestions may become place IDs. */}
+                      {[...token.suggestions, ...(placeSearch.data?.items ?? [])]
+                        .filter(
+                          (place, index, all) =>
+                            all.findIndex((candidate) => candidate.id === place.id) ===
+                            index,
+                        )
+                        .map((place) => (
+                          <span className={styles.offer} key={place.id}>
+                            <button
+                              className={styles.pick}
+                              disabled={
+                                remap.isPending ||
+                                !recovery.date ||
+                                (token.kind === 'TIME' && !recovery.time)
+                              }
+                              onClick={() =>
+                                sendUpdate({
+                                  clientKey: token.clientKey,
+                                  placeId: place.id,
+                                  date: recovery.date,
+                                  ...(recovery.time
+                                    ? { startTime: `${recovery.time}:00` }
+                                    : {}),
+                                })
+                              }
+                              type="button"
+                            >
+                              {t('import.token.pick', { name: place.name })}
+                            </button>
+                            <PlaceAttribution compact place={place} />
+                          </span>
+                        ))}
+                    </div>
+                  ) : null}
                   {/* The dead end #223 closed: a line with no label and no
                       suggestion cannot be resolved, so withdrawing it is the
                       only way it stops blocking READY. */}
