@@ -14,10 +14,8 @@ import java.util.UUID;
  * consumer's DTO inverts the direction - the same split {@link CatalogPlaceQuery} keeps by returning
  * {@code CatalogPlaceSummary} rather than an API type. BA-042 converts.
  *
- * <p>No production caller yet; the BA-042 slot slice adds one. {@code ArchitectureRulesTest}'s
- * AWAITING_THEIR_SLICE register cannot hold this - it scans only
- * {@code io.nullnull.recommendation.application} and skips interfaces - so this sentence is the
- * register.
+ * <p>Trip draft preview and scheduled trip projection both read these windows;
+ * missing or stale evidence remains unknown in either view.
  *
  * <p><b>The place id is taken as canonical, and nothing resolves an alias for you.</b> That split is
  * safe only while no production path can produce a deprecated place, which is today's measured

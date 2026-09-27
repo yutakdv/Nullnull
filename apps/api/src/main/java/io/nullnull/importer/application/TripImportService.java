@@ -187,10 +187,19 @@ public class TripImportService {
                     latest = latest == null || current.isAfter(latest) ? current : latest;
                 }
                 case AMBIGUOUS_DATE -> add(unresolved, new UnresolvedToken(key("t", line.line()),
-                        UnresolvedToken.Kind.DATE, line.line(), line.label(), List.of()));
+                        UnresolvedToken.Kind.DATE, line.line(), line.label(),
+                        resolve(owner, line, command.locale()).stream()
+                                .map(CatalogPlaceSummary::id).toList()));
                 case AMBIGUOUS_TIME -> add(unresolved, new UnresolvedToken(key("t", line.line()),
-                        UnresolvedToken.Kind.TIME, line.line(), line.label(), List.of()));
+                        UnresolvedToken.Kind.TIME, line.line(), line.label(),
+                        resolve(owner, line, command.locale()).stream()
+                                .map(CatalogPlaceSummary::id).toList()));
                 case PLACE -> {
+                    if (line.date() != null) {
+                        current = line.date();
+                        earliest = earliest == null || current.isBefore(earliest) ? current : earliest;
+                        latest = latest == null || current.isAfter(latest) ? current : latest;
+                    }
                     List<CatalogPlaceSummary> matches = resolve(owner, line, command.locale());
                     if (matches.size() == 1 && items.size() < ImportDraftContent.MAX_ITEMS) {
                         items.add(new ImportDraftItem(key("i", line.line()), matches.getFirst().id(),

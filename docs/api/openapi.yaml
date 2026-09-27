@@ -1313,6 +1313,57 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /me/saved-posts:
+    get:
+      tags: [Feed]
+      operationId: listSavedPosts
+      summary: List the current owner's saved published posts
+      description: |
+        Ordered by savedAt descending, then post id ascending. A withdrawn or unpublished post is
+        omitted without removing the SavedPost relation. Cursors are bound to the anonymous owner
+        and this operation. Listing never creates a TripCandidate or changes a TripItem.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor page of saved published posts
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedPostPage"
+              examples:
+                savedPosts:
+                  value:
+                    items:
+                      - post:
+                          id: "018f5b00-0000-7000-8000-000000000001"
+                          title: "가을 서울 산책 코스"
+                          excerpt: "고궁과 골목을 하루에 걷는 길"
+                          coverUrl: "https://cdn.example.test/posts/01.jpg"
+                          publishedAt: "2026-09-09T02:00:00Z"
+                        savedAt: "2026-09-11T05:40:00Z"
+                    page:
+                      nextCursor: null
+                      hasMore: false
+                emptySavedPosts:
+                  value:
+                    items: []
+                    page:
+                      nextCursor: null
+                      hasMore: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /places/search:
     post:
       tags: [Places]
@@ -2642,6 +2693,7 @@ paths:
                                 description: null
                             date: "2026-10-04"
                             position: 0
+                            hoursState: UNKNOWN
                             startTime: "09:30:00"
                             durationMinutes: 120
                             note: null
@@ -2691,6 +2743,7 @@ paths:
                                 description: null
                             date: "2026-10-04"
                             position: 1
+                            hoursState: UNKNOWN
                             startTime: "13:00:00"
                             durationMinutes: 90
                             note: null
@@ -2740,6 +2793,7 @@ paths:
                                 description: null
                             date: "2026-10-05"
                             position: 0
+                            hoursState: UNKNOWN
                             startTime: "14:00:00"
                             durationMinutes: 120
                             note: null
@@ -2854,6 +2908,7 @@ paths:
                                 description: null
                             date: "2026-10-04"
                             position: 0
+                            hoursState: UNKNOWN
                             startTime: "09:30:00"
                             durationMinutes: 120
                             note: null
@@ -2903,6 +2958,7 @@ paths:
                                 description: null
                             date: "2026-10-04"
                             position: 1
+                            hoursState: UNKNOWN
                             startTime: "13:00:00"
                             durationMinutes: 90
                             note: null
@@ -2952,6 +3008,7 @@ paths:
                                 description: null
                             date: "2026-10-05"
                             position: 0
+                            hoursState: UNKNOWN
                             startTime: "14:00:00"
                             durationMinutes: 120
                             note: null
@@ -3818,6 +3875,7 @@ paths:
                             description: null
                         date: '2026-10-04'
                         position: 0
+                        hoursState: UNKNOWN
                         startTime: null
                         durationMinutes: null
                         note: null
@@ -3856,6 +3914,7 @@ paths:
                             description: null
                         date: '2026-10-04'
                         position: 1
+                        hoursState: UNKNOWN
                         startTime: '13:00:00'
                         durationMinutes: null
                         note: null
@@ -3896,6 +3955,7 @@ paths:
                             description: null
                         date: '2026-10-05'
                         position: 2
+                        hoursState: UNKNOWN
                         startTime: '14:00:00'
                         durationMinutes: null
                         note: null
@@ -4514,6 +4574,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -4559,6 +4620,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -4604,6 +4666,7 @@ paths:
                               description: null
                           date: '2026-10-05'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '14:00:00'
                           durationMinutes: 120
                           note: null
@@ -4644,6 +4707,7 @@ paths:
                               description: null
                           date: '2026-10-06'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: null
                           durationMinutes: null
                           note: null
@@ -4760,6 +4824,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -4805,6 +4870,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -4854,6 +4920,7 @@ paths:
                               description: null
                           date: '2026-10-07'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '14:00:00'
                           durationMinutes: 120
                           note: null
@@ -4968,6 +5035,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -5013,6 +5081,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -5058,6 +5127,7 @@ paths:
                               description: null
                           date: '2026-10-05'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '15:00:00'
                           durationMinutes: 120
                           note: null
@@ -5176,6 +5246,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -5221,6 +5292,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -5366,6 +5438,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -5408,6 +5481,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -5453,6 +5527,7 @@ paths:
                               description: null
                           date: '2026-10-05'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '14:00:00'
                           durationMinutes: 120
                           note: null
@@ -5576,6 +5651,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -5621,6 +5697,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -5666,6 +5743,7 @@ paths:
                               description: null
                           date: '2026-10-05'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '14:00:00'
                           durationMinutes: 120
                           note: null
@@ -5779,6 +5857,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '09:30:00'
                           durationMinutes: 120
                           note: null
@@ -5824,6 +5903,7 @@ paths:
                               description: null
                           date: '2026-10-04'
                           position: 1
+                          hoursState: UNKNOWN
                           startTime: '13:00:00'
                           durationMinutes: 90
                           note: null
@@ -5864,6 +5944,7 @@ paths:
                               description: null
                           date: '2026-10-05'
                           position: 0
+                          hoursState: UNKNOWN
                           startTime: '14:00:00'
                           durationMinutes: 120
                           note: null
@@ -8255,6 +8336,27 @@ components:
             $ref: "#/components/schemas/FeedCard"
         page:
           $ref: "#/components/schemas/CursorPage"
+    SavedPostPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedPostItem"
+        page:
+          $ref: "#/components/schemas/CursorPage"
+    SavedPostItem:
+      type: object
+      additionalProperties: false
+      required: [post, savedAt]
+      properties:
+        post:
+          $ref: "#/components/schemas/PostSummary"
+        savedAt:
+          type: string
+          format: date-time
     FeedCard:
       type: object
       additionalProperties: false
@@ -9351,6 +9453,17 @@ components:
         date:
           type: string
           format: date
+        hoursState:
+          type: string
+          enum: [OPEN, CLOSED, UNKNOWN]
+          description: |
+            Curated opening-hours evidence for this place on the item's scheduled date, read as
+            the response is built. Older responses may omit this additive field; clients treat
+            omission as UNKNOWN. OPEN and CLOSED require a current verified catalog window;
+            missing or stale evidence is UNKNOWN. OPEN describes the date's published window,
+            not whether an unset or user-chosen arrival time is inside that window. A place
+            already on the itinerary can later become verified CLOSED; this field reports that
+            newer evidence without silently removing or moving the item.
         position:
           type: integer
           minimum: 0
@@ -9676,6 +9789,7 @@ components:
         locale:
           type: string
           default: ko-KR
+          description: UI-selected ko-KR or en-US for catalog matching and localized place summaries. The rule-based date parser accepts full numeric dates in either locale; it never guesses a missing year.
         timezone:
           type: string
           default: Asia/Seoul
@@ -9806,9 +9920,11 @@ components:
               placeId:
                 type: [string, "null"]
                 format: uuid
+                description: For an unresolved token, choose a canonical catalog place together with a full date to turn it into an item. The original pasted line is never stored.
               date:
                 type: [string, "null"]
                 format: date
+                description: A full user-selected date is required with placeId to resolve an unresolved token, including a year omitted from the paste.
               startTime:
                 type: [string, "null"]
                 pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"

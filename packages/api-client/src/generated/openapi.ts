@@ -311,6 +311,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/saved-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current owner's saved published posts
+         * @description Ordered by savedAt descending, then post id ascending. A withdrawn or unpublished post is
+         *     omitted without removing the SavedPost relation. Cursors are bound to the anonymous owner
+         *     and this operation. Listing never creates a TripCandidate or changes a TripItem.
+         */
+        get: operations["listSavedPosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/places/search": {
         parameters: {
             query?: never;
@@ -1190,6 +1212,15 @@ export interface components {
             items: components["schemas"]["FeedCard"][];
             page: components["schemas"]["CursorPage"];
         };
+        SavedPostPage: {
+            items: components["schemas"]["SavedPostItem"][];
+            page: components["schemas"]["CursorPage"];
+        };
+        SavedPostItem: {
+            post: components["schemas"]["PostSummary"];
+            /** Format: date-time */
+            savedAt: string;
+        };
         FeedCard: {
             post: components["schemas"]["PostSummary"];
             primaryPlace: components["schemas"]["PlaceSummary"];
@@ -1819,6 +1850,17 @@ export interface components {
             place: components["schemas"]["PlaceSummary"];
             /** Format: date */
             date: string;
+            /**
+             * @description Curated opening-hours evidence for this place on the item's scheduled date, read as
+             *     the response is built. Older responses may omit this additive field; clients treat
+             *     omission as UNKNOWN. OPEN and CLOSED require a current verified catalog window;
+             *     missing or stale evidence is UNKNOWN. OPEN describes the date's published window,
+             *     not whether an unset or user-chosen arrival time is inside that window. A place
+             *     already on the itinerary can later become verified CLOSED; this field reports that
+             *     newer evidence without silently removing or moving the item.
+             * @enum {string}
+             */
+            hoursState?: "OPEN" | "CLOSED" | "UNKNOWN";
             position: number;
             startTime?: string | null;
             durationMinutes?: number | null;
@@ -1994,7 +2036,10 @@ export interface components {
         ParseImportRequest: {
             /** @description Ephemeral input; never persisted, logged, or echoed. */
             rawText: string;
-            /** @default ko-KR */
+            /**
+             * @description UI-selected ko-KR or en-US for catalog matching and localized place summaries. The rule-based date parser accepts full numeric dates in either locale; it never guesses a missing year.
+             * @default ko-KR
+             */
             locale: string;
             /** @default Asia/Seoul */
             timezone: string;
@@ -2056,9 +2101,15 @@ export interface components {
         RemapImportRequest: {
             updates: {
                 clientKey: string;
-                /** Format: uuid */
+                /**
+                 * Format: uuid
+                 * @description For an unresolved token, choose a canonical catalog place together with a full date to turn it into an item. The original pasted line is never stored.
+                 */
                 placeId?: string | null;
-                /** Format: date */
+                /**
+                 * Format: date
+                 * @description A full user-selected date is required with placeId to resolve an unresolved token, including a year omitted from the paste.
+                 */
                 date?: string | null;
                 startTime?: string | null;
                 position?: number | null;
@@ -3572,6 +3623,33 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listSavedPosts: {
+        parameters: {
+            query?: {
+                /** @description Signed opaque cursor bound to owner, endpoint, filter hash, sort, and schema version; expires after 15 minutes. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cursor page of saved published posts */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPostPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             default: components["responses"]["Problem"];
         };
     };

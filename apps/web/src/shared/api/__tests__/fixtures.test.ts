@@ -135,6 +135,8 @@ const SCHEMA_OF: Record<string, string> = {
   'feedFixtures.pageTwo': 'FeedPage',
   'feedFixtures.pageNoTrip': 'FeedPage',
   'feedFixtures.pageEmpty': 'FeedPage',
+  'savedPostFixtures.page': 'SavedPostPage',
+  'savedPostFixtures.pageEmpty': 'SavedPostPage',
   'optimizationFixtures.historyPage': 'OptimizationHistoryPage',
   'optimizationFixtures.historyPageEmpty': 'OptimizationHistoryPage',
   'optimizationFixtures.runReady': 'OptimizationRun',

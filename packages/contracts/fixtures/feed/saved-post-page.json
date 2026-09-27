@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "post": {
+        "id": "018f5b00-0000-7000-8000-000000000001",
+        "title": "가을 서울 산책 코스",
+        "excerpt": "고궁과 골목을 하루에 걷는 길",
+        "coverUrl": "https://cdn.example.test/posts/01.jpg",
+        "publishedAt": "2026-09-09T02:00:00Z"
+      },
+      "savedAt": "2026-09-11T05:40:00Z"
+    }
+  ],
+  "page": { "nextCursor": null, "hasMore": false }
+}

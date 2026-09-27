@@ -1,6 +1,7 @@
 package io.nullnull.catalog.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -16,6 +17,30 @@ import org.junit.jupiter.api.Test;
 class EngTextLinkImporterTest {
 
     private static final Instant NOW = Instant.parse("2026-09-24T00:00:00Z");
+
+    @Test
+    @DisplayName("BA-086 A-03 rejects the two disproven palace-to-gate links while retaining other decisions")
+    void rejectsDisprovenPalaceGateLinks() {
+        UUID gyeongbokgung = UUID.fromString("01a0b825-4f15-7e7b-b30c-87cf71861c9c");
+        UUID deoksugung = UUID.fromString("01a0b9f7-8020-74c6-bdca-dac05aadc82e");
+        UUID bukchon = UUID.fromString("01a0b9f7-8138-7051-bfbb-0a6420647c52");
+        UUID gate = UUID.randomUUID();
+        RecordingStore store = new RecordingStore();
+        EngTextLinkImporter importer = new EngTextLinkImporter(store, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        for (EngTextLinkImporter.Link wrong : List.of(
+                new EngTextLinkImporter.Link(gyeongbokgung, "264329", "76", NOW.minusSeconds(60), "https://example.org/a"),
+                new EngTextLinkImporter.Link(deoksugung, "1942577", "76", NOW.minusSeconds(60), "https://example.org/b"))) {
+            assertThatThrownBy(() -> importer.importPlan(new EngTextLinkImporter.Plan(List.of(wrong))))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("disproven English place link");
+        }
+        importer.importPlan(new EngTextLinkImporter.Plan(List.of(
+                new EngTextLinkImporter.Link(bukchon, "561382", "76", NOW.minusSeconds(60), "https://example.org/c"),
+                new EngTextLinkImporter.Link(gate, "264329", "76", NOW.minusSeconds(60), "https://example.org/d"))));
+
+        assertThat(store.saved).containsExactlyInAnyOrder(bukchon, gate);
+    }
 
     @Test
     @DisplayName("a plan locks its places in id order whatever order it lists them in, so two imports cannot deadlock")

@@ -1125,9 +1125,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 **고정 feed·게시물·SavedPost** — P0 / `integration-ready` / BE_AI_DRI 구현, FE_DRI 검토
 
 - 선행: [BA-022](#ba-022), [BA-030](#ba-030)
-- 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`
-- API: `listFeed`, `getPost`, `savePost`, `unsavePost` (미기재 작업은 내부 처리 또는 별도 계약 제안)
-- Figma: `391:310`, `396:2926`, `398:611`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
+- 기능 ID: `FR-FED-01`, `FR-FED-02`, `FR-FED-03`, `FR-PST-01`, `FR-PST-02`, `FR-PST-03`
+- API: `listFeed`, `listSavedPosts`, `getPost`, `savePost`, `unsavePost` (미기재 작업은 내부 처리 또는 별도 계약 제안)
+- Figma: `391:310`, `396:2926`, `398:611`, `422:2925`; FCR: 해당 없음. 추가 상태는 기능 인벤토리·FCR에서 추적한다.
 - 데이터·정책: posts · post_places · saved_posts · fixed feed cursor/read projection
 
 구현 순서:
@@ -1135,7 +1135,8 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 1. 게시 가능한 curated post와 canonical places를 조회하고 publishedAt/postId 고정 순서를 제공한다
 2. opaque cursor의 paging 일관성 정책을 정하고 page 내 owner 저장·selected-trip 상태를 batch hydrate한다
 3. SavedPost 저장/해제를 owner/post unique로 수렴시킨다
-4. 09-06 PM 검토 PM-001, PM-010, PM-011의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
+4. A-07: 공개 중인 SavedPost만 익명 owner 범위에서 저장 시각 순으로 페이지 조회한다
+5. 09-06 PM 검토 PM-001, PM-010, PM-011의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다
 
 실패·안전 경계: P0 tripId는 candidate/scheduled 표시만 바꾸며 순위를 바꾸지 않는다. snapshot table이 필요하면 REC-CON-01/07 ERD·TTL·삭제 검토를 선행한다.
 
@@ -2375,7 +2376,9 @@ PM 검토 연결: [09-06 발견 사항](../project/PM_REVIEW_2026-09-06.md) — 
 2. 누락 시 원문 fallback과 번역 출처를 명시한다
 3. 고유명사·날짜·단위·길이·영업 사실의 KO/EN parity를 평가한다
 
-진행 상태(대조): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **데이터 쪽 진행**: 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)는 오너가 직접 검토해 승인했다. #367 이 운영 task 둘(`kto-eng-link-import`·`kto-eng-text-refresh`)과 task definition 의 `KTO_ENG_BASE_URL` 을 넣었고, rc.22 에서 연결 import 가 돌았다(`eng_links_processed=3`, [#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). **남은 것**: R4 배포 뒤 오너 셸의 `kto-eng-text-refresh`(EngService2 `detailCommon2` 3회), 그 뒤 en-US 응답 확인과 영문 coverage 보고서다. refresh 는 덕수궁·북촌의 국문 snapshot 에 `sigungu_code` 가 있어야 영문을 쓴다(`EngLinkRule`). 그 값은 확인되지 않았고 refresh 출력의 연결별 outcome 에 드러난다. 그 전에는 이 카드를 닫지 않는다.
+과거 진행 상태(대조, rc.22 시점): **원인은 영문 데이터 부재였다** — `place_localizations` 에 쓰는 production 경로는 국문 ingest 하나였고 영문 source 는 등록되지 않았다. 읽기 경로는 영문 행이 있으면 낸다(`T4`). `V050` 이 `KTO_ENG_SERVICE` 를 등록하고 오너가 검토한 연결을 담는 `place_localization_sources` 를 만든다 — 값마다 근거와 등급은 [SOURCE_CATALOG](../data/SOURCE_CATALOG.md) §2.5 에 있다. `perDay` 1000 은 영문 항목 **자기** 포털 페이지(15101753)의 개발계정 수치이고 국문 행에서 옮긴 것이 아니다. operation 별 한도는 보지 않았다(D-003). `V047` 이 이 행을 미룬다고 적은 `V048` 은 다른 migration 이 썼다. 수집(`ktoEngTextRefresh`)은 연결된 record 의 영문 이름·주소만 `en` localization 으로 쓴다 — 설명·좌표·코드는 쓰지 않으므로 번역이 사실을 만들 자리가 없다. 오너 규칙(100 m·`lclsSystm1`·법정동 **시도+시군구**)을 어기게 되거나 record 가 사라지면 그 텍스트를 내린다. **`T1`~`T3` 을 한 절씩으로 좁혔다**(규칙 3) — 원래 문장은 셋 다 여러 절이었다. 나머지는 이렇게 갈린다: fallback 과 locale 표시는 `T4`, credit 은 `T5`·`T20`, source 변경은 `T7`·`T8`·`T25`·`T26`·`T27`, 삭제가 격리가 아님은 `T24`. `T14`~`T20` 은 코드에 먼저 있었고 여기서 등록한다. 귀결 하나는 그대로다: `KTO_KOR_SERVICE_2` 의 revision 을 올리면 그 뒤 국문 텍스트가 막혀 `canonical_name` 으로 떨어진다(의도된 fail-closed). **데이터 쪽 진행**: 세 후보(경복궁→264329, 덕수궁→1942577, 북촌한옥마을→561382)는 오너가 직접 검토해 승인했다. #367 이 운영 task 둘(`kto-eng-link-import`·`kto-eng-text-refresh`)과 task definition 의 `KTO_ENG_BASE_URL` 을 넣었고, rc.22 에서 연결 import 가 돌았다(`eng_links_processed=3`, [#60 코멘트](https://github.com/yutakdv/Nullnull/issues/60#issuecomment-5814762848)). **남은 것**: R4 배포 뒤 오너 셸의 `kto-eng-text-refresh`(EngService2 `detailCommon2` 3회), 그 뒤 en-US 응답 확인과 영문 coverage 보고서다. refresh 는 덕수궁·북촌의 국문 snapshot 에 `sigungu_code` 가 있어야 영문을 쓴다(`EngLinkRule`). 그 값은 확인되지 않았고 refresh 출력의 연결별 outcome 에 드러난다. 그 전에는 이 카드를 닫지 않는다.
+
+A-03 공개 화면 재검증: rc.26 공개 화면에서 경복궁→`264329`가 광화문, 덕수궁→`1942577`가 대한문을 표시하는 것을 확인했다. 앞 문단의 세 연결 승인은 그때의 이력이며 두 쌍의 대상 동일성 승인은 철회됐다. `V051`은 두 쌍의 연결과 해당 KTO 영문 텍스트만 제거하고 importer는 재등록을 거부한다. 해당 궁의 영어 locale은 새로 확인된 영문 출처가 없으므로 국문 이름·국문 출처로 fallback한다. 북촌 연결은 이 점검에서 재판정하지 않았다. 세 건 refresh를 아직 해야 한다는 앞 문단의 계획은 현행 실행 지시가 아니다; 새 provider 호출·새 연결 검토는 오너 절차를 따른다.
 
 `integration-ready`(절마다 test 대조): `T1`~`T29` 이 전부 그 ID 를 단 testcase 로 게이트 JUnit(`apps/api/build/test-results/{test,integrationTest}/`)에 잡힌다. `T11` 은 원래 "값을 베끼지 않는다"와 "한글로 언어를 판정한다" 두 절을 묶고 있어 `T11`·`T28` 로 나눴고, 두 절을 함께 재던 test 도 둘로 나눴다. 글자 비율을 글자만으로 세는 규칙은 `T29` 로 따로 뗐다. `T11` 은 overview marker 만이 아니라 fixture 의 provider 텍스트 값 전부가 report 에 없는지 본다(모두 Codex 검토). `T1`~`T5`·`T15`~`T29` 은 test 본문을 절 문장과 대조했고, `T6`~`T14` 는 [AGENTS.md CI 표](../../AGENTS.md#ci-검사-등록)에 적힌 변이 측정으로 대조했다. 이 승격은 stub provider 와 실제 PostgreSQL 기준이고, 실제 영문 데이터의 증거는 위의 남은 것이다.
 

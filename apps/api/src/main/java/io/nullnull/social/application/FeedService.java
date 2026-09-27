@@ -41,6 +41,7 @@ public class FeedService {
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 50;
     private static final String CONTEXT = "listFeed";
+    private static final String SAVED_CONTEXT = "listSavedPosts";
 
     private final FeedStore feed;
     private final FeedCursorProperties cursors;
@@ -124,6 +125,32 @@ public class FeedService {
         return cursors.cursorCodec().encode(new CursorClaims(CONTEXT,
                 CursorSortKey.of(last.publishedAt(), last.id()).encode(), binding, CONTEXT,
                 FeedOrdering.SORT_VERSION, clock.instant().plus(cursors.cursorTtl()), cursors.keyId()));
+    }
+
+    @Transactional(readOnly = true)
+    public SavedPostPageView savedPosts(OwnerContext context, String cursor, Integer limit) {
+        int size = pageSize(limit);
+        String binding = cursors.ownerBinding(context.ownerId());
+        FeedStore.SavedPageKey after = null;
+        if (cursor != null && !cursor.isBlank()) {
+            CursorClaims claims = cursors.cursorCodec().decode(cursor, clock.instant(), binding, SAVED_CONTEXT);
+            if (claims.sortVersion() != 1) {
+                throw new CursorException(ProblemCode.CURSOR_INVALID);
+            }
+            CursorSortKey key = CursorSortKey.decode(claims.sortKey());
+            after = new FeedStore.SavedPageKey(key.instantValue(), key.id());
+        }
+        List<FeedStore.SavedPostEntry> found = feed.savedPage(context.ownerId(), after, size + 1);
+        boolean hasMore = found.size() > size;
+        List<FeedStore.SavedPostEntry> page = hasMore ? found.subList(0, size) : found;
+        String next = null;
+        if (hasMore) {
+            FeedStore.SavedPostEntry last = page.get(page.size() - 1);
+            next = cursors.cursorCodec().encode(new CursorClaims(SAVED_CONTEXT,
+                    CursorSortKey.of(last.savedAt(), last.post().id()).encode(), binding,
+                    SAVED_CONTEXT, 1, clock.instant().plus(cursors.cursorTtl()), cursors.keyId()));
+        }
+        return new SavedPostPageView(page, next, hasMore);
     }
 
     /**
@@ -285,6 +312,9 @@ public class FeedService {
             }
         }
     }
+
+    public record SavedPostPageView(List<FeedStore.SavedPostEntry> items, String nextCursor,
+            boolean hasMore) { }
 
     public record PostDetailView(Post post, List<CatalogPlaceSummary> places, boolean saved,
             CatalogMediaAsset coverAsset) { }

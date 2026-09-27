@@ -1,24 +1,31 @@
 package io.nullnull.trip;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.nullnull.identity.application.SessionService;
+import io.nullnull.catalog.application.CatalogHoursQuery;
+import io.nullnull.catalog.application.CatalogHoursQuery.CatalogOpeningWindow;
 import io.nullnull.testsupport.ServletPathMockMvcConfiguration;
 import io.nullnull.testsupport.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -41,6 +48,27 @@ class TripItemUpdateIT {
     @Autowired SessionService sessions;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean CatalogHoursQuery hours;
+
+    @Test
+    @DisplayName("FR-ITM-03 a patch cannot move an item to a verified closed day")
+    void verifiedClosedDateCannotBePatched() throws Exception {
+        var owner = sessions.bootstrap(null, null, null);
+        UUID placeId = place("옮길 장소");
+        UUID tripId = createTrip(owner);
+        UUID itemId = insertItem(tripId, placeId, DAY_ONE, 0, null, null, null);
+        LocalDate next = DAY_ONE.plusDays(1);
+        when(hours.windowsFor(eq(placeId), eq(next), eq(next), any()))
+                .thenReturn(Map.of(next, new CatalogOpeningWindow(
+                        CatalogOpeningWindow.State.CLOSED, null, null)));
+
+        update(owner, tripId, itemId, "\"1\"", "{\"date\":\"" + next + "\"}")
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Closed"));
+        assertThat(jdbc.queryForObject("SELECT trip_date FROM trip_items WHERE id = ?",
+                LocalDate.class, itemId)).isEqualTo(DAY_ONE);
+        assertThat(version(tripId)).isEqualTo(1);
+    }
 
     @Test
     @DisplayName("BA-040-T3 a null clears the field and an absent one leaves it alone")

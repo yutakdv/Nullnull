@@ -17,12 +17,9 @@ import java.util.UUID;
 /**
  * A validated remapTripImport body.
  *
- * <p>Every field but {@code clientKey} is optional and an absent one leaves the item's value alone.
- * That reading is forced by the contract rather than chosen: all of them are nullable, so "null
- * means clear it" would make the same value mean opposite things depending on the field, and a
- * generated TypeScript client cannot tell an explicit null from an absent key anyway (#223 records
- * both arguments). The consequence - that nothing here can clear a value or dismiss a token - is
- * that issue's subject and is deliberately not worked around.
+ * <p>Every field but {@code clientKey} is optional and an absent one leaves an existing item's value
+ * alone. An unresolved token becomes an item only after the traveller names both a canonical place
+ * and a full date. Neither is guessed from the pasted text.
  *
  * <p>An update naming a clientKey the draft does not have is refused rather than ignored. Ignoring it
  * would answer 200 with a draft that does not contain the correction the caller just made, and the
@@ -76,13 +73,23 @@ public record RemapImportCommand(List<Update> updates) {
                         "An update names an entry this draft does not have.");
             }
             if (token >= 0) {
-                if (!update.dismissed()) {
-                    // A token has nothing else to set: resolving one is picking a place, which makes
-                    // it an item, and that path is not contracted. Saying so beats answering 200 with
-                    // the token still there.
-                    throw new ApiException(ProblemCode.VALIDATION_FAILED,
-                            "An unresolved entry can only be dismissed.");
+                if (update.dismissed()) {
+                    remaining.remove(token);
+                    continue;
                 }
+                if (update.placeId() == null || update.date() == null) {
+                    throw new ApiException(ProblemCode.VALIDATION_FAILED,
+                            "Resolving an entry requires a place and a full date.");
+                }
+                if (items.size() >= ImportDraftContent.MAX_ITEMS) {
+                    throw new ApiException(ProblemCode.VALIDATION_FAILED,
+                            "The import draft already holds the maximum number of stops.");
+                }
+                int nextPosition = items.stream().mapToInt(ImportDraftItem::position).max().orElse(-1) + 1;
+                items.add(new ImportDraftItem(update.clientKey(), update.placeId(), null,
+                        update.date(), update.startTime(),
+                        update.position() == null ? nextPosition : update.position(),
+                        java.math.BigDecimal.ONE));
                 remaining.remove(token);
                 continue;
             }
@@ -99,7 +106,14 @@ public record RemapImportCommand(List<Update> updates) {
                     update.position() == null ? current.position() : update.position(),
                     current.confidence()));
         }
-        return new Result(new ImportDraftContent(content.title(), content.startDate(), content.endDate(),
+        LocalDate start = content.startDate();
+        LocalDate end = content.endDate();
+        for (ImportDraftItem item : items) {
+            if (item.date() == null) continue;
+            if (start == null || item.date().isBefore(start)) start = item.date();
+            if (end == null || item.date().isAfter(end)) end = item.date();
+        }
+        return new Result(new ImportDraftContent(content.title(), start, end,
                 content.timezone(), List.copyOf(items)), List.copyOf(remaining));
     }
 

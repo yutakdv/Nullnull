@@ -59,14 +59,9 @@ import tools.jackson.databind.ObjectMapper;
  * {@code searchPlaces} is a read-only POST whose cursor travels in the body, so scanning for the
  * {@code cursor} query parameter would miss it.
  *
- * <p><strong>One of the six is declared and not yet routed</strong> ({@code listNotifications}). It is
- * not skipped: the fixtures below must cover exactly the surfaces the application actually serves,
- * which is read from the running context's handler methods. Routing it makes {@code BA-027-T4} fail
- * until it has a fixture here, which is the only thing that stops the next surface being born with
- * the defect.
- *
- * <p>{@code listOptimizationHistory} was the other one, and BA-053 routed it - so it is covered
- * below now, which is the mechanism working rather than an exception to it.
+ * <p>The fixtures below cover exactly the surfaces the application actually serves, read from the
+ * running context's handler methods. Routing a new surface makes {@code BA-027-T4} fail until its
+ * fixture is added here. {@code listSavedPosts} exercises that guard for the owner's saved list.
  */
 @SpringBootTest(properties = {
         // searchPlaces and the feed's embedded places both sit behind the publication gate; with it
@@ -279,8 +274,8 @@ class CursorSurfaceMatrixIT {
     /**
      * The first {@link #SEEDED} rows of the listing - the ones this surface just seeded.
      *
-     * <p>Three of the four listings are scoped to their own owner, trip or search term and hold
-     * nothing else, so this is the whole of them. The feed is global and may hold another class's
+     * <p>Other listings are scoped to their own owner, trip or search term and hold nothing else,
+     * so this is the whole of them. The feed is global and may hold another class's
      * posts, so its seed puts these rows at the head and this reads that head.
      *
      * <p>Read from the SERVER rather than remembered from the inserts: a test that asserted the
@@ -361,7 +356,8 @@ class CursorSurfaceMatrixIT {
 
     private Map<String, Surface> surfaces() {
         Map<String, Surface> surfaces = new LinkedHashMap<>();
-        for (Surface surface : List.of(new FeedSurface(), new CandidateSurface(), new TripSurface(),
+        for (Surface surface : List.of(new FeedSurface(), new SavedPostSurface(),
+                new CandidateSurface(), new TripSurface(),
                 new PlaceSearchSurface(), new OptimizationHistorySurface(),
                 new NotificationSurface())) {
             surfaces.put(surface.operationId, surface);
@@ -492,6 +488,73 @@ class CursorSurfaceMatrixIT {
             // Published last: V022's trigger requires the primary place to exist first.
             jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ? WHERE id = ?",
                     Timestamp.from(publishedAt), id);
+            createdPosts.add(id);
+            return id;
+        }
+    }
+
+    private final class SavedPostSurface extends Surface {
+
+        private SessionService.Bootstrap reader;
+        private UUID place;
+        private Instant base;
+
+        SavedPostSurface() {
+            super("listSavedPosts", "post");
+        }
+
+        @Override
+        SignedCursorCodec codec() {
+            return feedCursors.cursorCodec();
+        }
+
+        @Override
+        SessionService.Bootstrap seed() {
+            reader = owner();
+            place = place("저장 목록 " + UUID.randomUUID(), false);
+            base = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            for (int index = 0; index < SEEDED; index++) {
+                savedPost("저장 " + index,
+                        base.minus(java.time.Duration.ofMinutes(60L - index * 10)));
+            }
+            return reader;
+        }
+
+        @Override
+        UUID insertAhead() {
+            return savedPost("먼저 저장한 글", base.plus(java.time.Duration.ofHours(1)));
+        }
+
+        @Override
+        void remove(UUID id) {
+            jdbc.update("DELETE FROM saved_posts WHERE owner_id = ? AND post_id = ?",
+                    reader.owner.id(), id);
+        }
+
+        @Override
+        MvcResult call(SessionService.Bootstrap owner, String cursor, int limit) throws Exception {
+            var request = get("/api/v1/me/saved-posts").param("limit", Integer.toString(limit))
+                    .cookie(cookie(owner));
+            if (cursor != null) {
+                request.param("cursor", cursor);
+            }
+            return mvc.perform(request).andReturn();
+        }
+
+        private UUID savedPost(String title, Instant savedAt) {
+            UUID id = UUID.randomUUID();
+            OffsetDateTime now = OffsetDateTime.now();
+            jdbc.update("INSERT INTO posts (id, status, title, body, cover_url, cover_asset_id,"
+                            + " created_at, updated_at)"
+                            + " VALUES (?, 'DRAFT', ?, ?, 'https://example.test/cover.jpg', ?, ?, ?)",
+                    id, title, "본문 " + title,
+                    io.nullnull.testsupport.PostCovers.firstPartyAsset(jdbc, Instant.now()), now, now);
+            jdbc.update("INSERT INTO post_places (post_id, place_id, position, mention_type)"
+                    + " VALUES (?, ?, 0, 'PRIMARY')", id, place);
+            jdbc.update("UPDATE posts SET status = 'PUBLISHED', published_at = ? WHERE id = ?",
+                    Timestamp.from(HEAD_OF_FEED), id);
+            jdbc.update("INSERT INTO saved_posts (owner_id, post_id, created_at) VALUES (?, ?, ?)",
+                    reader.owner.id(), id, Timestamp.from(savedAt));
             createdPosts.add(id);
             return id;
         }

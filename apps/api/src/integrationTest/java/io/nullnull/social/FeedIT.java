@@ -415,6 +415,94 @@ class FeedIT {
     }
 
     @Test
+    @DisplayName("A-07 an anonymous owner with no saves sees an empty page")
+    void emptySavedPosts() throws Exception {
+        mvc.perform(get("/api/v1/me/saved-posts").cookie(cookie(owner())))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.page.hasMore").value(false));
+    }
+
+    @Test
+    @DisplayName("A-07 saved posts page by original save time and never repeat a post")
+    void savedPostsPagination() throws Exception {
+        var owner = owner();
+        UUID placeId = place("저장 목록 장소");
+        UUID older = post("먼저 저장", placeId, "2099-09-04T00:00:00Z");
+        UUID newer = post("나중 저장", placeId, "2099-09-05T00:00:00Z");
+        saveFor(owner, older);
+        saveFor(owner, newer);
+        jdbc.update("UPDATE saved_posts SET created_at = ?::timestamptz WHERE owner_id = ? AND post_id = ?",
+                "2026-09-01T00:00:00Z", owner.owner.id(), older);
+        jdbc.update("UPDATE saved_posts SET created_at = ?::timestamptz WHERE owner_id = ? AND post_id = ?",
+                "2026-09-02T00:00:00Z", owner.owner.id(), newer);
+
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var first = mapper.readTree(mvc.perform(get("/api/v1/me/saved-posts?limit=1")
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].post.id").value(newer.toString()))
+                .andExpect(jsonPath("$.items[0].savedAt").value("2026-09-02T00:00:00Z"))
+                .andExpect(jsonPath("$.page.hasMore").value(true))
+                .andReturn().getResponse().getContentAsString());
+        String cursor = first.get("page").get("nextCursor").asString();
+        mvc.perform(get("/api/v1/me/saved-posts").param("limit", "1").param("cursor", cursor)
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].post.id").value(older.toString()))
+                .andExpect(jsonPath("$.page.hasMore").value(false));
+        mvc.perform(get("/api/v1/me/saved-posts").param("cursor", cursor)
+                        .cookie(cookie(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].post.id").value(older.toString()));
+        mvc.perform(get("/api/v1/me/saved-posts").param("cursor", cursor)
+                        .cookie(cookie(owner())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("A-07 only this owner and published posts are listed; withdrawn saves remain relations")
+    void savedPostsRespectVisibilityAndOwner() throws Exception {
+        var mine = owner();
+        var theirs = owner();
+        UUID placeId = place("저장 공개 상태");
+        UUID visible = post("내 공개 글", placeId, "2099-09-04T00:00:00Z");
+        UUID hidden = post("숨긴 글", placeId, "2099-09-05T00:00:00Z");
+        UUID draft = post("비공개 글", placeId, "2099-09-05T01:00:00Z");
+        UUID foreign = post("다른 사람 저장", placeId, "2099-09-06T00:00:00Z");
+        saveFor(mine, visible);
+        saveFor(mine, hidden);
+        saveFor(mine, draft);
+        saveFor(theirs, foreign);
+        jdbc.update("UPDATE posts SET status = 'HIDDEN', published_at = NULL WHERE id = ?", hidden);
+        jdbc.update("UPDATE posts SET status = 'DRAFT', published_at = NULL WHERE id = ?", draft);
+
+        mvc.perform(get("/api/v1/me/saved-posts").cookie(cookie(mine)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].post.id").value(visible.toString()));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM saved_posts WHERE owner_id = ? AND post_id = ?",
+                Integer.class, mine.owner.id(), hidden)).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM saved_posts WHERE owner_id = ? AND post_id = ?",
+                Integer.class, mine.owner.id(), draft)).isOne();
+        mvc.perform(get("/api/v1/me/saved-posts").cookie(cookie(theirs)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].post.id").value(foreign.toString()));
+        mvc.perform(get("/api/v1/posts/" + visible).cookie(cookie(mine)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.saved").value(true));
+    }
+
+    private void saveFor(SessionService.Bootstrap owner, UUID postId) throws Exception {
+        mvc.perform(put("/api/v1/posts/" + postId + "/saved").cookie(cookie(owner))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", owner.csrf.token))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     @DisplayName("BA-032-T3 save and unsave touch no trip, candidate, item or version")
     void savingDoesNotTouchATrip() throws Exception {
         var owner = owner();

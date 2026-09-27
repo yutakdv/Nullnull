@@ -173,6 +173,7 @@ function createdTripFrom(input: CreateTripRequest): TripDetail | null {
       place,
       date: seed.date,
       position: seed.position,
+      hoursState: 'UNKNOWN',
       startTime: seed.startTime ?? null,
       durationMinutes: null,
       note: null,
@@ -200,7 +201,7 @@ function createdTripFrom(input: CreateTripRequest): TripDetail | null {
  * The trip as an item MUTATION answers it (#16).
  *
  * `crowd` is dropped, and that is not cosmetic tidying: `TripItemResponse` has
- * eight record components — id, place, date, position, startTime,
+ * nine record components — id, place, date, position, hoursState, startTime,
  * durationMinutes, note, constraints — and `crowd` is not among them, so the
  * server cannot emit it on this path whatever the stored item holds. A record
  * component that does not exist is not something `@JsonInclude` can restore,
@@ -1520,6 +1521,7 @@ export const handlers = [
                   place: candidate?.place ?? findPlace(body.placeId),
                   date: body.date,
                   position: body.position,
+                  hoursState: 'UNKNOWN',
                   startTime: body.startTime ?? null,
                   durationMinutes: null,
                   note: null,

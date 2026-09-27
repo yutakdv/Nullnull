@@ -33,6 +33,13 @@ public interface FeedStore {
     /** Which of these posts this owner has saved. */
     Set<UUID> savedPostIds(UUID ownerId, List<UUID> postIds);
 
+    /** Published posts saved by this owner, ordered by save time DESC and post id ASC. */
+    List<SavedPostEntry> savedPage(UUID ownerId, SavedPageKey after, int limit);
+
+    record SavedPageKey(Instant savedAt, UUID postId) { }
+
+    record SavedPostEntry(Post post, Instant savedAt) { }
+
     /** Inserts the relation if it is absent; returns the state either way, never moving savedAt. */
     SavedPostState save(UUID ownerId, UUID postId, Instant now);
 

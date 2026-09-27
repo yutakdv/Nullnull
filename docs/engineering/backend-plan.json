@@ -1369,6 +1369,7 @@
       ],
       "operations": [
         "listFeed",
+        "listSavedPosts",
         "getPost",
         "savePost",
         "unsavePost"
@@ -1378,12 +1379,14 @@
         "FR-FED-02",
         "FR-FED-03",
         "FR-PST-01",
-        "FR-PST-02"
+        "FR-PST-02",
+        "FR-PST-03"
       ],
       "figmaNodes": [
         "391:310",
         "396:2926",
-        "398:611"
+        "398:611",
+        "422:2925"
       ],
       "designRequests": [],
       "entities": "posts · post_places · saved_posts · fixed feed cursor/read projection",
@@ -1391,6 +1394,7 @@
         "게시 가능한 curated post와 canonical places를 조회하고 publishedAt/postId 고정 순서를 제공한다",
         "opaque cursor의 paging 일관성 정책을 정하고 page 내 owner 저장·selected-trip 상태를 batch hydrate한다",
         "SavedPost 저장/해제를 owner/post unique로 수렴시킨다",
+        "A-07: 공개 중인 SavedPost만 익명 owner 범위에서 저장 시각 순으로 페이지 조회한다",
         "09-06 PM 검토 PM-001, PM-010, PM-011의 영향 계약·화면·실패 fixture를 검토하고 미해결이면 해당 경계를 확정하지 않는다"
       ],
       "safety": "P0 tripId는 candidate/scheduled 표시만 바꾸며 순위를 바꾸지 않는다. snapshot table이 필요하면 REC-CON-01/07 ERD·TTL·삭제 검토를 선행한다.",

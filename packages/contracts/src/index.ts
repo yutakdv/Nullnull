@@ -49,6 +49,8 @@ import feedPage from "../fixtures/feed/page.json" with { type: "json" };
 import feedPage2 from "../fixtures/feed/page-2.json" with { type: "json" };
 import feedPageNoTrip from "../fixtures/feed/page-no-trip.json" with { type: "json" };
 import feedPageEmpty from "../fixtures/feed/page-empty.json" with { type: "json" };
+import savedPostPage from "../fixtures/feed/saved-post-page.json" with { type: "json" };
+import savedPostPageEmpty from "../fixtures/feed/saved-post-page-empty.json" with { type: "json" };
 import postDetail from "../fixtures/posts/post-detail.json" with { type: "json" };
 import postDetailSaved from "../fixtures/posts/post-detail-saved.json" with { type: "json" };
 import savedPostState from "../fixtures/posts/saved-post-state.json" with { type: "json" };
@@ -308,6 +310,11 @@ export const feedFixtures = {
   // is the screen that needs this one (#156).
   pageNoTrip: feedPageNoTrip as components["schemas"]["FeedPage"],
   pageEmpty: feedPageEmpty as components["schemas"]["FeedPage"],
+};
+
+export const savedPostFixtures = {
+  page: savedPostPage as components["schemas"]["SavedPostPage"],
+  pageEmpty: savedPostPageEmpty as components["schemas"]["SavedPostPage"],
 };
 
 // PROVISIONAL MOCK DATA — replace when BA-032 serves getPost for real.

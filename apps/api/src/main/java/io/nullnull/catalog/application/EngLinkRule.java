@@ -11,6 +11,7 @@ import java.util.Objects;
  * pass is part of that review and is not repeated here. What this class does is refuse to show English text
  * for a record that no longer passes - a typo in the reviewed plan, or a record that moved or was
  * reclassified after the review. A fact missing on either side fails: an unknown distance is not a short one.
+ * Passing this spatial/code check does not prove place identity: a palace and its gate can pass it.
  */
 public final class EngLinkRule {
 

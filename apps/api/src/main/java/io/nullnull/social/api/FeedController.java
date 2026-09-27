@@ -9,6 +9,8 @@ import io.nullnull.social.application.FeedService;
 import io.nullnull.social.application.FeedService.FeedCardView;
 import io.nullnull.social.application.FeedService.FeedPageView;
 import io.nullnull.social.application.FeedService.PostDetailView;
+import io.nullnull.social.application.FeedService.SavedPostPageView;
+import io.nullnull.social.application.FeedStore.SavedPostEntry;
 import io.nullnull.social.application.SavedPostState;
 import io.nullnull.social.domain.FeedFeedbackAction;
 import io.nullnull.trip.domain.TripValidationException;
@@ -64,6 +66,17 @@ public class FeedController {
                 .body(PostDetailResponse.from(feed.post(owner, postId)));
     }
 
+    @GetMapping(value = "/me/saved-posts", produces = MediaType.APPLICATION_JSON_VALUE)
+    @NullnullOperation(id = "listSavedPosts", security = Security.SESSION)
+    public ResponseEntity<SavedPostPageResponse> savedPosts(OwnerContext owner,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
+        SavedPostPageView page = feed.savedPosts(owner, cursor, limit);
+        return ResponseEntity.ok().header("Cache-Control", "private, no-store")
+                .body(new SavedPostPageResponse(page.items().stream().map(SavedPostItemResponse::from).toList(),
+                        new CursorPageResponse(page.nextCursor(), page.hasMore())));
+    }
+
     @org.springframework.web.bind.annotation.PutMapping(value = "/posts/{postId}/saved", produces = MediaType.APPLICATION_JSON_VALUE)
     @NullnullOperation(id = "savePost", security = {Security.SESSION, Security.CSRF})
     public ResponseEntity<SavedPostStateResponse> save(OwnerContext owner, @PathVariable UUID postId) {
@@ -106,6 +119,19 @@ public class FeedController {
         static PostSummaryResponse from(FeedCardView view) {
             return new PostSummaryResponse(view.post().id(), view.post().title(), view.post().excerpt(),
                     view.post().coverUrl(), view.post().publishedAt());
+        }
+
+        static PostSummaryResponse from(io.nullnull.social.domain.Post post) {
+            return new PostSummaryResponse(post.id(), post.title(), post.excerpt(), post.coverUrl(),
+                    post.publishedAt());
+        }
+    }
+
+    public record SavedPostPageResponse(List<SavedPostItemResponse> items, CursorPageResponse page) { }
+
+    public record SavedPostItemResponse(PostSummaryResponse post, Instant savedAt) {
+        static SavedPostItemResponse from(SavedPostEntry entry) {
+            return new SavedPostItemResponse(PostSummaryResponse.from(entry.post()), entry.savedAt());
         }
     }
 
