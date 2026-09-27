@@ -84,5 +84,5 @@ test('FE-303-T2 an unknown opening time still lets the owner choose a day by key
     card.getByRole('button', { name: '경복궁 담아둔 장소에서 제거' }),
   ).toBeFocused();
   await page.goto(`/trip/${tripId}`);
-  await expect(page.getByText('경복궁')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '경복궁', exact: true })).toBeVisible();
 });
