@@ -150,7 +150,7 @@ tags:
    - 대화형 zsh에서는 `setopt interactivecomments`를 켠다. 아래 블록에 `#` 주석 줄이 있다.
 3. **잠금과 시간**:
    - 배포나 다른 ops task가 돌고 있지 않다. 모든 ops task는 staging 배포 잠금을 잡고, 실패하면 잠금이 남는다(`deployment_lock=retained owner=<uuid>`).
-   - 정기 detail·예보 실행은 배포 잠금 밖에서 돈다(runbook). 직전 정기 실행 시각에서 다음 tick을 계산해 피한다.
+   - 정기 detail·예보 실행은 배포 잠금 밖에서 돈다(runbook). 직전 정기 실행 시각에서 다음 실행을 계산해 피한다. 배포(`Migration` stack 갱신)는 두 schedule을 약 2분 뒤 한 번 바로 돌리고, 주기를 그 시각부터 다시 센다([#361 측정](https://github.com/yutakdv/Nullnull/issues/361#issuecomment-5848942868)). 그래서 기준은 마지막 배포 뒤의 실행이고, 배포 자체도 피할 실행이다.
    - 게시물 작업([#312](https://github.com/yutakdv/Nullnull/issues/312))의 배포와 겹치지 않게 한다.
 4. **release 확인과 기준선**: 배치 P 직전에 `kto-call-inventory`를 돌린다.
    - 읽기 전용이고 KTO를 부르지 않는다. release에 묶여 있어서, ops 정의가 배포된 release가 아니면 `ops-definition-not-the-deployed-release`로 멈춘다.
@@ -310,7 +310,7 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
    - 장소를 숨기거나 내리는 운영 task는 없다. staging DB는 VPC 밖에서 닿지 않는다.
    - 공개 이름은 API 제목이다.
 3. **경로**: (2) `kto-demo-detail`(권고)과 (1) `kto-smoke`→`kto-ingest` 가운데 하나.
-4. **실행 시점**: 배포·게시물 작업·정기 tick과 겹치지 않는 창.
+4. **실행 시점**: 배포(와 그 직후의 schedule 실행)·게시물 작업·정기 실행과 겹치지 않는 창.
 
 ## 12. 별도 결정 — 정기 갱신 목록 확대
 
@@ -320,11 +320,11 @@ NULLNULL_KTO_SMOKE_APPROVED=true NULLNULL_OPERATIONS_TARGET=postgresql://<rds-en
 
 - **위험**: 예보 요청의 `tAtsNm`은 detail snapshot의 제목이고, 이 operation에서 key가 아니라 filter다. 제목이 여러 관광지와 겹치면(`totalCount`가 받은 행 수와 다르거나 `MAX_RECORDS` 31을 넘으면) `MAPPING_UNCERTAIN`으로 거절된다(`KtoForecastResponseValidator`). 거절은 서울만 예외인 `PROVIDER_ERROR` 재시도 밖이라 `KTO_CONCENTRATION_FORECAST` 전체를 격리하고, 격리 중에는 INT-04(126508)의 정기 갱신도 `SOURCE_QUARANTINED`로 막힌다. 겹치는 이름이 하나도 없으면 거절이 아니라 `coverage=0`이다.
 - **순서**: 09-19에 `coverage=30`이 잰 기존 셋을 먼저, 그다음 P, 그다음 B, C 순서로 돈다. 한 명령 안에서 격리가 나면 뒤 장소는 호출 없이 `SOURCE_QUARANTINED`로 끝난다. 그 명령은 거기서 멈추고, 격리를 푼 뒤 원인 장소를 빼고 남은 장소만 다시 돈다.
-- **시점**: 정기 예보 tick(약 03:33·15:33 KST)이 **끝난 직후**에 시작한다. INT-04의 set이 막 24시간으로 갱신된 때라 격리를 푸는 동안 여유가 가장 크다.
+- **시점**: 정기 예보 실행이 **끝난 직후**에 시작한다. 그때(R3 주기)는 약 03:33·15:33 KST였다. 이 시각은 배포마다 옮겨지고, R4 뒤로는 약 08:37·20:37 KST다(#361). INT-04의 set이 막 24시간으로 갱신된 때라 격리를 푸는 동안 여유가 가장 크다.
 - **격리가 나면**: 실패한 task는 exit 1로 끝나 잠금을 남기므로 먼저 §7 복구 1대로 `unlock --owner <uuid>`를 한다. 그다음 `release-source-quarantine --source-code KTO_CONCENTRATION_FORECAST`(오너 승인 변수)를 돌린다. 이 task는 성공하면 자기 잠금을 풀고 끝나므로 뒤에 `unlock`이 필요 없다. 마지막으로 `/api/v1/health/ready`의 `source:KTO_CONCENTRATION_FORECAST`가 READY인지 확인한다. 원인 장소는 목록에 넣지 않는다.
 - **판정**: `KTO_DEMO_REFRESH_EVIDENCE contentId=… coverage=…`에서 `REFRESHED`이고 `coverage>0`인 장소만 목록에 넣는다. 장소별 줄은 #351 코멘트에 남긴다.
 
-**배포 시점 제약(A-071)**. 새로 적재한 장소의 detail snapshot은 적재 7일 뒤 만료된다. R3의 schedule은 두 곳만 갱신한다. R4 뒤 첫 정기 detail tick(약 5일 주기, 다음은 2026-09-30 03:32 KST 무렵)이 적재 뒤 7일 안에 오지 않으면, 그 사이 새 장소의 예보 갱신은 `NO_VERIFIED_KTO_MAPPING`으로 실패한다. 그래서 R4를 09-30 03:32 KST 전에 배포하거나, R4 직후 오너가 목록 전체로 `kto-demo-detail`을 한 번 돌린다. 이 명령은 만료 6일 안쪽인 장소만 KTO에 묻는다(`DETAIL_RENEW_BEFORE`).
+**배포 시점 제약(A-071)**. 새로 적재한 장소의 detail snapshot은 적재 7일 뒤 만료된다. R3의 schedule은 두 곳만 갱신한다. R4 뒤 첫 정기 detail tick(약 5일 주기, 다음은 2026-09-30 03:32 KST 무렵)이 적재 뒤 7일 안에 오지 않으면, 그 사이 새 장소의 예보 갱신은 `NO_VERIFIED_KTO_MAPPING`으로 실패한다. 그래서 R4를 09-30 03:32 KST 전에 배포하거나, R4 직후 오너가 목록 전체로 `kto-demo-detail`을 한 번 돌린다. 이 명령은 만료 6일 안쪽인 장소만 KTO에 묻는다(`DETAIL_RENEW_BEFORE`). **R4 뒤 실제([#361 측정](https://github.com/yutakdv/Nullnull/issues/361#issuecomment-5848942868))**: 이 계산은 주기가 배포 전의 시각을 따른다는 전제였고, 그 전제가 틀렸다. R4 `Migration` stack 갱신(09-26 20:35 KST)이 detail schedule을 약 2분 뒤 바로 돌렸고(`refreshed=2 current=16 failed=0`), 주기가 그 시각으로 옮겨졌다. 다음 정기 detail은 약 10-01 20:37 KST로, 09-26 오후 배치 적재 뒤 7일 안이다. 그 전에 배포가 오면 그 배포 직후 실행이 다시 갱신한다.
 
 아래는 A-070 결정에 쓴 사실이다(당시 기록).
 
