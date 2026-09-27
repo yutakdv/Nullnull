@@ -1181,6 +1181,7 @@ export const handlers = [
   http.post(`${API_BASE}/trips/:tripId/candidates`, async ({ request }) => {
     const body = (await request.json()) as {
       placeId: string;
+      mustVisit?: boolean;
       source: { type: string; postId?: string | null };
     };
     const candidates = currentCandidates();
@@ -1208,6 +1209,10 @@ export const handlers = [
       place,
       status: 'ACTIVE' as const,
       scheduledTripItemId: null,
+      // The request's own intention, as the server stores it (#185). Taken
+      // from the template, every saved place read back as not must-visit and
+      // the wizard's picks lost their badge on the candidate panel.
+      mustVisit: body.mustVisit ?? false,
       sources: [
         { type: body.source.type, postId: body.source.postId ?? null, createdAt: now },
       ] as typeof template.sources,

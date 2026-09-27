@@ -72,8 +72,8 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-function renderWizard() {
-  const router = createMemoryRouter(routes, { initialEntries: ['/start'] });
+function renderWizard(entries: string[] = ['/start']) {
+  const router = createMemoryRouter(routes, { initialEntries: entries });
   const result = render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -93,8 +93,11 @@ async function pickDates(user: ReturnType<typeof userEvent.setup>) {
 }
 
 /** Reaches the P0 deterministic recommendation preview from NOTHING. */
-async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>) {
-  renderWizard();
+async function reachRecommendedPreview(
+  user: ReturnType<typeof userEvent.setup>,
+  entries?: string[],
+) {
+  const { router } = renderWizard(entries);
   await pickDates(user);
   await user.click(screen.getByRole('button', { name: /–/ }));
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
@@ -104,6 +107,7 @@ async function reachRecommendedPreview(user: ReturnType<typeof userEvent.setup>)
     }),
   );
   await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+  return router;
 }
 
 async function startRecommendedTrip(user: ReturnType<typeof userEvent.setup>) {
@@ -587,7 +591,7 @@ describe('FE-102-T1 creating the trip', () => {
       }),
     );
     const user = userEvent.setup();
-    renderWizard();
+    const { router } = renderWizard();
     await pickDates(user);
     await user.click(screen.getByRole('button', { name: /–/ }));
     await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
@@ -606,6 +610,9 @@ describe('FE-102-T1 creating the trip', () => {
       ).toBeDisabled();
     });
     expect(created).toHaveLength(1);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toMatch(/^\/trip\//);
+    });
   });
 
   it('reports a failure instead of leaving the button spinning', async () => {
@@ -626,6 +633,100 @@ describe('FE-102-T1 creating the trip', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       copy['wizard.createFailed'],
     );
+  });
+});
+
+describe('FE-102-T6 every wizard branch shares the create attempt across remounts', () => {
+  function holdCreate() {
+    let release: () => void = () => undefined;
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(`${API_BASE}/trips`, async ({ request }) => {
+        created.push({
+          key: request.headers.get('idempotency-key'),
+          body: await request.json(),
+        });
+        await wait;
+        return HttpResponse.json(
+          { id: '018f4c00-0000-7000-8000-000000000001' },
+          { status: 201 },
+        );
+      }),
+    );
+    return release;
+  }
+
+  async function leaveAndReturn(router: ReturnType<typeof createMemoryRouter>) {
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(document.getElementById('wizard-heading')).toBeNull();
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(router.state.location.pathname).toBe('/start');
+  }
+
+  it('locks a returned recommendation branch until its original create answers', async () => {
+    const release = holdCreate();
+    const user = userEvent.setup();
+    const router = await reachRecommendedPreview(user, ['/feed', '/start']);
+    await startRecommendedTrip(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await leaveAndReturn(router);
+    const next = await screen.findByRole('button', { name: copy['wizard.creating'] });
+    const locked = next.hasAttribute('disabled');
+    const importLocked = screen
+      .getByRole('button', { name: copy['import.start'] })
+      .hasAttribute('disabled');
+    if (!locked) await user.click(next);
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: copy['wizard.dates.title'] }),
+      ).toBeInTheDocument(),
+    );
+    expect(locked).toBe(true);
+    expect(importLocked).toBe(true);
+    expect(created).toHaveLength(1);
+    expect(patched).toEqual([]);
+  });
+
+  it('locks a returned manual branch until its original create answers', async () => {
+    const release = holdCreate();
+    const user = userEvent.setup();
+    const { router } = renderWizard(['/feed', '/start']);
+    await pickDates(user);
+    await user.click(screen.getByRole('button', { name: /–/ }));
+    await user.click(await screen.findByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(copy['wizard.planning.MOSTLY_PLANNED.title']),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: copy['wizard.next'] }));
+    await user.click(
+      await screen.findByRole('button', { name: new RegExp(copy['method.manual']) }),
+    );
+    await user.click(await screen.findByRole('button', { name: copy['manual.next'] }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await leaveAndReturn(router);
+    const next = await screen.findByRole('button', { name: copy['manual.next'] });
+    const locked = next.hasAttribute('disabled');
+    if (!locked) await user.click(next);
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: copy['wizard.dates.title'] }),
+      ).toBeInTheDocument(),
+    );
+    expect(locked).toBe(true);
+    expect(created).toHaveLength(1);
+    expect(patched).toEqual([]);
   });
 });
 
