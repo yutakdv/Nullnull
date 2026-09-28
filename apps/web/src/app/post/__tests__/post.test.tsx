@@ -186,6 +186,14 @@ describe('FE-202-T2 the screen renders each of its states', () => {
       excerpt: 'Start at the palace...',
       body: 'Start at the palace and walk through the lanes.',
     },
+    {
+      excerpt: '평평한 궁과는 걷는 감각이 달라요. 안쪽으로 들어갈…',
+      body: '평평한 궁과는 걷는 감각이 달라요.\n\n안쪽으로 들어갈수록 나무가 많아요.',
+    },
+    {
+      excerpt: 'Walk through the palace. Follow the trees...',
+      body: 'Walk through the palace.\r\n\r\nFollow the trees into the garden.',
+    },
   ])('does not repeat a truncated excerpt: $excerpt', async ({ excerpt, body }) => {
     server.use(
       http.get(`${API_BASE}/posts/:postId`, () =>
@@ -193,7 +201,9 @@ describe('FE-202-T2 the screen renders each of its states', () => {
       ),
     );
     renderPost();
-    expect(await screen.findByText(body)).toBeInTheDocument();
+    expect(
+      await screen.findByText(body, { normalizer: (text) => text }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(excerpt)).toBeNull();
   });
 
