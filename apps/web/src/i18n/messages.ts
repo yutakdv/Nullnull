@@ -695,7 +695,7 @@ export const messages = {
     'optimize.scope.ITEM': '장소 하나',
     'optimize.scope.DAY': '하루 전체',
     'optimize.scope.TRIP': '여행 전체',
-    'optimize.scope.comingSoon': '준비 중이에요. P0에서는 장소 하나만 바꿔볼 수 있어요',
+    'optimize.scope.comingSoon': '준비 중이에요. 현재는 장소 하나만 바꿔볼 수 있어요',
     'optimize.target': '바꿔볼 장소',
     'optimize.targetEmpty': '일정에 장소가 없어요. 먼저 장소를 담아주세요',
     'optimize.targetDateLocked': '날짜 고정이라 옮길 수 없어요',
@@ -704,7 +704,7 @@ export const messages = {
     // only one stop can be optimized, which says nothing about candidates and
     // would put a true sentence under the wrong control (#279 중4).
     'optimize.includeCandidates.comingSoon':
-      '준비 중이에요. P0에서는 일정에 있는 장소만 살펴봐요',
+      '준비 중이에요. 현재는 일정에 있는 장소만 살펴봐요',
     'optimize.submit': '대안 찾아보기',
     'optimize.submitting': '찾는 중이에요',
     // 불변식 3: 승인 전에는 일정이 바뀌지 않는다.
@@ -898,7 +898,7 @@ export const messages = {
     // DecisionBar (C03). Figma가 고정한 문구 — 임의 변경 금지.
     'decision.apply': '이 변경 적용',
     'decision.keep': '현재 일정 유지',
-    'decision.applying': '적용하는 중이에요',
+    'decision.applying': '처리하는 중이에요',
     'decision.applied': '일정을 업데이트했어요',
     'decision.staleMessage':
       '다른 곳에서 일정이 바뀌었어요. 최신 일정 기준으로 다시 계산해야 적용할 수 있어요.',
@@ -1960,7 +1960,7 @@ export const messages = {
     // DecisionBar (C03).
     'decision.apply': 'Apply this change',
     'decision.keep': 'Keep current itinerary',
-    'decision.applying': 'Applying…',
+    'decision.applying': 'Working…',
     'decision.applied': 'Your itinerary is updated',
     'decision.staleMessage':
       'Your itinerary changed elsewhere. Recompute against the latest version to apply this.',
