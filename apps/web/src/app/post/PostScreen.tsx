@@ -106,13 +106,15 @@ export function PostScreen() {
   const coverBlocked =
     !isSafeUrl(detail.coverUrl) ||
     (asset?.attributionRequired === true && coverCredit === null);
-  // A truncated catalogue excerpt carries an ellipsis absent from the full body.
+  // Catalogue excerpts truncate the body and flatten its paragraph breaks.
   const excerptPrefix = detail.excerpt
     ?.trim()
     .replace(/(?:…|\.{3})$/, '')
-    .trimEnd();
+    .trimEnd()
+    .replace(/\s+/g, ' ');
   const excerptRepeatsBody =
-    !!excerptPrefix && detail.body.trimStart().startsWith(excerptPrefix);
+    !!excerptPrefix &&
+    detail.body.trimStart().replace(/\s+/g, ' ').startsWith(excerptPrefix);
 
   return (
     <section aria-labelledby="post-heading" className={styles.screen}>
