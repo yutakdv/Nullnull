@@ -23,8 +23,8 @@ import { routes } from '../../routes.js';
 const copy = messages['en-US'];
 const trip = tripFixtures.detailScheduled;
 
-function renderTrip(id = trip.id) {
-  const router = createMemoryRouter(routes, { initialEntries: [`/trip/${id}`] });
+function renderTrip(id = trip.id, suffix = '') {
+  const router = createMemoryRouter(routes, { initialEntries: [`/trip/${id}${suffix}`] });
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <I18nProvider>
@@ -39,6 +39,34 @@ async function loaded() {
 }
 
 describe('FE-301-T1 the counts are right and distinct', () => {
+  it.each(['', '/edit'])(
+    'keeps unknown and closed opening-hour state visible on %s',
+    async (suffix) => {
+      const firstId = trip.days.flatMap((day) => day.items)[0]?.id;
+      const lastId = trip.days.flatMap((day) => day.items).at(-1)?.id;
+      const withHours = {
+        ...trip,
+        days: trip.days.map((day) => ({
+          ...day,
+          items: day.items.map((item) => ({
+            ...item,
+            hoursState:
+              item.id === firstId ? 'CLOSED' : item.id === lastId ? 'OPEN' : 'UNKNOWN',
+          })),
+        })),
+      };
+      server.use(
+        http.get(`${API_BASE}/trips/:tripId`, () =>
+          HttpResponse.json(withHours, { headers: { ETag: '"3"' } }),
+        ),
+      );
+      renderTrip(trip.id, suffix);
+      await loaded();
+      expect(screen.getByText(copy['trip.hours.CLOSED'])).toBeInTheDocument();
+      expect(screen.getByText(copy['trip.hours.UNKNOWN'])).toBeInTheDocument();
+    },
+  );
+
   it('keeps the saved-places link when the bounded candidate view is empty', async () => {
     renderTrip();
     await loaded();
@@ -288,12 +316,22 @@ describe('FE-301-T1 locks are shown as status, not as controls', () => {
   it('names each lock the item carries', async () => {
     renderTrip();
     await loaded();
-    const mustVisit = screen.getByText(copy['trip.lock.MUST_VISIT']);
     const placeName = screen.getByRole('heading', { level: 3, name: '경복궁' });
-    expect(mustVisit).toBeInTheDocument();
-    expect(mustVisit.parentElement?.previousElementSibling).toBe(placeName);
-    expect(screen.getByText(copy['trip.lock.DATE'])).toBeInTheDocument();
-    expect(screen.getByText(copy['trip.lock.TIME'])).toBeInTheDocument();
+    const card = placeName.closest('article') as HTMLElement;
+    expect(
+      within(card)
+        .getAllByText(copy['trip.lock.MUST_VISIT'])
+        .some((node) => !node.closest('[hidden]')),
+    ).toBe(true);
+    expect(
+      within(card).getByRole('list', { name: copy['trip.locks'] }),
+    ).toHaveTextContent(copy['trip.lock.DATE']);
+    const timeCard = screen
+      .getByRole('heading', { level: 3, name: '인사동' })
+      .closest('article') as HTMLElement;
+    expect(
+      within(timeCard).getByRole('list', { name: copy['trip.locks'] }),
+    ).toHaveTextContent(copy['trip.lock.TIME']);
   });
 
   it('offers no lock button, because unlocking is FE-304', async () => {
@@ -551,7 +589,8 @@ describe('FE-301-T3 the screen is reachable and named', () => {
     expect(actions).toBeInTheDocument();
     await user.click(actions);
     expect(screen.getByRole('button', { name: move })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: remove })).toBeInTheDocument();
+    // Schedule editing buffers order/date only; immediate remove stays in view mode.
+    expect(screen.queryByRole('button', { name: remove })).toBeNull();
     expect(screen.getByText('9:30 AM')).toBeInTheDocument();
   });
 
@@ -851,7 +890,14 @@ describe('FE-301 the trip screen credits the places it shows', () => {
       .getByRole('heading', { level: 3, name: firstItem.place.name })
       .closest('article');
     expect(row).not.toBeNull();
-    expect(row?.querySelector('p')).toBeNull();
+    // The closed remove dialog is mounted inside the row but contributes no
+    // visible space; optional place details should add no visible paragraph.
+    const visibleParagraphs = row
+      ? [...row.querySelectorAll('p')].filter((paragraph) => !paragraph.closest('dialog'))
+      : [];
+    expect(visibleParagraphs.map((paragraph) => paragraph.textContent)).toEqual([
+      copy['trip.hours.UNKNOWN'],
+    ]);
     expect(
       within(row as HTMLElement).queryByRole('list', { name: copy['trip.locks'] }),
     ).not.toBeInTheDocument();

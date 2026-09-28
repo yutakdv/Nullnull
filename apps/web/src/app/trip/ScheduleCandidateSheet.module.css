@@ -156,6 +156,18 @@
   font-size: var(--font-body-sm);
 }
 
+.state p {
+  margin: 0;
+}
+
+.state a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-action-primary);
+  font-weight: 700;
+}
+
 .footnote {
   margin: 14px 0 0;
   color: var(--color-text-secondary);

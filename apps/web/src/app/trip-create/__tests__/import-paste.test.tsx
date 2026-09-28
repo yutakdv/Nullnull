@@ -11,7 +11,7 @@
 // ETag, `dismissed` withdraws a line nobody can resolve (#223), and confirm is
 // refused until the draft is READY.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, delay } from 'msw';
 import { placeFixtures } from '@nullnull/contracts';
@@ -119,6 +119,19 @@ async function paste(user: ReturnType<typeof userEvent.setup>, text = PASTE) {
   );
 }
 
+async function suggestedPick(user: ReturnType<typeof userEvent.setup>) {
+  const row = (await screen.findByText('한옥마을')).closest('li') as HTMLElement;
+  await user.click(
+    within(row).getByRole('button', { name: copy['import.token.resolve'] }),
+  );
+  fireEvent.change(within(row).getByLabelText(copy['import.token.date']), {
+    target: { value: '2026-10-04' },
+  });
+  return within(row).findByRole('button', {
+    name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
+  });
+}
+
 // FE-104-T1 is "붙여넣기 원문을 저장·로그·analytics에 남기지 않는다", and these
 // three cases are what prove it. The ID is in the name because that is the
 // string the aggregator reads; without it the clause was proven and invisible.
@@ -128,6 +141,22 @@ async function paste(user: ReturnType<typeof userEvent.setup>, text = PASTE) {
 // body, then against the response and the rendered DOM, and records the
 // mutation that showed the outgoing-only version was insufficient.
 describe('FE-104-T1 the paste is read without being kept', () => {
+  it('uses the selected English locale and explains the supported input format', async () => {
+    const user = userEvent.setup();
+    renderImport();
+    expect(await screen.findByText(copy['import.formatNote'])).toBeInTheDocument();
+    await paste(user);
+    await waitFor(() => {
+      expect(seen.some((request) => request.url.includes('/trip-imports/parse'))).toBe(
+        true,
+      );
+    });
+    expect(
+      JSON.parse(
+        seen.find((request) => request.url.includes('/trip-imports/parse'))?.body ?? '{}',
+      ).locale,
+    ).toBe('en-US');
+  });
   it('sends the pasted text as a request body and nothing else', async () => {
     const user = userEvent.setup();
     renderImport();
@@ -216,9 +245,7 @@ describe('FE-603-T5 every place the draft shows carries its credit', () => {
     renderImport();
     await paste(user);
 
-    const pick = screen.getByRole('button', {
-      name: copy['import.token.pick'].replace('{name}', third.name),
-    });
+    const pick = await suggestedPick(user);
     // A link inside a button is an interactive element nested in another,
     // which neither a pointer nor a screen reader can reach on its own.
     expect(within(pick).queryByRole('link')).toBeNull();
@@ -231,14 +258,44 @@ describe('FE-603-T5 every place the draft shows carries its credit', () => {
 });
 
 describe('what the parser could not place is corrected by the person', () => {
+  it('lets an unmatched line be searched and assigned to an explicit date', async () => {
+    const user = userEvent.setup();
+    renderImport();
+    await paste(user);
+    const row = (await screen.findByText(copy['import.token.noLabel'])).closest(
+      'li',
+    ) as HTMLElement;
+    await user.click(
+      within(row).getByRole('button', { name: copy['import.token.resolve'] }),
+    );
+    fireEvent.change(within(row).getByLabelText(copy['import.token.date']), {
+      target: { value: '2026-10-05' },
+    });
+    await user.type(within(row).getByLabelText(copy['import.token.search']), '경복궁');
+    const first = placeFixtures.searchPage.items[0];
+    if (!first) throw new Error('search fixture has no first place');
+    await user.click(
+      await within(row).findByRole('button', {
+        name: copy['import.token.pick'].replace('{name}', first.name),
+      }),
+    );
+    await waitFor(() =>
+      expect(seen.some((request) => request.method === 'PATCH')).toBe(true),
+    );
+    const patch = seen.find((request) => request.method === 'PATCH');
+    expect(JSON.parse(patch?.body ?? '{}').updates[0]).toMatchObject({
+      placeId: first.id,
+      date: '2026-10-05',
+    });
+    expect(patch?.body).not.toContain(PASTE);
+  });
+
   it('sends the draft version as If-Match when resolving a line', async () => {
     const user = userEvent.setup();
     renderImport();
     await paste(user);
 
-    const pick = await screen.findByRole('button', {
-      name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-    });
+    const pick = await suggestedPick(user);
     await user.click(pick);
 
     await waitFor(() => {
@@ -286,9 +343,7 @@ describe('what the parser could not place is corrected by the person', () => {
       ),
     );
 
-    const pick = await screen.findByRole('button', {
-      name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-    });
+    const pick = await suggestedPick(user);
     await user.click(pick);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['import.changed']);
@@ -336,11 +391,7 @@ describe('a draft becomes a trip only once it is settled', () => {
 
     // Settle everything: resolve the suggested line, drop the unreadable one,
     // and give the dateless item a date by dropping it.
-    await user.click(
-      await screen.findByRole('button', {
-        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-      }),
-    );
+    await user.click(await suggestedPick(user));
     const unreadable = await screen.findByText(copy['import.token.noLabel']);
     await user.click(
       within(unreadable.closest('li') as HTMLElement).getByRole('button', {
@@ -533,11 +584,7 @@ describe('FE-104-T2 the screen renders each of its states', () => {
       ),
     );
 
-    await user.click(
-      await screen.findByRole('button', {
-        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-      }),
-    );
+    await user.click(await suggestedPick(user));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(copy['import.expired']);
 
@@ -559,11 +606,7 @@ describe('FE-104-T2 the screen renders each of its states', () => {
       ),
     );
 
-    await user.click(
-      await screen.findByRole('button', {
-        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-      }),
-    );
+    await user.click(await suggestedPick(user));
     await screen.findByRole('alert');
 
     expect(screen.queryByRole('button', { name: copy['import.confirm'] })).toBeNull();
@@ -575,11 +618,7 @@ describe('FE-104-T2 the screen renders each of its states', () => {
     await paste(user);
 
     // Settle the draft so confirm is actually reachable, then fail it.
-    await user.click(
-      await screen.findByRole('button', {
-        name: new RegExp(copy['import.token.pick'].replace('{name}', '')),
-      }),
-    );
+    await user.click(await suggestedPick(user));
     const unreadable = await screen.findByText(copy['import.token.noLabel']);
     await user.click(
       within(unreadable.closest('li') as HTMLElement).getByRole('button', {

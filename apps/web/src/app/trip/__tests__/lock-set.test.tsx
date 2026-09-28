@@ -80,9 +80,8 @@ function renderTrip() {
 /** Renders the trip, then returns one item's card so queries stay scoped. */
 async function itemCard(name: string): Promise<HTMLElement> {
   renderTrip();
-  await userEvent
-    .setup()
-    .click(await screen.findByRole('button', { name: copy['trip.editStart'] }));
+  // Lock changes are immediate actions in view mode. The schedule editor
+  // buffers only order/date changes until Save or Cancel.
   // By heading, not by text: a place name also occurs inside an address
   // ("명동" is both a place and a street), so a text query matches twice.
   const heading = await screen.findByRole('heading', { level: 3, name });

@@ -487,6 +487,7 @@ export function useSavePost(postId: string) {
         current === undefined ? current : { ...current, saved: state.saved },
       );
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['saved-posts'] });
     },
   });
 }
@@ -509,11 +510,30 @@ export function useUnsavePost(postId: string) {
         current === undefined ? current : { ...current, saved: false },
       );
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['saved-posts'] });
     },
   });
 }
 
 type FeedPage = components['schemas']['FeedPage'];
+type SavedPostPage = components['schemas']['SavedPostPage'];
+
+export function useSavedPosts() {
+  return useInfiniteQuery<SavedPostPage, Problem | Error>({
+    queryKey: ['saved-posts'],
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const cursor = pageParam as string | null;
+      const { data, error, response } = await getApiClient().GET('/me/saved-posts', {
+        params: { query: cursor === null ? {} : { cursor } },
+      });
+      if (!data) fail(error, response);
+      return data;
+    },
+    getNextPageParam: (last) =>
+      last.page.hasMore ? (last.page.nextCursor ?? null) : null,
+  });
+}
 
 /**
  * The personalized feed, one cursor page at a time.

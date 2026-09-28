@@ -374,6 +374,19 @@ export function OptimizationRunScreen() {
     placeCreditPending: t('run.proposal.placeCreditPending'),
     placeCreditMissingAll: t('run.proposal.placeCreditMissingAll'),
     placeCreditMissingSome: t('run.proposal.placeCreditMissingSome'),
+    provenanceTitle: t('run.proposal.provenanceTitle'),
+    targetAt: t('crowd.targetAt'),
+    targetUnknown: t('run.proposal.targetUnknown'),
+    observedAt: t('crowd.observedAt'),
+    observedUnknown: t('run.proposal.observedUnknown'),
+    fetchedAt: t('crowd.fetchedAt'),
+    fetchedUnknown: t('run.proposal.fetchedUnknown'),
+    freshness: {
+      FRESH: t('run.proposal.freshness.FRESH'),
+      AGING: t('run.proposal.freshness.AGING'),
+      STALE: t('run.proposal.freshness.STALE'),
+      UNKNOWN: t('run.proposal.freshness.UNKNOWN'),
+    },
   };
 
   if (working || (progressStarted && !progressComplete)) {
@@ -480,6 +493,9 @@ export function OptimizationRunScreen() {
       {failure ? (
         <>
           <p className={styles.lead}>{t(failure)}</p>
+          {detail.failure?.code === 'ROUTE_UNAVAILABLE' ? (
+            <p className={styles.note}>{t('run.routeRecovery')}</p>
+          ) : null}
           {/* Invariant 4, stated: a failed run changes nothing. */}
           <p className={styles.note}>{t('run.unchanged')}</p>
         </>

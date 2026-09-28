@@ -352,6 +352,9 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
       await within(sheet).findByText(copy['candidates.match.UNKNOWN']),
     ).toBeInTheDocument();
     expect(within(sheet).queryByText(copy['candidates.sheet.noDates'])).toBeNull();
+    expect(
+      within(sheet).getByRole('link', { name: copy['trip.addPlace'] }),
+    ).toHaveAttribute('href', `/trip/${trip.id}/add-place`);
   });
 
   it('lets the traveller choose a date when only opening hours are unknown', async () => {
@@ -419,6 +422,75 @@ describe('FE-303-T2 the five match states each say their own thing', () => {
     expect(rows[0]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
     expect(rows[2]).toHaveTextContent(copy['candidates.sheet.blocked.TIME_CONFLICT']);
     expect(sent).toHaveLength(0);
+  });
+
+  it('explains every route-blocked date and offers a manual path without scheduling', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: 'ROUTE_EVIDENCE_MISSING',
+          })),
+        }),
+      ),
+    );
+
+    const { sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    expect(
+      within(dates)
+        .getAllByRole('button')
+        .every((row) => row.hasAttribute('disabled')),
+    ).toBe(true);
+    expect(
+      within(dates).getAllByText(copy['candidates.sheet.blocked.ROUTE_EVIDENCE_MISSING']),
+    ).toHaveLength(trip.days.length);
+    expect(
+      within(sheet).getByText(copy['candidates.sheet.allBlocked']),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole('link', { name: copy['trip.addPlace'] }),
+    ).toHaveAttribute('href', `/trip/${trip.id}/add-place`);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('distinguishes confirmed closure from unknown hours on the date rows', async () => {
+    if (!active) throw new Error('active fixture missing');
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId/candidates/:candidateId/matches`, () =>
+        HttpResponse.json({
+          candidateId: active.id,
+          state: 'UNKNOWN',
+          slots: trip.days.map((day, index) => ({
+            date: day.date,
+            eligible: false,
+            suggestedTime: null,
+            reasonCode: index === 0 ? 'CLOSED' : 'OPENING_HOURS_UNKNOWN',
+          })),
+        }),
+      ),
+    );
+
+    const { sheet } = await openDates(active.place.name);
+    const dates = await within(sheet).findByRole('list', {
+      name: copy['candidates.pickDate'],
+    });
+    const rows = within(dates).getAllByRole('button');
+    expect(rows[0]).toBeDisabled();
+    expect(rows[0]).toHaveTextContent(copy['candidates.sheet.blocked.CLOSED']);
+    expect(rows[1]).toBeEnabled();
+    expect(rows[1]).toHaveTextContent(
+      copy['candidates.sheet.blocked.OPENING_HOURS_UNKNOWN'],
+    );
+    expect(within(sheet).queryByText(copy['candidates.sheet.allBlocked'])).toBeNull();
   });
 
   it('says NONE only when the server actually decided nothing fits', async () => {

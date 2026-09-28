@@ -163,6 +163,18 @@ describe('FE-202-T2 the screen renders each of its states', () => {
       await screen.findByRole('heading', { level: 1, name: post.title }),
     ).toBeInTheDocument();
     expect(screen.getByText(post.body)).toBeInTheDocument();
+    if (post.excerpt) expect(screen.getByText(post.excerpt)).toBeInTheDocument();
+  });
+
+  it('does not repeat an excerpt that opens the body', async () => {
+    const repeated = {
+      ...post,
+      excerpt: '고궁에서 시작해 골목으로 이어지는 하루 코스예요.',
+    };
+    server.use(http.get(`${API_BASE}/posts/:postId`, () => HttpResponse.json(repeated)));
+    renderPost();
+    expect(await screen.findByText(repeated.body)).toBeInTheDocument();
+    expect(screen.queryByText(repeated.excerpt)).toBeNull();
   });
 
   it('shows a loading state before the answer arrives', async () => {

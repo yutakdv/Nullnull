@@ -174,3 +174,16 @@
   font-size: var(--font-caption);
   line-height: 15px;
 }
+
+.state p {
+  margin: 0 0 var(--space-2);
+}
+
+.state a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-action-primary);
+  font-size: var(--font-body-sm);
+  font-weight: 700;
+}

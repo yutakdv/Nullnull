@@ -1,8 +1,11 @@
 import type { components } from '@nullnull/api-client';
+import { useOptionalI18n } from '../../i18n/I18nProvider.js';
+import { formatReferenceTime } from '../../shared/crowd/reference-time.js';
 import {
   DataAttribution,
   MetricDelta,
   PlaceAttribution,
+  StateLabel,
   sourceContext,
   unitCredits,
 } from '../../shared/ui/index.js';
@@ -27,6 +30,7 @@ import styles from './ProposalCard.module.css';
 type OptimizationProposal = components['schemas']['OptimizationProposal'];
 type TripItemState = components['schemas']['TripItemState'];
 type ValidationCheck = OptimizationProposal['validation']['checks'][number];
+type Freshness = components['schemas']['Freshness'];
 
 export interface ProposalCardProps {
   proposal: OptimizationProposal;
@@ -88,6 +92,14 @@ export interface ProposalCardProps {
     placeCreditMissingAll: string;
     /** Shown when some of the named places have one and some do not. */
     placeCreditMissingSome: string;
+    provenanceTitle: string;
+    targetAt: string;
+    targetUnknown: string;
+    observedAt: string;
+    observedUnknown: string;
+    fetchedAt: string;
+    fetchedUnknown: string;
+    freshness: Record<Freshness, string>;
   };
 }
 
@@ -163,8 +175,12 @@ export function ProposalCard({
   places = null,
   tabbable = false,
 }: ProposalCardProps) {
+  const locale = useOptionalI18n()?.locale ?? 'ko-KR';
   const rows = changeRows(proposal.changes);
   const comparison = crowdComparison(proposal);
+  const credited = proposal.dataProvenance.filter(
+    (record) => record.attribution !== null && record.attribution !== '',
+  );
   const failed = proposal.validation.checks.filter(
     (check: ValidationCheck) => !check.passed,
   );
@@ -308,17 +324,71 @@ export function ProposalCard({
           </p>
         ) : null}
         {comparison.kind === 'shown' ? (
-          <DataAttribution
-            compact
-            context={sourceContext(
-              comparison.provenance,
-              unitCredits(places?.places ?? []),
-              true,
-            )}
-            provenance={comparison.provenance}
-            showLicense
-            termsLabel={labels.licenseTerms}
-          />
+          <section aria-label={labels.provenanceTitle} className={styles.basis}>
+            <h3 className={styles.sectionTitle}>{labels.provenanceTitle}</h3>
+            <ul className={styles.readings}>
+              {credited.map((record, index) => {
+                const target = record.targetAt
+                  ? new Intl.DateTimeFormat(locale, {
+                      month: 'numeric',
+                      day: 'numeric',
+                      timeZone: 'Asia/Seoul',
+                    }).format(new Date(record.targetAt))
+                  : null;
+                const observed = record.observedAt
+                  ? formatReferenceTime(record.observedAt, locale)
+                  : null;
+                const fetched = record.fetchedAt
+                  ? formatReferenceTime(record.fetchedAt, locale)
+                  : null;
+                return (
+                  <li className={styles.reading} key={record.provenanceId ?? index}>
+                    <div className={styles.readingStatus}>
+                      <StateLabel
+                        qualityFlags={record.qualityFlags}
+                        state={record.sourceState}
+                      />
+                      <span data-freshness={record.freshness}>
+                        {labels.freshness[record.freshness] ?? labels.freshness.UNKNOWN}
+                      </span>
+                    </div>
+                    {target ? (
+                      <time dateTime={record.targetAt ?? undefined}>
+                        {labels.targetAt.replace('{date}', target)}
+                      </time>
+                    ) : (
+                      <span>{labels.targetUnknown}</span>
+                    )}
+                    {observed ? (
+                      <time dateTime={record.observedAt ?? undefined}>
+                        {labels.observedAt.replace('{date}', observed)}
+                      </time>
+                    ) : (
+                      <span>{labels.observedUnknown}</span>
+                    )}
+                    {fetched ? (
+                      <time dateTime={record.fetchedAt}>
+                        {labels.fetchedAt.replace('{date}', fetched)}
+                      </time>
+                    ) : (
+                      <span>{labels.fetchedUnknown}</span>
+                    )}
+                    <DataAttribution
+                      compact
+                      context={sourceContext(
+                        record,
+                        unitCredits(places?.places ?? []),
+                        true,
+                      )}
+                      provenance={record}
+                      showLicense
+                      termsLabel={labels.licenseTerms}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         ) : null}
       </div>
     </Card>

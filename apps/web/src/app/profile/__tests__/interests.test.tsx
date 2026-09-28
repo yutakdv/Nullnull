@@ -66,6 +66,41 @@ async function loaded() {
 }
 
 describe('FE-106-T2 the card renders each state', () => {
+  it('distinguishes trips with the same title by their dates', async () => {
+    const first = tripFixtures.page.items[0];
+    const second = tripFixtures.page.items[1];
+    if (!first || !second) throw new Error('missing trip fixtures');
+    server.use(
+      http.get(`${API_BASE}/trips`, () =>
+        HttpResponse.json({
+          ...tripFixtures.page,
+          items: [
+            {
+              ...first,
+              title: 'New trip',
+              startDate: '2026-10-04',
+              endDate: '2026-10-07',
+            },
+            {
+              ...second,
+              title: 'New trip',
+              startDate: '2027-10-04',
+              endDate: '2027-10-07',
+            },
+          ],
+        }),
+      ),
+    );
+    renderCard();
+    await loaded();
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent('New trip');
+    expect(options[0]).toHaveTextContent('2026');
+    expect(options[1]).toHaveTextContent('New trip');
+    expect(options[1]).toHaveTextContent('2027');
+  });
+
   it('shows the trip’s saved interests as pressed chips', async () => {
     renderCard();
     await loaded();

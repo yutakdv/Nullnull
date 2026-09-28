@@ -4,6 +4,7 @@ import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, useReorderTripItems, useTrip } from '../../shared/api/index.js';
 import { moveBlock, reorderAt } from './reorder.js';
+import { stageSchedule } from './schedule-draft.js';
 
 type TripDetail = components['schemas']['TripDetail'];
 type TripDay = TripDetail['days'][number];
@@ -61,34 +62,18 @@ function dropTargetAt(y: number, itemId: string): DropTarget | null {
   return { date, index: index < 0 ? cards.length : index };
 }
 
-function projectedDays(
-  days: readonly TripDay[],
-  order: readonly ReorderEntry[],
-): TripDay[] {
-  const changes = new Map(order.map((entry) => [entry.itemId, entry]));
-  const items = days.flatMap((day) => day.items);
-  return days.map((day) => ({
-    ...day,
-    items: items
-      .map((item) => {
-        const change = changes.get(item.id);
-        return change ? { ...item, date: change.date, position: change.position } : item;
-      })
-      .filter((item) => item.date === day.date)
-      .sort((left, right) => left.position - right.position),
-  }));
-}
-
 export function useTripDragReorder({
   days,
   tripId,
   etag,
   selectedDay,
+  onStageOrder,
 }: {
   days: readonly TripDay[];
   tripId: string | null;
   etag: string | null;
   selectedDay: string | null;
+  onStageOrder?: (order: ReorderEntry[], destination: string) => void;
 }) {
   const { t } = useI18n();
   const trip = useTrip(tripId);
@@ -155,7 +140,20 @@ export function useTripDragReorder({
       key.current = null;
     }
     setStatus(null);
-    setProvisional(projectedDays(days, order));
+    if (onStageOrder) {
+      onStageOrder(request, drop.date);
+      const dayIndex = days.findIndex((day) => day.date === drop.date);
+      setStatus(
+        item.date === drop.date
+          ? t('trip.reorder.moved', { name: item.place.name, position: drop.index + 1 })
+          : t('trip.move.moved', {
+              name: item.place.name,
+              day: t('trip.day', { n: dayIndex + 1 }),
+            }),
+      );
+      return;
+    }
+    setProvisional(stageSchedule(days, order));
     reorder.mutate(
       {
         order: request,

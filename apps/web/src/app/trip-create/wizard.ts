@@ -75,6 +75,8 @@ export interface DraftStop {
   /** ISO date, always set: this screen only adds a stop UNDER a day header. */
   date: string;
   daypart: Daypart;
+  /** User-entered exact local time. Absent and null both mean no exact time. */
+  startTime?: string | null;
   /**
    * Picked as a must-visit on the confirm step (S02-5C `438:3259`).
    *
@@ -238,6 +240,30 @@ export function setStopDaypart(
   };
 }
 
+/** Keep an exact time only when the traveller entered it; a daypart never invents one. */
+export function setStopTime(
+  draft: WizardDraft,
+  key: string,
+  time: string | null,
+): WizardDraft {
+  if (time !== null && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    throw new Error('Invalid local time');
+  }
+  return {
+    ...draft,
+    stops: draft.stops.map((stop) =>
+      stop.key === key
+        ? {
+            ...stop,
+            startTime: time,
+            daypart:
+              time === null ? stop.daypart : time < '12:00' ? 'MORNING' : 'AFTERNOON',
+          }
+        : stop,
+    ),
+  };
+}
+
 /**
  * Turns one stop's must-visit pick on or off (S02-5C `438:3259`).
  *
@@ -266,26 +292,8 @@ export function canAddStop(draft: WizardDraft): boolean {
 /**
  * The stops as `seedItems`, ordered within each day.
  *
- * `startTime` IS ALWAYS NULL, AND THAT IS THE DECISION, NOT AN OMISSION.
- *
- * The card offers 오전 and 오후 and nothing finer, so the traveller never names
- * a time. Turning 오전 into `09:00:00` would put a number in the itinerary that
- * nobody chose and that the trip screen would then display back as fact — the
- * server stores what it is sent. This repository already refuses that exact
- * inference one layer down: `ItineraryParser` reads `오후 3시` as 15:00 but
- * classifies a bare `3시` as AMBIGUOUS_TIME and makes it a question for the
- * traveller, because an hour without a meridiem is two moments. A meridiem
- * without an hour is twelve, so it is strictly less to go on, and inventing one
- * is what invariant 9 forbids.
- *
- * Order survives instead, which is what the screen actually collected: the
- * stops of a day are numbered 1, 2, 3 down the spine, and `position` carries
- * exactly that. `TripItemCard` renders a null `startTime` as 시간 미정.
- *
- * The daypart is therefore lost on submit, and that is honest — it is a sorting
- * aid, and the sorted order is what goes. If it must survive as data, the field
- * for it is a real time the traveller entered, which needs a Figma change
- * request first (the frame draws no time input).
+ * A daypart is an ordering aid, not a clock time. Exact time survives only when
+ * entered explicitly; blank stays null. Never infer an hour from 오전/오후.
  *
  * `position` restarts at 0 for each day because the server scopes it per day:
  * `TripScheduleRules.requireDistinctPositions` buckets by date and rejects only
@@ -298,7 +306,7 @@ export function seedItemsOf(draft: WizardDraft): SeedTripItem[] {
       placeId: stop.place.id,
       date,
       position,
-      startTime: null,
+      startTime: stop.startTime ? `${stop.startTime}:00` : null,
       // Omitted when nothing was picked, for the reason toCreateRequest omits
       // an empty seedItems: an empty array is a statement that this stop
       // carries constraints, and it carries none.

@@ -408,6 +408,24 @@ describe('FE-502-T2 FE-504-T2 FE-503-T2 the screen renders each of its states', 
     }
   });
 
+  it('explains missing route evidence and keeps a failed trip unchanged', async () => {
+    runIs('FAILED', {
+      failure: {
+        code: 'ROUTE_UNAVAILABLE',
+        message: 'no verified legs',
+        retryable: true,
+      },
+    });
+    renderRun();
+
+    expect(
+      await screen.findByText(copy['run.failure.ROUTE_UNAVAILABLE']),
+    ).toBeInTheDocument();
+    expect(screen.getByText(copy['run.routeRecovery'])).toBeInTheDocument();
+    expect(screen.getByText(copy['run.unchanged'])).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: copy['decision.apply'] })).toBeNull();
+  });
+
   it('folds INTERNAL_ERROR to the generic line rather than naming internals', async () => {
     // The contract carries this code (#261) and this screen deliberately has no
     // message for it: it covers an answer outside the recommendation contract, a
@@ -730,6 +748,33 @@ describe('the run screen credits the places a proposal names (CMP-ATT-001)', () 
         .map((link) => link.getAttribute('href'));
       expect(hrefs).toContain(credit.officialUrl);
     });
+  });
+
+  it('A-09 keeps the forecast basis attached to the ready comparison', async () => {
+    readyWithTrip(() =>
+      HttpResponse.json(trip, { headers: { ETag: `"${String(trip.version)}"` } }),
+    );
+    renderRun(READY.id);
+
+    const card = await screen.findByRole('article');
+    const basis = within(card).getByRole('region', {
+      name: copy['run.proposal.provenanceTitle'],
+    });
+    const readings = within(basis).getAllByRole('listitem');
+    expect(readings).toHaveLength(2);
+    expect(
+      readings[0]?.querySelector('time[datetime="2026-10-03T15:00:00Z"]'),
+    ).not.toBeNull();
+    expect(
+      readings[1]?.querySelector('time[datetime="2026-10-06T15:00:00Z"]'),
+    ).not.toBeNull();
+    for (const reading of readings) {
+      expect(reading).toHaveTextContent(copy['run.proposal.observedUnknown']);
+      expect(reading).toHaveTextContent(copy['run.proposal.freshness.FRESH']);
+      expect(
+        reading.querySelector('time[datetime="2026-10-02T00:00:00Z"]'),
+      ).not.toBeNull();
+    }
   });
 
   it('FE-603-T9 says a place went uncredited when the trip cannot be read', async () => {

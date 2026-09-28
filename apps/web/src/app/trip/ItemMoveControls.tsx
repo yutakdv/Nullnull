@@ -31,9 +31,8 @@ import {
 // since happy-dom has no drag. Drag can be layered on later over the same
 // reorder call.
 //
-// Every action sends ONE request carrying the complete ordering for every day
-// it touches (see reorder.ts). Moving an item as a sequence of single edits
-// would collide with the (trip, date, position) uniqueness partway through.
+// In the schedule editor, moves stage locally and Save sends one complete
+// order. Outside it, an item action sends one atomic reorder request.
 //
 // A DATE lock pins the item to its day, so a move asks first and says what the
 // move releases — invariant 7 again: no lock comes off on its own. A
@@ -64,6 +63,11 @@ export interface ItemMoveControlsProps {
   tripId: string | null;
   etag: string | null;
   compact?: boolean;
+  actionsOnly?: boolean;
+  onStageOrder?: (
+    order: components['schemas']['ReorderTripItemsRequest']['items'],
+    destination: string,
+  ) => void;
   children?: ReactNode;
 }
 
@@ -73,6 +77,8 @@ export function ItemMoveControls({
   tripId,
   etag,
   compact = false,
+  actionsOnly = false,
+  onStageOrder,
   children,
 }: ItemMoveControlsProps) {
   // Same query key as the screen's, so this is the one cached trip rather than
@@ -108,7 +114,7 @@ export function ItemMoveControls({
   const block = moveBlock(item);
   const first = isFirstInDay(days, item.id);
   const last = isLastInDay(days, item.id);
-  const busy = reorder.isPending || etag === null;
+  const busy = (onStageOrder === undefined && reorder.isPending) || etag === null;
 
   useEffect(() => {
     if (!compact || !menuOpen) return;
@@ -154,6 +160,14 @@ export function ItemMoveControls({
         : order.map((entry) =>
             entry.itemId === item.id ? { ...entry, releaseConstraints: released } : entry,
           );
+    if (onStageOrder) {
+      onStageOrder(
+        items,
+        items.find((entry) => entry.itemId === item.id)?.date ?? item.date,
+      );
+      setStatus(announce);
+      return;
+    }
     reorder.mutate(
       { order: items, etag, idempotencyKey: (moveKey.current ??= crypto.randomUUID()) },
       {
@@ -230,89 +244,103 @@ export function ItemMoveControls({
           className={`${styles.controls} ${compact ? styles.compactControls : ''}`}
           hidden={compact && !menuOpen}
         >
-          <button
-            aria-label={t('trip.reorder.up', { name: item.place.name })}
-            className={styles.step}
-            disabled={first || busy}
-            onClick={() => {
-              setMenuOpen(false);
-              step(-1);
-            }}
-            type="button"
-          >
-            ↑
-          </button>
-          <button
-            aria-label={t('trip.reorder.down', { name: item.place.name })}
-            className={styles.step}
-            disabled={last || busy}
-            onClick={() => {
-              setMenuOpen(false);
-              step(1);
-            }}
-            type="button"
-          >
-            ↓
-          </button>
-          <button
-            className={styles.move}
-            disabled={busy || block === 'reservation'}
-            onClick={() => {
-              setMenuOpen(false);
-              setSheetOpen(true);
-            }}
-            title={block === 'reservation' ? t('trip.move.reservation') : undefined}
-            type="button"
-          >
-            {t('trip.move.open', { name: item.place.name })}
-          </button>
-          <button
-            className={styles.move}
-            disabled={busy || replace.isPending || isReplaceBlocked(item)}
-            onClick={() => {
-              setMenuOpen(false);
-              setReplaceOpen(true);
-            }}
-            title={isReplaceBlocked(item) ? t('replace.blocked') : undefined}
-            type="button"
-          >
-            {t('replace.open', { name: item.place.name })}
-          </button>
-          {children ? <div className={styles.extraActions}>{children}</div> : null}
+          {actionsOnly ? null : (
+            <button
+              aria-label={t('trip.reorder.up', { name: item.place.name })}
+              className={styles.step}
+              disabled={first || busy}
+              onClick={() => {
+                setMenuOpen(false);
+                step(-1);
+              }}
+              type="button"
+            >
+              ↑
+            </button>
+          )}
+          {actionsOnly ? null : (
+            <button
+              aria-label={t('trip.reorder.down', { name: item.place.name })}
+              className={styles.step}
+              disabled={last || busy}
+              onClick={() => {
+                setMenuOpen(false);
+                step(1);
+              }}
+              type="button"
+            >
+              ↓
+            </button>
+          )}
+          {actionsOnly ? null : (
+            <button
+              className={styles.move}
+              disabled={busy || block === 'reservation'}
+              onClick={() => {
+                setMenuOpen(false);
+                setSheetOpen(true);
+              }}
+              title={block === 'reservation' ? t('trip.move.reservation') : undefined}
+              type="button"
+            >
+              {t('trip.move.open', { name: item.place.name })}
+            </button>
+          )}
+          {onStageOrder ? null : (
+            <button
+              className={styles.move}
+              disabled={busy || replace.isPending || isReplaceBlocked(item)}
+              onClick={() => {
+                setMenuOpen(false);
+                setReplaceOpen(true);
+              }}
+              title={isReplaceBlocked(item) ? t('replace.blocked') : undefined}
+              type="button"
+            >
+              {t('replace.open', { name: item.place.name })}
+            </button>
+          )}
+          {children && !onStageOrder ? (
+            <div className={styles.extraActions}>{children}</div>
+          ) : null}
         </div>
       </div>
 
       {/* One live region per item: the result of a keyboard move has to be
           announced, since the visual change is the only other signal. */}
-      <p
-        aria-live="polite"
-        className={`${styles.status} ${compact ? styles.compactStatus : ''}`}
-        role="status"
-      >
-        {reorder.isPending ? t('trip.move.moving') : (status ?? '')}
-      </p>
+      {reorder.isPending || status ? (
+        <p
+          aria-live="polite"
+          className={`${styles.status} ${compact ? styles.compactStatus : ''}`}
+          role="status"
+        >
+          {reorder.isPending ? t('trip.move.moving') : status}
+        </p>
+      ) : null}
 
-      <MoveDaySheet
-        days={days}
-        itemId={item.id}
-        itemName={item.place.name}
-        locale={locale}
-        onCancel={() => {
-          setSheetOpen(false);
-        }}
-        onPick={(date) => {
-          setSheetOpen(false);
-          // A DATE lock pins this item to its day, so the move releases it —
-          // and that never happens without the user saying so.
-          if (block === 'date-lock') {
-            setPendingDate(date);
-            return;
-          }
-          commitMove(date);
-        }}
-        open={sheetOpen}
-        placeId={item.place.id}
-      />
+      {actionsOnly ? null : (
+        <MoveDaySheet
+          days={days}
+          itemId={item.id}
+          itemName={item.place.name}
+          locale={locale}
+          onCancel={() => {
+            setSheetOpen(false);
+          }}
+          onPick={(date) => {
+            setSheetOpen(false);
+            // A DATE lock pins this item to its day, so the move releases it —
+            // and that never happens without the user saying so.
+            if (block === 'date-lock') {
+              setPendingDate(date);
+              return;
+            }
+            commitMove(date);
+          }}
+          open={sheetOpen}
+          placeId={item.place.id}
+        />
+      )}
 
       <ReplaceSheet
         busy={replace.isPending}

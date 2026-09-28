@@ -372,14 +372,20 @@ export function FeedScreen() {
             <span aria-hidden="true">Nullnull</span>
           </Link>
         </h1>
-        <button
-          aria-label={t('feed.search')}
-          className={styles.searchButton}
-          onClick={showSearchComingSoon}
-          type="button"
-        >
-          <IconSearch />
-        </button>
+        <div className={styles.searchControl}>
+          <span className={styles.searchAvailability} id="feed-search-availability">
+            {t('feed.searchComingSoon')}
+          </span>
+          <button
+            aria-describedby="feed-search-availability"
+            aria-label={t('feed.search')}
+            className={styles.searchButton}
+            onClick={showSearchComingSoon}
+            type="button"
+          >
+            <IconSearch />
+          </button>
+        </div>
 
         {showSearchNotice ? (
           <div className={styles.searchNotice}>

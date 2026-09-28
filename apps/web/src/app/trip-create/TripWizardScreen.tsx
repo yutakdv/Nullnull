@@ -22,6 +22,7 @@ import {
   removeStop,
   selectDay,
   setStopDaypart,
+  setStopTime,
   toCreateRequest,
   toggleInterest,
   toggleStopMustVisit,
@@ -953,6 +954,9 @@ export function TripWizardScreen() {
           }}
           onSetDaypart={(key, daypart) => {
             setDraft((current) => setStopDaypart(current, key, daypart));
+          }}
+          onSetTime={(key, time) => {
+            setDraft((current) => setStopTime(current, key, time));
           }}
           onSubmit={() => {
             // On to the confirm step (S02-5C) rather than straight to the

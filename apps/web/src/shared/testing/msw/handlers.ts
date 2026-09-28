@@ -9,6 +9,7 @@ import {
   feedFixtures,
   liveFixtures,
   postFixtures,
+  savedPostFixtures,
   relatedFixtures,
   optimizationFixtures,
   placeFixtures,
@@ -924,6 +925,17 @@ export const handlers = [
   // MOCK DATA (FE-202). getPost, savePost and unsavePost have no approved
   // example (BA-032). Stateful so a save actually round-trips: a handler that
   // always answered `saved: false` would let a broken toggle pass.
+  http.get(`${API_BASE}/me/saved-posts`, () => {
+    const items = [...feedFixtures.page.items, ...feedFixtures.pageTwo.items]
+      .filter((card) => savedPosts.has(card.post.id))
+      .map((card) => ({ post: card.post, savedAt: postFixtures.savedState.savedAt }))
+      .sort((a, b) => a.post.id.localeCompare(b.post.id));
+    return HttpResponse.json(
+      items.length === 0
+        ? savedPostFixtures.pageEmpty
+        : { ...savedPostFixtures.page, items },
+    );
+  }),
   http.get(`${API_BASE}/posts/:postId`, ({ params }) => {
     const postId = String(params.postId);
     const detail = postDetailFor(postId);

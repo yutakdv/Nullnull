@@ -364,6 +364,42 @@ describe('FE-302-T1 leaving by another route asks first', () => {
 });
 
 describe('FE-302-T2 a rejected save explains itself', () => {
+  it('localizes the known range conflict instead of showing raw English on a Korean screen', async () => {
+    localStorage.setItem('nullnull.locale', 'ko-KR');
+    server.use(
+      http.patch(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(
+          {
+            ...problemFixtures.VALIDATION_FAILED,
+            fieldErrors: [
+              {
+                field: 'endDate',
+                code: 'ItemOutsideRange',
+                message: '3 scheduled item(s) fall outside the new date range',
+              },
+            ],
+          },
+          { status: 422, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTrip(`/trip/${trip.id}/settings`);
+    await screen.findByLabelText(messages['ko-KR']['trip.field.title']);
+    await user.type(
+      screen.getByLabelText(messages['ko-KR']['trip.field.title']),
+      ' 수정',
+    );
+    await user.click(
+      screen.getByRole('button', { name: messages['ko-KR']['trip.editSave'] }),
+    );
+    expect(
+      await screen.findByText(messages['ko-KR']['trip.range.error.items']),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/scheduled item\(s\)/)).toBeNull();
+    localStorage.removeItem('nullnull.locale');
+  });
+
   it('shows the server message against the field it names', async () => {
     server.use(
       http.patch(`${API_BASE}/trips/:tripId`, () =>

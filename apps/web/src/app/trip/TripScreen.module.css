@@ -552,6 +552,13 @@
   display: inline;
 }
 
+.hoursState {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-label);
+  line-height: 16px;
+}
+
 /* Credits are required product information, not footnotes. The shared
    component keeps its compact 10px default for dense surfaces; trip cards
    have enough room to use the service's readable 12/16 supporting style. */

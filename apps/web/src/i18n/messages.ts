@@ -231,6 +231,18 @@ export const messages = {
     'live.related.ineligible': '비교 기준이 달라 혼잡 수치를 나란히 표시하지 않아요',
     'live.related.browse': '다른 권역 보기',
     'profile.title': '내 정보',
+    'profile.savedPosts': '저장한 글',
+    'savedPosts.title': '저장한 글',
+    'savedPosts.back': '내 정보로 돌아가기',
+    'savedPosts.loading': '저장한 글을 불러오는 중이에요',
+    'savedPosts.empty': '아직 저장한 글이 없어요.',
+    'savedPosts.error': '저장한 글을 불러오지 못했어요.',
+    'savedPosts.retry': '다시 시도',
+    'savedPosts.loadMore': '더 보기',
+    'savedPosts.unsaveItem': '{title} 저장 해제',
+    'savedPosts.unsavingItem': '{title} 저장 해제 중',
+    'savedPosts.unsaveFailed': '저장을 해제하지 못했어요.',
+    'savedPosts.removed': '저장을 해제했어요.',
     'profile.guest.name': 'TEST',
     'profile.guest.note': '이 계정은 test계정입니다',
     'profile.login': '로그인',
@@ -312,7 +324,7 @@ export const messages = {
     'profile.history.pending': '아직 결정하지 않았어요',
     'profile.history.openRun': '{date} {trip} 최적화 결과 보기',
     'profile.interests.title': '여행별 관심사 관리',
-    'profile.interests.note': '일정에서 읽은 관심사 · 조회·수정·삭제',
+    'profile.interests.note': '여행을 골라 관심사를 바꿀 수 있어요',
     'profile.interests.pickTrip': '여행 선택',
     'profile.interests.noTrips': '관심사를 관리하려면 먼저 여행을 만들어주세요',
     'profile.interests.loading': '관심사를 불러오는 중이에요',
@@ -336,7 +348,7 @@ export const messages = {
     'profile.dataGuide.title': '혼잡도 데이터 안내',
     'profile.dataGuide.note': '실시간 관측 · 공식 예측 · 장기 참고의 차이',
     'profile.location.title': '위치 권한',
-    'profile.location.note': '기기 안에서만 사용 · 서버 전송 안 함',
+    'profile.location.note': '현재 위치를 사용하지 않아요',
     'profile.location.off': '허용 안 함',
     'profile.retry': '다시 시도',
     // S15 `423:2967` and any sub-page reached by a back control.
@@ -524,6 +536,10 @@ export const messages = {
     'manual.daypart.MORNING': '오전',
     'manual.daypart.AFTERNOON': '오후',
     'manual.daypartFor': '{place} 시간대',
+    'manual.exactTime': '정확한 시각 (선택)',
+    'manual.exactTimeFor': '{place} 시작 시각',
+    'manual.timeHint':
+      '오전·오후는 순서를 정하는 기준입니다. 정확한 시각은 직접 입력한 경우에만 일정에 표시돼요.',
     'manual.next': '이 일정으로 시작하기',
     'manual.skip': '건너뛰기',
 
@@ -566,9 +582,12 @@ export const messages = {
     'draftPreview.changeDates': '날짜 바꾸기',
     'draftPreview.back': '계획 수준 다시 고르기',
     'import.title': '일정 붙여넣기',
-    'import.lead': '메모장이나 메신저에 적어둔 일정을 그대로 붙여넣어 주세요',
+    'import.lead': '날짜와 장소를 적은 일정을 붙여넣어 주세요',
     'import.label': '일정 원문',
-    'import.placeholder': '10/4 경복궁 10시\n10/5 명동',
+    'import.placeholder': '2026-10-03 경복궁\n2026-10-04\n09:00 덕수궁',
+    'import.formatNote':
+      '연도를 포함한 날짜(예: 2026-10-03)를 장소와 같은 줄에 쓰거나 날짜를 한 줄로 적으세요. 시각은 09:00처럼 쓰면 됩니다. 연도가 빠지거나 장소를 못 찾으면 다음 화면에서 직접 확인합니다.',
+    'import.tripTitle': '가져온 여행',
     'import.privacy': '붙여넣은 원문은 저장하지 않아요. 장소와 날짜만 읽어요',
     'import.parse': '읽어오기',
     'import.parsing': '읽는 중이에요',
@@ -587,6 +606,11 @@ export const messages = {
     'import.token.line': '{line}번째 줄',
     'import.token.noLabel': '읽을 수 없는 줄이에요',
     'import.token.pick': '{name}(으)로 지정',
+    'import.token.resolve': '장소와 날짜 확인',
+    'import.token.date': '날짜 (연도 포함)',
+    'import.token.time': '정확한 시각',
+    'import.token.search': '장소 다시 검색',
+    'import.token.searchFailed': '장소를 검색하지 못했어요',
     'import.token.dismiss': '이 줄 빼기',
     'import.token.dismissed': '{line}번째 줄을 뺐어요',
     // 확정
@@ -651,6 +675,14 @@ export const messages = {
     'trip.emptyNote': '담아둔 장소를 날짜에 넣으면 일정이 돼요',
     'trip.emptyOpenCandidates': '담아둔 장소 확인하기',
     'trip.timeUnset': '시간 미정',
+    'trip.time.edit': '시작 시각 바꾸기',
+    'trip.time.label': '시작 시각 (비우면 미정)',
+    'trip.time.cancel': '취소',
+    'trip.time.save': '시각 저장',
+    'trip.time.conflict':
+      '다른 곳에서 일정이 바뀌었어요. 새 일정을 확인하고 다시 저장해 주세요.',
+    'trip.time.locked': '고정된 시간이나 예약과 충돌해요. 고정 조건을 확인해 주세요.',
+    'trip.time.failed': '시작 시각을 저장하지 못했어요. 다시 시도해 주세요.',
     'trip.visitOrder': '{position}번째',
     'trip.duration': '예상 {hours}시간',
     'trip.durationMinutes': '예상 {minutes}분',
@@ -752,6 +784,14 @@ export const messages = {
     'run.proposal.crowdDown': '감소',
     'run.proposal.crowdUp': '증가',
     'run.proposal.comparisonUnavailable': '두 시간대의 상대 집중률은 비교할 수 없어요',
+    'run.proposal.provenanceTitle': '비교 데이터 기준',
+    'run.proposal.observedUnknown': '관측 시각 정보 없음',
+    'run.proposal.targetUnknown': '예측 대상 시각 정보 없음',
+    'run.proposal.fetchedUnknown': '수집 시각 정보 없음',
+    'run.proposal.freshness.FRESH': '최신',
+    'run.proposal.freshness.AGING': '갱신 시점 임박',
+    'run.proposal.freshness.STALE': '업데이트 지연',
+    'run.proposal.freshness.UNKNOWN': '신선도 확인 불가',
     'run.proposal.changes': '바뀌는 것',
     'run.proposal.changeCount': '변경 {count}개',
     // One chip per kind of move (#279 하3). `move` was the only one of these
@@ -817,6 +857,8 @@ export const messages = {
     'run.failure.DATA_CHANGED': '기준 데이터가 바뀌었어요',
     'run.failure.LOCK_CONFLICT': '고정한 조건과 맞지 않아요',
     'run.failure.ROUTE_UNAVAILABLE': '경로 정보를 확인할 수 없어요',
+    'run.routeRecovery':
+      '여러 장소 사이의 검증된 경로가 없어 자동 제안을 만들 수 없어요. 현재 일정을 유지하거나 장소를 하나씩 수동으로 조정해 주세요.',
     'run.failure.NO_IMPROVEMENT':
       '확인한 후보에서는 지금 일정보다 나은 대안을 찾지 못했어요',
     'run.failure.APPLY_FAILED': '적용하지 못했어요',
@@ -925,6 +967,12 @@ export const messages = {
     'trip.move.pick': '옮길 날짜를 고르세요',
     'trip.move.current': '지금 이 날짜예요',
     'trip.move.keepsTime': '옮기면 시작 시간은 그대로 이어받아요',
+    'trip.move.hoursReview':
+      '영업 정보는 저장할 때 다시 확인해요. 확인된 휴무일에는 옮길 수 없어요.',
+    'trip.move.closed': '이 날짜는 확인된 휴무일이에요. 다른 날짜를 골라 주세요.',
+    'trip.hours.CLOSED': '이 날짜는 휴무로 확인됐어요. 방문 날짜를 바꿔 주세요.',
+    'trip.hours.UNKNOWN':
+      '이 날짜의 영업 여부를 확인하지 못했어요. 방문 전에 확인해 주세요.',
     'trip.move.moving': '옮기는 중이에요',
     'trip.move.moved': '{name:을} {day:로} 옮겼어요',
     'trip.move.failed': '옮기지 못했어요',
@@ -982,6 +1030,10 @@ export const messages = {
     'replace.state.NONE': '바꿀 만한 장소를 찾지 못했어요',
     'replace.state.CHECKING': '바꿀 수 있는 장소를 확인하는 중이에요',
     'replace.state.UNKNOWN': '판단할 근거가 부족해요',
+    'replace.state.SOURCE_DISABLED':
+      '검증된 연관 장소 정보가 없어 교체 후보를 보여줄 수 없어요.',
+    'replace.emptyRecovery':
+      '다른 장소를 검색해 직접 추가하거나 현재 장소를 유지할 수 있어요.',
     'replace.relation.EXACT': '검수된 연관 장소',
     'replace.relation.SIMILAR': '비슷한 장소',
     // Lock consequences, computed from the item.
@@ -1021,7 +1073,10 @@ export const messages = {
     // 거절을 단정하지 않는다 — 화면의 trip은 캐시된 값이라 실제 판정은 서버가 한다.
     'trip.range.impactTitle': '이 날짜 범위 밖에 있는 일정',
     'trip.range.impactNote':
-      '지금 범위를 저장하면 이 일정들이 여행 기간을 벗어나요. 저장은 눌러볼 수 있고, 결과는 서버가 확인해요.',
+      '이 날짜로 바꾸려면 아래 일정을 먼저 옮겨주세요. 일정은 자동으로 삭제되지 않아요.',
+    'trip.range.error.items': '새 여행 기간 밖에 있는 일정을 먼저 옮겨주세요.',
+    'trip.range.error.locked':
+      '고정된 일정의 날짜가 새 여행 기간 밖에 있어요. 날짜 고정을 먼저 확인해 주세요.',
     'trip.range.impactCount': '{count}개',
     'trip.range.lockDate': '날짜 고정',
     'trip.range.lockReservation': '예약',
@@ -1063,8 +1118,7 @@ export const messages = {
     // for another (FIGMA_HANDOFF candidate relation table).
     'candidates.match.CHECKING': '가능한 날짜를 확인하는 중이에요',
     'candidates.match.NONE': '지금 일정에는 넣을 수 있는 날이 없어요',
-    'candidates.match.UNKNOWN':
-      '판단할 근거가 부족해요. 가능한 날짜가 있으면 직접 골라주세요',
+    'candidates.match.UNKNOWN': '가능한 날짜를 판단할 근거가 부족해요.',
     'candidates.match.SIMILAR': '비슷한 장소예요',
     'candidates.match.EXACT': '현재 일정과 겹치지 않아요',
     'candidates.match.NOT_ACTIVE':
@@ -1080,6 +1134,14 @@ export const messages = {
     'candidates.sheet.blocked': '이 날은 넣을 수 없어요',
     'candidates.sheet.blocked.TIME_CONFLICT': '이미 있는 일정과 시간이 겹쳐요',
     'candidates.sheet.blocked.DAY_FULL': '이 날은 더 넣을 수 없어요',
+    'candidates.sheet.blocked.CLOSED': '이 날은 휴무로 확인됐어요',
+    'candidates.sheet.blocked.OPENING_HOURS_UNKNOWN': '영업 정보를 확인하지 못했어요',
+    'candidates.sheet.blocked.ROUTE_EVIDENCE_MISSING':
+      '기존 장소와의 이동 경로를 확인하지 못했어요',
+    'candidates.sheet.blocked.DUPLICATE_PLACE': '이미 이 날 일정에 있어요',
+    'candidates.sheet.blocked.DAY_ITEM_LIMIT': '이 날은 더 넣을 수 없어요',
+    'candidates.sheet.allBlocked':
+      '현재 확인된 날짜에는 추가할 수 없어요. 빈 날짜에 수동으로 추가하거나 기존 일정을 조정해 주세요.',
     'candidates.sheet.noDates': '고를 수 있는 날짜가 없어요',
     'candidates.sheet.keepsTime': '시작 시간은 나중에 바꿀 수 있어요',
     'candidates.blocked': '이 날은 넣을 수 없어요',
@@ -1361,6 +1423,18 @@ export const messages = {
       'This crowd value uses a different basis, so it is not shown for comparison.',
     'live.related.browse': 'Browse other areas',
     'profile.title': 'My info',
+    'profile.savedPosts': 'Saved posts',
+    'savedPosts.title': 'Saved posts',
+    'savedPosts.back': 'Back to my info',
+    'savedPosts.loading': 'Loading saved posts',
+    'savedPosts.empty': 'No saved posts yet.',
+    'savedPosts.error': "We couldn't load saved posts.",
+    'savedPosts.retry': 'Try again',
+    'savedPosts.loadMore': 'Load more',
+    'savedPosts.unsaveItem': 'Remove {title}',
+    'savedPosts.unsavingItem': 'Removing {title}',
+    'savedPosts.unsaveFailed': "We couldn't remove that post.",
+    'savedPosts.removed': 'Post removed from saved.',
     'profile.guest.name': 'TEST',
     'profile.guest.note': 'This is a test account.',
     'profile.login': 'Sign in',
@@ -1428,7 +1502,7 @@ export const messages = {
     'profile.history.pending': 'Not decided yet',
     'profile.history.openRun': 'Open the {date} {trip} optimization result',
     'profile.interests.title': 'Interests per trip',
-    'profile.interests.note': 'Read from your itinerary · view, edit, delete',
+    'profile.interests.note': 'Choose a trip to change its interests',
     'profile.interests.pickTrip': 'Choose a trip',
     'profile.interests.noTrips': 'Create a trip first to manage its interests',
     'profile.interests.loading': 'Loading interests',
@@ -1448,7 +1522,7 @@ export const messages = {
     'profile.dataGuide.note':
       'Live observation · official forecast · long-term reference',
     'profile.location.title': 'Location permission',
-    'profile.location.note': 'Used on device only · never sent to the server',
+    'profile.location.note': 'Your location is not used',
     'profile.location.off': 'Not allowed',
     'profile.retry': 'Try again',
     'nav.back': 'Back',
@@ -1614,6 +1688,10 @@ export const messages = {
     'manual.daypart.MORNING': 'Morning',
     'manual.daypart.AFTERNOON': 'Afternoon',
     'manual.daypartFor': 'Time of day for {place}',
+    'manual.exactTime': 'Exact time (optional)',
+    'manual.exactTimeFor': 'Start time for {place}',
+    'manual.timeHint':
+      'Morning and afternoon help order stops. An exact time appears only when you enter it.',
     'manual.next': 'Start with this plan',
     'manual.skip': 'Skip',
 
@@ -1658,9 +1736,12 @@ export const messages = {
     'draftPreview.changeDates': 'Change dates',
     'draftPreview.back': 'Choose a planning level again',
     'import.title': 'Paste your itinerary',
-    'import.lead': 'Paste the plan you already wrote in notes or a chat',
+    'import.lead': 'Paste an itinerary with dates and places',
     'import.label': 'Itinerary text',
-    'import.placeholder': '10/4 Gyeongbokgung 10am\n10/5 Myeongdong',
+    'import.placeholder': '2026-10-03 Place name\n2026-10-04\n09:00 Another place',
+    'import.formatNote':
+      'Include the year in each date (for example, 2026-10-03). Put a place on that line or on the next line. Use 24-hour time such as 09:00. You can resolve missing years or unmatched places on the next screen.',
+    'import.tripTitle': 'Imported trip',
     'import.privacy': "We don't keep what you paste. We only read places and dates",
     'import.parse': 'Read it',
     'import.parsing': 'Reading',
@@ -1679,6 +1760,11 @@ export const messages = {
     'import.token.line': 'Line {line}',
     'import.token.noLabel': 'We could not read this line',
     'import.token.pick': 'Use {name}',
+    'import.token.resolve': 'Review place and date',
+    'import.token.date': 'Date including year',
+    'import.token.time': 'Exact time',
+    'import.token.search': 'Search for a place',
+    'import.token.searchFailed': 'Could not search places',
     'import.token.dismiss': 'Drop this line',
     'import.token.dismissed': 'Dropped line {line}',
     // Confirming
@@ -1735,6 +1821,15 @@ export const messages = {
     'trip.emptyNote': 'Put a saved place on a date and it becomes part of the plan',
     'trip.emptyOpenCandidates': 'View saved places',
     'trip.timeUnset': 'No time set',
+    'trip.time.edit': 'Edit start time',
+    'trip.time.label': 'Start time (leave blank if unknown)',
+    'trip.time.cancel': 'Cancel',
+    'trip.time.save': 'Save time',
+    'trip.time.conflict':
+      'The itinerary changed elsewhere. Check the latest plan and save again.',
+    'trip.time.locked':
+      'This conflicts with a time lock or reservation. Check the fixed conditions.',
+    'trip.time.failed': 'Could not save the start time. Try again.',
     'trip.visitOrder': 'Stop {position}',
     'trip.duration': 'About {hours}h',
     'trip.durationMinutes': 'About {minutes}m',
@@ -1799,6 +1894,14 @@ export const messages = {
     'run.proposal.crowdUp': 'higher',
     'run.proposal.comparisonUnavailable':
       "These two times can't be compared for relative concentration",
+    'run.proposal.provenanceTitle': 'Comparison data basis',
+    'run.proposal.observedUnknown': 'Observation time unavailable',
+    'run.proposal.targetUnknown': 'Forecast target time unavailable',
+    'run.proposal.fetchedUnknown': 'Collection time unavailable',
+    'run.proposal.freshness.FRESH': 'Fresh',
+    'run.proposal.freshness.AGING': 'Approaching update time',
+    'run.proposal.freshness.STALE': 'Update delayed',
+    'run.proposal.freshness.UNKNOWN': 'Freshness unknown',
     'run.proposal.changes': 'What changes',
     'run.proposal.changeCount': '{count} changes',
     'run.proposal.moveDate': 'Date change',
@@ -1841,6 +1944,8 @@ export const messages = {
     'run.failure.DATA_CHANGED': 'The underlying data changed',
     'run.failure.LOCK_CONFLICT': 'It conflicts with a condition you locked',
     'run.failure.ROUTE_UNAVAILABLE': "We can't check route information",
+    'run.routeRecovery':
+      'Verified routes between stops are unavailable, so no automatic proposal can be made. Keep this itinerary or adjust stops manually.',
     'run.failure.NO_IMPROVEMENT':
       'Nothing better than your current plan among the options checked',
     'run.failure.APPLY_FAILED': "We couldn't apply it",
@@ -1909,6 +2014,13 @@ export const messages = {
     'trip.move.pick': 'Choose a day',
     'trip.move.current': "It's on this day now",
     'trip.move.keepsTime': 'The start time carries over unchanged',
+    'trip.move.hoursReview':
+      'Opening hours are checked again when you save. A verified closed day cannot be used.',
+    'trip.move.closed': 'This place is verified closed on that date. Choose another day.',
+    'trip.hours.CLOSED':
+      'This place is verified closed on this date. Choose another day.',
+    'trip.hours.UNKNOWN':
+      'Opening hours for this date are unverified. Check before visiting.',
     'trip.move.moving': 'Moving',
     'trip.move.moved': 'Moved {name} to {day}',
     'trip.move.failed': "We couldn't move it",
@@ -1956,6 +2068,10 @@ export const messages = {
     'replace.state.NONE': 'Nothing suitable to swap in',
     'replace.state.CHECKING': 'Checking what could be swapped in',
     'replace.state.UNKNOWN': "We can't tell",
+    'replace.state.SOURCE_DISABLED':
+      'No verified related-place data is available for replacement.',
+    'replace.emptyRecovery':
+      'Search for another place to add manually, or keep this one.',
     'replace.relation.EXACT': 'A reviewed related place',
     'replace.relation.SIMILAR': 'A similar place',
     'replace.releases': '{locks} will be released',
@@ -1990,7 +2106,10 @@ export const messages = {
     'trip.error.range-too-long': 'A trip can be up to 30 days',
     'trip.range.impactTitle': 'Stops outside this date range',
     'trip.range.impactNote':
-      'Saving this range leaves these stops outside the trip. You can still try — the server decides.',
+      'Move the stops below before changing these dates. They will not be deleted automatically.',
+    'trip.range.error.items': 'Move stops outside the new trip dates first.',
+    'trip.range.error.locked':
+      'A stop locked to a date is outside the new trip dates. Check its date lock first.',
     'trip.range.impactCount': '{count}',
     'trip.range.lockDate': 'Date locked',
     'trip.range.lockReservation': 'Reservation',
@@ -2027,8 +2146,7 @@ export const messages = {
     'candidates.cancel': 'Cancel',
     'candidates.match.CHECKING': 'Checking which days would work',
     'candidates.match.NONE': 'No day in this trip can take it right now',
-    'candidates.match.UNKNOWN':
-      'Not enough evidence to decide. Choose a date if available',
+    'candidates.match.UNKNOWN': 'There is not enough evidence to judge available dates.',
     'candidates.match.SIMILAR': 'A similar place',
     'candidates.match.EXACT': "Doesn't clash with your itinerary",
     'candidates.match.NOT_ACTIVE':
@@ -2043,6 +2161,15 @@ export const messages = {
     'candidates.sheet.blocked': "This day can't take it",
     'candidates.sheet.blocked.TIME_CONFLICT': 'It overlaps something already planned',
     'candidates.sheet.blocked.DAY_FULL': 'This day is full',
+    'candidates.sheet.blocked.CLOSED': 'This place is confirmed closed that day',
+    'candidates.sheet.blocked.OPENING_HOURS_UNKNOWN':
+      'Opening hours have not been verified',
+    'candidates.sheet.blocked.ROUTE_EVIDENCE_MISSING':
+      'The route to existing stops has not been verified',
+    'candidates.sheet.blocked.DUPLICATE_PLACE': 'This place is already planned that day',
+    'candidates.sheet.blocked.DAY_ITEM_LIMIT': 'This day is full',
+    'candidates.sheet.allBlocked':
+      'No checked date can take this place. Add it manually to an empty day or adjust your itinerary.',
     'candidates.sheet.noDates': 'No dates to choose from',
     'candidates.sheet.keepsTime': 'You can change the start time later',
     'candidates.blocked': "This day can't take it",

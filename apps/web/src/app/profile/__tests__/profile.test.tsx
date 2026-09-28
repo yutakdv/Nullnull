@@ -505,6 +505,8 @@ describe('FE-105-T3 the profile is reachable by keyboard', () => {
     });
 
     await user.tab();
+    expect(screen.getByRole('link', { name: copy['profile.savedPosts'] })).toHaveFocus();
+    await user.tab();
     const firstTrip = screen
       .getAllByRole('link')
       .find((a) => a.getAttribute('href')?.startsWith('/trip/'));

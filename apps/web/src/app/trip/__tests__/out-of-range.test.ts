@@ -128,6 +128,7 @@ describe('only the locks the rule names are reported', () => {
               place: placeNamed('북촌'),
               date: '2026-10-04',
               position: 0,
+              hoursState: 'UNKNOWN',
               constraints: [
                 { type: 'MUST_VISIT', locked: true, source: 'USER' },
                 {
@@ -187,6 +188,7 @@ describe('a lock whose date differs from its item', () => {
               place: placeNamed('한옥마을'),
               date: '2026-10-05',
               position: 0,
+              hoursState: 'UNKNOWN',
               constraints: [
                 {
                   type: 'RESERVATION',

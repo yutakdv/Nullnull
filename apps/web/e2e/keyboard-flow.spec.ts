@@ -72,6 +72,7 @@ async function openTrip(page: import('@playwright/test').Page) {
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Edit itinerary' }).click();
   await expect(page).toHaveURL(/\/edit$/);
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled();
 }
 
 async function openItemActions(page: import('@playwright/test').Page, name: string) {
@@ -253,8 +254,6 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     page,
   }) => {
     await openFirstItemActions(page);
-    const dateLocked =
-      (await page.getByRole('button', { name: /Release Date/i }).count()) > 0;
     // The clause the test above could not reach. Closing the sheet by Escape or
     // Cancel is restored by the browser itself, so deleting our own restore left
     // that assertion green — but there is a third way out, and it is the one a
@@ -298,13 +297,23 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
     await sheet.getByRole('button', { name: /Day 3/ }).first().click();
 
     // The composed API preserves the seeded DATE lock and asks for consent.
-    // The local mock reloads its unlocked demo trip after navigation, so that
-    // path completes directly; both must leave focus on a live control.
+    // The local mock reloads its unlocked demo trip after navigation. In edit
+    // mode lock controls are hidden, so inspect the move's actual outcome.
     const confirm = page.getByRole('dialog').getByRole('button', {
       name: /Release and move/i,
     });
-    if (dateLocked) {
-      await expect(confirm).toBeVisible();
+    const moved = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { level: 2, name: /^Day 3\b/ }) })
+      .getByRole('button', { name: `${FIRST_ITEM} item actions` });
+    await expect
+      .poll(async () => {
+        if (await confirm.isVisible()) return 'confirm';
+        if ((await moved.count()) > 0) return 'moved';
+        return 'pending';
+      })
+      .not.toBe('pending');
+    if (await confirm.isVisible()) {
       await confirm.click();
     }
 
@@ -363,9 +372,10 @@ test.describe('BA-040-T4 the itinerary editor is operable by keyboard', () => {
   test('BA-040-T4 BA-092-T16 a lock confirm can be answered and cancelled by keyboard', async ({
     page,
   }) => {
+    await page.goto(page.url().replace(/\/edit$/, ''));
     await openFirstItemActions(page);
     // Releasing a lock asks first (invariant 7: nothing auto-releases), so the
-    // confirm is on the editing path and has to be answerable without a mouse.
+    // confirm is on the trip view and has to be answerable without a mouse.
     // The composed seed gives the first item a DATE lock; the local fixture
     // gives it MUST_VISIT. Both are approved confirm-backed locks, so exercise
     // the one the current boundary actually returned and use its own copy.

@@ -157,7 +157,7 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip-create/ImportPasteScreen.tsx :: item.place': { sites: 2, credits: 1 },
   'app/trip-create/ImportPasteScreen.tsx :: place': { sites: 1, credits: 1 },
   'app/trip-create/ManualStopsStep.tsx :: place': { sites: 2, credits: 1 },
-  'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 3, credits: 1 },
+  'app/trip-create/ManualStopsStep.tsx :: stop.place': { sites: 4, credits: 1 },
   'app/trip-create/MustVisitScreen.tsx :: place': { sites: 5, credits: 2 },
   'app/trip-create/RecommendedDraftStep.tsx :: stop.place': { sites: 2, credits: 1 },
   'app/trip-create/wizard-attempt.ts :: (pickasPendingPick).place': {
@@ -174,7 +174,7 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/trip/TripScreen.tsx :: item.place': { sites: 3, credits: 2 },
   'app/trip/trip-edit.ts :: item.place': { sites: 1, credits: 0 },
   'app/trip/useTripDragReorder.ts :: current.item.place': { sites: 1, credits: 0 },
-  'app/trip/useTripDragReorder.ts :: item.place': { sites: 2, credits: 0 },
+  'app/trip/useTripDragReorder.ts :: item.place': { sites: 4, credits: 0 },
   'shared/ui/components/CandidateCard.tsx :: candidate.place': { sites: 1, credits: 1 },
   'shared/ui/components/FeedPostCard.tsx :: primaryPlace': { sites: 1, credits: 1 },
   // 3: the heading, and the row menu's name in two spellings (the locale's

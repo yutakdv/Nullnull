@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Link, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { usePlaceCrowdForecast } from '../../shared/api/index.js';
@@ -71,6 +72,7 @@ export function ScheduleCandidateSheet({
   onCancel,
 }: ScheduleCandidateSheetProps) {
   const { t } = useI18n();
+  const { tripId } = useParams();
   const ref = useRef<HTMLDialogElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -162,6 +164,8 @@ export function ScheduleCandidateSheet({
   if (match?.state === 'UNKNOWN') {
     dateRows.sort((a, b) => a.slot.date.localeCompare(b.slot.date));
   }
+  const allBlocked = dateRows.length > 0 && dateRows.every((row) => !row.usable);
+  const unknownWithoutDates = match?.state === 'UNKNOWN' && dateRows.length === 0;
 
   /**
    * A sentence for the server's `reasonCode`, or the general one.
@@ -174,6 +178,13 @@ export function ScheduleCandidateSheet({
   function blockedReason(code: string | null | undefined): string {
     if (code === 'TIME_CONFLICT') return t('candidates.sheet.blocked.TIME_CONFLICT');
     if (code === 'DAY_FULL') return t('candidates.sheet.blocked.DAY_FULL');
+    if (code === 'DAY_ITEM_LIMIT') return t('candidates.sheet.blocked.DAY_ITEM_LIMIT');
+    if (code === 'CLOSED') return t('candidates.sheet.blocked.CLOSED');
+    if (code === 'OPENING_HOURS_UNKNOWN')
+      return t('candidates.sheet.blocked.OPENING_HOURS_UNKNOWN');
+    if (code === 'ROUTE_EVIDENCE_MISSING')
+      return t('candidates.sheet.blocked.ROUTE_EVIDENCE_MISSING');
+    if (code === 'DUPLICATE_PLACE') return t('candidates.sheet.blocked.DUPLICATE_PLACE');
     return t('candidates.sheet.blocked');
   }
 
@@ -201,6 +212,8 @@ export function ScheduleCandidateSheet({
                     time: formatTime(slot.suggestedTime),
                   })}
                 </span>
+              ) : slot.reasonCode === 'OPENING_HOURS_UNKNOWN' ? (
+                <span className={styles.dayTime}>{blockedReason(slot.reasonCode)}</span>
               ) : null
             ) : (
               // Why this day cannot take it. `reasonCode` is a machine code
@@ -307,6 +320,15 @@ export function ScheduleCandidateSheet({
               {dateRows.map(({ slot, usable }) => dayRow(slot, usable))}
             </ul>
           </>
+        ) : null}
+
+        {allBlocked || unknownWithoutDates ? (
+          <div className={styles.state} role="status">
+            {allBlocked ? <p>{t('candidates.sheet.allBlocked')}</p> : null}
+            {tripId ? (
+              <Link to={`/trip/${tripId}/add-place`}>{t('trip.addPlace')}</Link>
+            ) : null}
+          </div>
         ) : null}
 
         {/* What the schedule gets. Saving a candidate never set a time, so the
