@@ -177,6 +177,26 @@ describe('FE-202-T2 the screen renders each of its states', () => {
     expect(screen.queryByText(repeated.excerpt)).toBeNull();
   });
 
+  it.each([
+    {
+      excerpt: '고궁에서 시작해 골…',
+      body: '고궁에서 시작해 골목으로 이어지는 코스예요.',
+    },
+    {
+      excerpt: 'Start at the palace...',
+      body: 'Start at the palace and walk through the lanes.',
+    },
+  ])('does not repeat a truncated excerpt: $excerpt', async ({ excerpt, body }) => {
+    server.use(
+      http.get(`${API_BASE}/posts/:postId`, () =>
+        HttpResponse.json({ ...post, excerpt, body }),
+      ),
+    );
+    renderPost();
+    expect(await screen.findByText(body)).toBeInTheDocument();
+    expect(screen.queryByText(excerpt)).toBeNull();
+  });
+
   it('shows a loading state before the answer arrives', async () => {
     server.use(
       http.get(`${API_BASE}/posts/:postId`, async () => {

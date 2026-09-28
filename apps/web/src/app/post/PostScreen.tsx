@@ -106,8 +106,13 @@ export function PostScreen() {
   const coverBlocked =
     !isSafeUrl(detail.coverUrl) ||
     (asset?.attributionRequired === true && coverCredit === null);
+  // A truncated catalogue excerpt carries an ellipsis absent from the full body.
+  const excerptPrefix = detail.excerpt
+    ?.trim()
+    .replace(/(?:…|\.{3})$/, '')
+    .trimEnd();
   const excerptRepeatsBody =
-    !!detail.excerpt && detail.body.trimStart().startsWith(detail.excerpt.trim());
+    !!excerptPrefix && detail.body.trimStart().startsWith(excerptPrefix);
 
   return (
     <section aria-labelledby="post-heading" className={styles.screen}>
