@@ -898,7 +898,7 @@ export const messages = {
     // DecisionBar (C03). Figma가 고정한 문구 — 임의 변경 금지.
     'decision.apply': '이 변경 적용',
     'decision.keep': '현재 일정 유지',
-    'decision.applying': '적용하는 중이에요',
+    'decision.applying': '처리하는 중이에요',
     'decision.applied': '일정을 업데이트했어요',
     'decision.staleMessage':
       '다른 곳에서 일정이 바뀌었어요. 최신 일정 기준으로 다시 계산해야 적용할 수 있어요.',
@@ -1960,7 +1960,7 @@ export const messages = {
     // DecisionBar (C03).
     'decision.apply': 'Apply this change',
     'decision.keep': 'Keep current itinerary',
-    'decision.applying': 'Applying…',
+    'decision.applying': 'Working…',
     'decision.applied': 'Your itinerary is updated',
     'decision.staleMessage':
       'Your itinerary changed elsewhere. Recompute against the latest version to apply this.',
