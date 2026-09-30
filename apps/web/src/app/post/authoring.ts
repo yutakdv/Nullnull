@@ -6,6 +6,25 @@ export function validatePostImage(file: Pick<File, 'type' | 'size'>) {
   return null;
 }
 
+export async function preparePostImage(file: Blob): Promise<Blob> {
+  const image = await createImageBitmap(file);
+  try {
+    // Match nullnull.upload.max-long-edge-pixels before reserving the checksum.
+    const scale = 2048 / Math.max(image.width, image.height);
+    if (scale >= 1) return file;
+    const canvas = new OffscreenCanvas(
+      Math.max(1, Math.round(image.width * scale)),
+      Math.max(1, Math.round(image.height * scale)),
+    );
+    canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const resized = await canvas.convertToBlob({ type: file.type, quality: 0.9 });
+    if (validatePostImage(resized)) throw new Error('Image exceeds upload limit');
+    return resized;
+  } finally {
+    image.close();
+  }
+}
+
 export async function imageChecksum(file: Blob): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (byte) =>

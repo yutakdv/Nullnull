@@ -8,7 +8,12 @@ import {
   useCreatePostImageUpload,
 } from '../../shared/api/post-authoring.js';
 import { NavBar, PlaceAttribution, SearchField } from '../../shared/ui/index.js';
-import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
+import {
+  imageChecksum,
+  preparePostImage,
+  uploadPostImage,
+  validatePostImage,
+} from './authoring.js';
 import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './PostCreateScreen.module.css';
 
@@ -48,7 +53,12 @@ export function PostCreateScreen() {
   >(null);
   const [uncertain, setUncertain] = useState(false);
   const controller = useRef<AbortController | null>(null);
-  const reservation = useRef<{ file: File; key: string; ticket?: Ticket } | null>(null);
+  const reservation = useRef<{
+    file: File;
+    key: string;
+    image?: Blob;
+    ticket?: Ticket;
+  } | null>(null);
   const pendingPost = useRef<{ request: PostRequest; idempotencyKey: string } | null>(
     null,
   );
@@ -104,20 +114,21 @@ export function PostCreateScreen() {
         entry = { file: selected, key: crypto.randomUUID() };
         reservation.current = entry;
       }
+      entry.image ??= await preparePostImage(selected);
       if (!entry.ticket) {
-        const checksumSha256 = await imageChecksum(selected);
+        const checksumSha256 = await imageChecksum(entry.image);
         attempt.signal.throwIfAborted();
         entry.ticket = await reserve.mutateAsync({
           idempotencyKey: entry.key,
           request: {
-            contentType: selected.type as 'image/jpeg' | 'image/png',
-            contentLength: selected.size,
+            contentType: entry.image.type as 'image/jpeg' | 'image/png',
+            contentLength: entry.image.size,
             checksumSha256,
           },
         });
       }
       attempt.signal.throwIfAborted();
-      await uploadPostImage(selected, entry.ticket, attempt.signal, setProgress);
+      await uploadPostImage(entry.image, entry.ticket, attempt.signal, setProgress);
       if (mounted.current && controller.current === attempt) setTicket(entry.ticket);
     } catch {
       if (mounted.current && controller.current === attempt)

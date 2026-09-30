@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test';
 let uploadServer: Server;
 let uploadUrl = '';
 const storageRequests: string[] = [];
+const storageImages: Buffer[] = [];
 test.beforeAll(async () => {
   uploadServer = createServer((request, response) => {
     response.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:5173');
@@ -18,8 +19,12 @@ test.beforeAll(async () => {
       response.writeHead(403).end();
       return;
     }
-    request.resume();
-    request.on('end', () => response.writeHead(200).end());
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => {
+      storageImages.push(Buffer.concat(chunks));
+      response.writeHead(200).end();
+    });
   });
   await new Promise<void>((resolve) => uploadServer.listen(0, '127.0.0.1', resolve));
   const address = uploadServer.address();
@@ -33,12 +38,52 @@ test.afterAll(async () => {
 });
 
 const postId = '018f5b00-0000-7000-8000-000000000001';
+test('FE-P1-104-T4 keeps a detailed JPEG within the upload byte ceiling', async ({
+  page,
+}) => {
+  await page.goto('/posts/new');
+  const result = await page.evaluate(async (sourcePath) => {
+    const { preparePostImage } = await import(sourcePath);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 3000;
+    const context = canvas.getContext('2d')!;
+    const pixels = context.createImageData(3000, 3000);
+    let seed = 12345678;
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        pixels.data[i + channel] = seed >>> 24;
+      }
+      pixels.data[i + 3] = 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    const original = await new Promise<Blob>((resolve) =>
+      canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.5),
+    );
+    const resized: Blob = await preparePostImage(original);
+    const image = await createImageBitmap(resized);
+    const result = {
+      originalBytes: original.size,
+      bytes: resized.size,
+      type: resized.type,
+      dimensions: [image.width, image.height],
+    };
+    image.close();
+    return result;
+  }, '/src/app/post/authoring.ts');
+  expect(result.originalBytes).toBeLessThan(4_194_304);
+  expect(result.bytes).toBeLessThan(4_194_304);
+  expect(result.type).toBe('image/jpeg');
+  expect(result.dimensions).toEqual([2048, 2048]);
+});
+
 for (const locale of ['ko-KR', 'en-US'] as const) {
   test(`FE-P1-104-T2 FE-P1-104-T3 FE-P1-104-T5 FE-P1-104-T9 photo upload, keyboard publish, and retry in ${locale}`, async ({
     page,
   }) => {
     const ko = locale === 'ko-KR';
     storageRequests.length = 0;
+    storageImages.length = 0;
     await page.setViewportSize({ width: ko ? 360 : 180, height: 800 });
     await page.addInitScript(
       (locale) => localStorage.setItem('nullnull.locale', locale),
@@ -151,10 +196,17 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
         .locator('header [class*="title"]')
         .evaluate((title) => getComputedStyle(title).color),
     );
-    const image = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZc8AAAAASUVORK5CYII=',
-      'base64',
-    );
+    // Phone-sized photos fit the byte ceiling but exceeded the server's 2048px
+    // limit only when the final post was published (422).
+    const imageUrl = await page.evaluate((ko) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = ko ? 4096 : 3072;
+      canvas.height = ko ? 3072 : 4096;
+      canvas.getContext('2d')!.fillRect(0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/png');
+    }, ko);
+    const image = Buffer.from(imageUrl.split(',')[1]!, 'base64');
+    expect(image.length).toBeLessThan(4_194_304);
     await page
       .locator('input[type=file]')
       .setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: image });
@@ -185,6 +237,11 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
           : 'Upload complete. Your photo becomes public when you publish.',
       ),
     ).toBeVisible();
+    expect(storageImages).toHaveLength(1);
+    expect([
+      storageImages[0]!.readUInt32BE(16),
+      storageImages[0]!.readUInt32BE(20),
+    ]).toEqual(ko ? [2048, 1536] : [1536, 2048]);
     await expect(
       page.getByRole('button', { name: ko ? '업로드' : 'Upload', exact: true }),
     ).toHaveCount(0);

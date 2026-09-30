@@ -141,8 +141,11 @@ const assets = process.env.NULLNULL_BUNDLE_DIR
 // refactor into this gate repair would make the measurement stale and collide
 // with that work. Reset to the measured build plus about 15% headroom, following
 // the same policy as the previous measured resets above.
+// Post-photo resizing adds native decode/encode code, without a dependency.
+// Node 24.20.0 measured the parent at 205,906, leaving only 94 bytes. The
+// upload fix is 206,136; allow 1KB for it and retain the overage failure.
 const BUDGETS = {
-  js: 206_000, // measured 174,928
+  js: 207_000, // measured 206,136 after post-photo resizing
   css: 18_800, // measured  16,341
 };
 
