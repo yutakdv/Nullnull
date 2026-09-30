@@ -38,6 +38,45 @@ test.afterAll(async () => {
 });
 
 const postId = '018f5b00-0000-7000-8000-000000000001';
+test('FE-P1-104-T4 keeps a detailed JPEG within the upload byte ceiling', async ({
+  page,
+}) => {
+  await page.goto('/posts/new');
+  const result = await page.evaluate(async (sourcePath) => {
+    const { preparePostImage } = await import(sourcePath);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 3000;
+    const context = canvas.getContext('2d')!;
+    const pixels = context.createImageData(3000, 3000);
+    let seed = 12345678;
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        pixels.data[i + channel] = seed >>> 24;
+      }
+      pixels.data[i + 3] = 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    const original = await new Promise<Blob>((resolve) =>
+      canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.5),
+    );
+    const resized: Blob = await preparePostImage(original);
+    const image = await createImageBitmap(resized);
+    const result = {
+      originalBytes: original.size,
+      bytes: resized.size,
+      type: resized.type,
+      dimensions: [image.width, image.height],
+    };
+    image.close();
+    return result;
+  }, '/src/app/post/authoring.ts');
+  expect(result.originalBytes).toBeLessThan(4_194_304);
+  expect(result.bytes).toBeLessThan(4_194_304);
+  expect(result.type).toBe('image/jpeg');
+  expect(result.dimensions).toEqual([2048, 2048]);
+});
+
 for (const locale of ['ko-KR', 'en-US'] as const) {
   test(`FE-P1-104-T2 FE-P1-104-T3 FE-P1-104-T5 FE-P1-104-T9 photo upload, keyboard publish, and retry in ${locale}`, async ({
     page,

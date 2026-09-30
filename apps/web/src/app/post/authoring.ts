@@ -17,7 +17,7 @@ export async function preparePostImage(file: Blob): Promise<Blob> {
       Math.max(1, Math.round(image.height * scale)),
     );
     canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const resized = await canvas.convertToBlob({ type: file.type });
+    const resized = await canvas.convertToBlob({ type: file.type, quality: 0.9 });
     if (validatePostImage(resized)) throw new Error('Image exceeds upload limit');
     return resized;
   } finally {
