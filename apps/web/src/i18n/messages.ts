@@ -9,6 +9,8 @@ import type { SupportedLocale } from './locales.js';
 export const messages = {
   'ko-KR': {
     'author.heading': '새 게시물',
+    'author.step.write': '글 작성',
+    'author.nextReview': '게시 전 확인',
     'author.entry': '게시물 작성',
     'author.back': '피드로 돌아가기',
     'author.photo': '사진',
@@ -31,7 +33,7 @@ export const messages = {
     'author.search': '장소 검색',
     'author.emptySearch': '검색 결과가 없어요.',
     'author.searchFailed': '장소를 검색하지 못했어요.',
-    'author.publish': '게시',
+    'author.publish': '업로드',
     'author.publishing': '게시 중이에요. 잠시 기다려 주세요.',
     'author.publishFailed':
       '게시 결과를 확인하지 못했어요. 같은 내용으로 다시 시도하면 중복 게시를 방지할 수 있어요.',
@@ -664,6 +666,7 @@ export const messages = {
     'trip.length': '{nights}박 {days}일',
     'trip.dday': 'D-{days}',
     'trip.started': '여행 중',
+    'trip.ended': '여행 종료',
     'trip.candidates': '담아둔 장소',
     'trip.addPlace': '장소 추가',
     'trip.allDays': '전체',
@@ -1049,11 +1052,7 @@ export const messages = {
     'trip.editMode': '편집 중',
     'trip.item.actions': '{name} 항목 메뉴',
     'trip.editStart': '일정 편집',
-    'trip.titleEdit': '여행 이름 수정',
-    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
-    // node draws it; named for the dates because that edit is reached only here.
-    'trip.settingsOpen': '여행 기간·정보 수정',
-    'trip.titleSaveFailed': '여행 이름을 저장하지 못했어요. 다시 시도해 주세요',
+    'trip.settingsOpen': '여행 정보 수정',
     'trip.editSave': '변경사항 저장',
     'trip.editSaving': '저장하는 중이에요',
     'trip.editCancel': '취소',
@@ -1208,6 +1207,8 @@ export const messages = {
   },
   'en-US': {
     'author.heading': 'New post',
+    'author.step.write': 'Write post',
+    'author.nextReview': 'Review post',
     'author.entry': 'Create post',
     'author.back': 'Back to feed',
     'author.photo': 'Photo',
@@ -1231,7 +1232,7 @@ export const messages = {
     'author.search': 'Search places',
     'author.emptySearch': 'No places found.',
     'author.searchFailed': 'Places could not be loaded.',
-    'author.publish': 'Publish',
+    'author.publish': 'Upload',
     'author.publishing': 'Publishing. Please wait.',
     'author.publishFailed':
       'The publishing result could not be confirmed. Retry the same content to avoid a duplicate post.',
@@ -1810,6 +1811,7 @@ export const messages = {
     'trip.length': '{nights} nights, {days} days',
     'trip.dday': 'D-{days}',
     'trip.started': 'Under way',
+    'trip.ended': 'Trip finished',
     'trip.candidates': 'Saved places',
     'trip.addPlace': 'Add a place',
     'trip.allDays': 'All',
@@ -2084,11 +2086,7 @@ export const messages = {
     'trip.editMode': 'Editing',
     'trip.item.actions': '{name} item actions',
     'trip.editStart': 'Edit itinerary',
-    'trip.titleEdit': 'Edit trip name',
-    // The way into the metadata form at /trip/:id/settings (FE-306). No Figma
-    // node draws it; named for the dates because that edit is reached only here.
-    'trip.settingsOpen': 'Edit trip dates and details',
-    'trip.titleSaveFailed': "We couldn't save the trip name. Try again",
+    'trip.settingsOpen': 'Edit trip details',
     'trip.editSave': 'Save changes',
     'trip.editSaving': 'Saving',
     'trip.editCancel': 'Cancel',

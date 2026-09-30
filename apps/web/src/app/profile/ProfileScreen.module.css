@@ -155,17 +155,26 @@ button.row {
 }
 
 .rowDelete {
+  display: grid;
   flex: none;
-  min-height: 44px;
-  min-width: 44px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
   margin-inline-end: var(--space-2);
   border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-label);
   cursor: pointer;
+}
+
+.rowDelete svg path {
+  stroke-width: 2.2;
+}
+
+.rowDelete:focus-visible {
+  outline: 2px solid var(--color-action-primary);
+  outline-offset: 2px;
 }
 
 .rowDelete:disabled {
@@ -204,7 +213,7 @@ button.row {
 }
 
 .tripCount {
-  flex: 0 0 44px;
+  flex: 0 0 48px;
   margin-inline-end: calc(var(--space-2) * -1);
   text-align: center;
 }

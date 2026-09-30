@@ -128,7 +128,17 @@ describe('FE-401 Live area list', () => {
     expect(screen.getByTestId('live-persistent-state')).not.toHaveTextContent(
       result.generatedAt,
     );
-    expect(screen.queryByRole('button', { name: /Lower place list/i })).toBeNull();
+    const handle = screen.getByRole('button', { name: /Lower place list/i });
+    expect(handle).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.setup().click(handle);
+    expect(screen.getByRole('button', { name: /Raise place list/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: /Raise place list/i }));
+    expect(screen.getByRole('region', { name: /Live destination list/i })).toBeVisible();
     expect(screen.getByRole('tab', { name: /Current trip/i })).toHaveAttribute(
       'aria-selected',
       'true',

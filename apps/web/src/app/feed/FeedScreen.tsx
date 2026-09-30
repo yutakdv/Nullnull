@@ -13,6 +13,7 @@ import {
   FeedPostCard,
   IconCheck,
   IconChevronDown,
+  IconPlus,
   IconSearch,
   Toast,
   TripPicker,
@@ -373,11 +374,16 @@ export function FeedScreen() {
           </Link>
         </h1>
         <div className={styles.searchControl}>
-          <span className={styles.searchAvailability} id="feed-search-availability">
-            {t('feed.searchComingSoon')}
-          </span>
+          {selectedTrip ? (
+            <Link
+              aria-label={t('author.entry')}
+              className={styles.createButton}
+              to="/posts/new"
+            >
+              <IconPlus />
+            </Link>
+          ) : null}
           <button
-            aria-describedby="feed-search-availability"
             aria-label={t('feed.search')}
             className={styles.searchButton}
             onClick={showSearchComingSoon}
@@ -443,9 +449,6 @@ export function FeedScreen() {
         <div className={styles.tripFilter} ref={tripFilterRef}>
           <div className={styles.tripBar}>
             <span className={styles.activeTripPeriod}>{selectedTripPeriod}</span>
-            <Link className={styles.authorLink} to="/posts/new">
-              {t('author.entry')}
-            </Link>
             <button
               aria-busy={updatePreferences.isPending}
               aria-controls="representative-trip-list"

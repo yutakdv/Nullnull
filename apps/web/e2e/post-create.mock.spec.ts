@@ -34,7 +34,7 @@ test.afterAll(async () => {
 
 const postId = '018f5b00-0000-7000-8000-000000000001';
 for (const locale of ['ko-KR', 'en-US'] as const) {
-  test(`#312 photo upload, keyboard publish, and retry in ${locale}`, async ({
+  test(`FE-P1-104-T2 FE-P1-104-T3 FE-P1-104-T5 FE-P1-104-T9 photo upload, keyboard publish, and retry in ${locale}`, async ({
     page,
   }) => {
     const ko = locale === 'ko-KR';
@@ -105,9 +105,52 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     );
     await page.goto('/feed');
     const entry = page.getByRole('link', { name: ko ? '게시물 작성' : 'Create post' });
+    const searchButton = page.getByRole('button', { name: ko ? '검색' : 'Search' });
+    const entryBox = await entry.boundingBox();
+    const searchBox = await searchButton.boundingBox();
+    expect(entryBox?.width).toBeGreaterThanOrEqual(44);
+    expect(entryBox?.height).toBeGreaterThanOrEqual(44);
+    expect(searchBox?.width).toBeGreaterThanOrEqual(44);
+    expect(searchBox?.height).toBeGreaterThanOrEqual(44);
+    expect(searchBox!.x - (entryBox!.x + entryBox!.width)).toBeGreaterThanOrEqual(8);
+    await expect(
+      page.getByText(ko ? '피드 검색 기능을 준비 중이에요' : 'Search is coming soon'),
+    ).toHaveCount(0);
     await entry.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/posts\/new$/);
+    const mainBottom =
+      (await page.locator('main').boundingBox())!.y +
+      (await page.locator('main').boundingBox())!.height;
+    const steps = page.locator('ol > li');
+    await expect(steps).toHaveCount(3);
+    expect(await steps.first().evaluate((item) => getComputedStyle(item).fontSize)).toBe(
+      '17px',
+    );
+    await expect(steps.first()).toHaveAttribute('aria-current', 'step');
+    await expect(
+      page.locator('section[aria-labelledby="author-heading"] > form > h2'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('section[aria-labelledby="author-heading"] legend'),
+    ).toHaveCount(0);
+    const photoNext = page.getByRole('button', { name: ko ? '글 작성' : 'Write post' });
+    const photoNextBox = await photoNext.boundingBox();
+    expect(photoNextBox!.y + photoNextBox!.height).toBeGreaterThan(mainBottom - 80);
+    const backStyle = await page
+      .getByRole('button', {
+        name: ko ? '피드로 돌아가기' : 'Back to feed',
+      })
+      .evaluate((button) => ({
+        background: getComputedStyle(button).backgroundColor,
+        color: getComputedStyle(button).color,
+      }));
+    expect(backStyle.background).toBe('rgba(0, 0, 0, 0)');
+    expect(backStyle.color).toBe(
+      await page
+        .locator('header [class*="title"]')
+        .evaluate((title) => getComputedStyle(title).color),
+    );
     const image = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZc8AAAAASUVORK5CYII=',
       'base64',
@@ -122,11 +165,29 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
           : 'Upload complete. Your photo becomes public when you publish.',
       ),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: ko ? '업로드' : 'Upload', exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: ko ? '글 작성' : 'Write post' }).click();
+    await expect(steps.nth(1)).toBeFocused();
     await page.getByLabel(ko ? '제목' : 'Title', { exact: true }).fill('Quiet afternoon');
     await page
       .getByLabel(ko ? '캡션' : 'Caption', { exact: true })
       .fill('A walk in Seoul.');
     await page.getByLabel(ko ? '장소 검색' : 'Search places').fill('경복궁');
+    const titleField = page.getByLabel(ko ? '제목' : 'Title', { exact: true });
+    const placeField = page.getByLabel(ko ? '장소 검색' : 'Search places');
+    const fieldStyles = await Promise.all(
+      [titleField, placeField.locator('..')].map((field) =>
+        field.evaluate((element) => ({
+          background: getComputedStyle(element).backgroundColor,
+          border: getComputedStyle(element).borderColor,
+          radius: getComputedStyle(element).borderRadius,
+        })),
+      ),
+    );
+    expect(fieldStyles[1]).toEqual(fieldStyles[0]);
+    await expect(placeField.locator('..').locator('svg')).toBeVisible();
     await page.getByRole('checkbox', { name: '경복궁' }).check();
     const back = page.getByRole('button', {
       name: ko ? '피드로 돌아가기' : 'Back to feed',
@@ -140,22 +201,57 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await expect(page.getByLabel(ko ? '제목' : 'Title', { exact: true })).toHaveValue(
       'Quiet afternoon',
     );
+    await page.evaluate(() => window.history.back());
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/\/posts\/new$/);
+    await expect(page.getByLabel(ko ? '제목' : 'Title', { exact: true })).toHaveValue(
+      'Quiet afternoon',
+    );
+    const review = page.getByRole('button', {
+      name: ko ? '게시 전 확인' : 'Review post',
+    });
+    const reviewBounds = await review.boundingBox();
+    expect(reviewBounds!.y + reviewBounds!.height).toBeGreaterThan(740);
+    await review.click();
+    await expect(steps.nth(2)).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Quiet afternoon' })).toBeVisible();
+    await expect(page.getByText('A walk in Seoul.')).toBeVisible();
+    for (const label of [
+      ko ? '사진 변경하기' : 'Change photo',
+      ko ? '글 작성' : 'Write post',
+    ]) {
+      const action = page.getByRole('button', { name: label });
+      expect(
+        await action.evaluate((element) => getComputedStyle(element).borderWidth),
+      ).toBe('0px');
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
     const publish = page.getByRole('button', {
-      name: ko ? '게시' : 'Publish',
+      name: ko ? '업로드' : 'Upload',
       exact: true,
     });
     await publish.focus();
+    const publishBox = await publish.boundingBox();
+    expect(publishBox!.y + publishBox!.height).toBeGreaterThan(mainBottom - 80);
     await page.keyboard.press('Enter');
     const retry = page.getByRole('button', {
       name: ko ? '같은 게시물 다시 시도' : 'Retry this post',
     });
     await expect(retry).toBeEnabled();
-    await expect(page.getByLabel(ko ? '제목' : 'Title', { exact: true })).toBeDisabled();
+    const noticeSizes = await page.locator('footer').evaluate((footer) => {
+      const alert = footer.querySelector('[role="alert"]');
+      const note = footer.querySelector('p:not([role="alert"])');
+      return [alert, note].map((item) => getComputedStyle(item!).fontSize);
+    });
+    expect(noticeSizes[0]).toBe(noticeSizes[1]);
+    await expect(
+      page.getByRole('button', { name: ko ? '글 작성' : 'Write post' }),
+    ).toBeDisabled();
     await retry.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(new RegExp(`/posts/${postId}$`));
