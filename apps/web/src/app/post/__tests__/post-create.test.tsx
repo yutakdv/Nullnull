@@ -21,6 +21,7 @@ import { imageChecksum, uploadPostImage } from '../authoring.js';
 
 vi.mock('../authoring.js', async (load) => ({
   ...(await load<typeof import('../authoring.js')>()),
+  preparePostImage: vi.fn(async (file: Blob) => file),
   imageChecksum: vi.fn(async () => 'a'.repeat(64)),
   uploadPostImage: vi.fn(async () => undefined),
 }));
