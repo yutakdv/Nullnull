@@ -12,19 +12,12 @@ export async function preparePostImage(file: Blob): Promise<Blob> {
     // Match nullnull.upload.max-long-edge-pixels before reserving the checksum.
     const scale = 2048 / Math.max(image.width, image.height);
     if (scale >= 1) return file;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Image conversion unavailable');
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const resized = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('Image conversion failed'))),
-        file.type,
-        0.9,
-      ),
+    const canvas = new OffscreenCanvas(
+      Math.max(1, Math.round(image.width * scale)),
+      Math.max(1, Math.round(image.height * scale)),
     );
+    canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const resized = await canvas.convertToBlob({ type: file.type });
     if (validatePostImage(resized)) throw new Error('Image exceeds upload limit');
     return resized;
   } finally {
