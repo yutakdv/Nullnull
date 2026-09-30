@@ -29,6 +29,8 @@ export interface NavBarProps {
    * omitted one takes the locale's plain "back" (FE-001-T4).
    */
   backLabel?: string;
+  /** Prevents leaving while a screen mutation is pending or unresolved. */
+  backDisabled?: boolean;
   /** Trailing controls, e.g. settings. */
   actions?: ReactNode;
 }
@@ -38,6 +40,7 @@ export function NavBar({
   titleSize = 'default',
   onBack,
   backLabel,
+  backDisabled,
   actions,
 }: NavBarProps) {
   const i18n = useOptionalI18n();
@@ -47,6 +50,7 @@ export function NavBar({
         <button
           aria-label={backLabel ?? i18n?.t('nav.back') ?? DEFAULT_BACK_LABEL}
           className={styles.back}
+          disabled={backDisabled}
           onClick={onBack}
           type="button"
         >

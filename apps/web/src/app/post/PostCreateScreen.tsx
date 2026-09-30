@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Link, useBlocker, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
 import { isProblem, usePlaceSearch, useTrips } from '../../shared/api/index.js';
@@ -7,12 +7,7 @@ import {
   useCreatePost,
   useCreatePostImageUpload,
 } from '../../shared/api/post-authoring.js';
-import {
-  ConfirmDialog,
-  NavBar,
-  PlaceAttribution,
-  SearchField,
-} from '../../shared/ui/index.js';
+import { NavBar, PlaceAttribution, SearchField } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
 import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './PostCreateScreen.module.css';
@@ -51,7 +46,6 @@ export function PostCreateScreen() {
     | 'rejected'
     | null
   >(null);
-  const [leaving, setLeaving] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const reservation = useRef<{ file: File; key: string; ticket?: Ticket } | null>(null);
@@ -62,10 +56,8 @@ export function PostCreateScreen() {
   const mounted = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const currentStep = useRef<HTMLLIElement>(null);
-  const allowedNavigation = useRef(false);
   const hasTrip = trips.isSuccess && trips.data.items.length > 0;
   const locked = publish.isPending || uncertain;
-  const dirty = file !== null || title !== '' || body !== '';
   const readyToReview = !!title.trim() && !!body.trim() && places.length > 0;
   const stepLabels = [t('author.choose'), t('author.step.write'), t('author.nextReview')];
   const noticeNode = notice ? (
@@ -73,11 +65,6 @@ export function PostCreateScreen() {
       {t(`author.${notice}`)}
     </p>
   ) : null;
-  const blocker = useBlocker(() => dirty && !allowedNavigation.current);
-
-  useEffect(() => {
-    if (blocker.state === 'blocked') setLeaving(true);
-  }, [blocker.state]);
   useEffect(() => {
     currentStep.current?.focus();
   }, [step]);
@@ -98,14 +85,6 @@ export function PostCreateScreen() {
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
 
   async function upload(selected: File) {
     controller.current?.abort();
@@ -192,7 +171,6 @@ export function PostCreateScreen() {
       const result = await publish.mutateAsync(pendingPost.current);
       if (mounted.current) {
         setUncertain(false);
-        allowedNavigation.current = true;
         void navigate(`/posts/${result.postId}`, { replace: true });
       }
     } catch (error) {
@@ -221,10 +199,12 @@ export function PostCreateScreen() {
       <NavBar
         title={t('author.heading')}
         titleSize="large"
-        backLabel={t('author.back')}
+        backLabel={step === 0 ? t('author.back') : t('author.previousStep')}
+        backDisabled={locked}
         onBack={() => {
-          if (publish.isPending) return;
-          if (dirty) setLeaving(true);
+          if (locked) return;
+          if (step === 2) setStep(1);
+          else if (step === 1) setStep(0);
           else void navigate('/feed');
         }}
       />
@@ -278,7 +258,10 @@ export function PostCreateScreen() {
                 disabled={locked}
                 className={styles.card}
               >
-                <label className={styles.fileLabel}>
+                <label
+                  className={styles.fileLabel}
+                  data-change={preview ? t('author.change') : undefined}
+                >
                   {preview ? (
                     <img className={styles.preview} src={preview} alt={alt.trim()} />
                   ) : (
@@ -290,19 +273,24 @@ export function PostCreateScreen() {
                     ref={fileInput}
                     type="file"
                     accept="image/jpeg,image/png"
-                    aria-label={t('author.choose')}
+                    aria-label={file ? t('author.change') : t('author.choose')}
                     aria-describedby="author-formats"
                     onChange={choose}
                   />
                 </label>
+                {file ? (
+                  <button
+                    className={styles.removePhoto}
+                    type="button"
+                    aria-label={t('author.remove')}
+                    onClick={remove}
+                  >
+                    ×
+                  </button>
+                ) : null}
                 <p id="author-formats" className={styles.note}>
                   {t('author.formats')}
                 </p>
-                {file ? (
-                  <button type="button" onClick={remove}>
-                    {t('author.remove')}
-                  </button>
-                ) : null}
                 {uploading ? (
                   <>
                     <progress
@@ -310,28 +298,40 @@ export function PostCreateScreen() {
                       value={progress}
                       aria-label={t('author.uploading')}
                     />
-                    <p role="status">
+                    <p className={styles.note} role="status">
                       {t('author.uploading')} {progress}%
                     </p>
-                    <button type="button" onClick={() => controller.current?.abort()}>
+                    <button
+                      className={styles.inlineAction}
+                      type="button"
+                      onClick={() => controller.current?.abort()}
+                    >
                       {t('author.cancelUpload')}
                     </button>
                   </>
                 ) : ticket ? (
-                  <p role="status">{t('author.uploaded')}</p>
-                ) : file ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void upload(file);
-                    }}
-                  >
-                    {t('author.retryUpload')}
-                  </button>
+                  <p className={styles.note} role="status">
+                    {t('author.uploaded')}
+                  </p>
+                ) : null}
+                {notice ? (
+                  <div className={styles.uploadIssue}>
+                    {noticeNode}
+                    {file && !uploading && !ticket ? (
+                      <button
+                        className={styles.inlineAction}
+                        type="button"
+                        onClick={() => {
+                          void upload(file);
+                        }}
+                      >
+                        {t('author.retryUpload')}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
               </fieldset>
               <div className={styles.reviewFooter}>
-                {noticeNode}
                 <button
                   className={styles.primary}
                   disabled={!file || locked}
@@ -345,9 +345,6 @@ export function PostCreateScreen() {
           ) : null}
           {step === 1 ? (
             <>
-              <button disabled={locked} onClick={() => setStep(0)} type="button">
-                {t('author.change')}
-              </button>
               <fieldset disabled={locked} className={styles.fields}>
                 <label className={styles.textField}>
                   {t('author.title')}
@@ -476,18 +473,8 @@ export function PostCreateScreen() {
                   </div>
                 ))}
               </div>
-              <div className={styles.reviewActions}>
-                <button disabled={locked} onClick={() => setStep(0)} type="button">
-                  {t('author.change')}
-                </button>
-                <button disabled={locked} onClick={() => setStep(1)} type="button">
-                  {t('author.step.write')}
-                </button>
-              </div>
               <footer className={styles.footer}>
-                {noticeNode}
-                <p className={styles.note}>{t('author.publicNote')}</p>
-                <p className={styles.note}>{t('author.rights')}</p>
+                {notice !== 'uploadFailed' ? noticeNode : null}
                 {publish.isPending ? <p role="status">{t('author.publishing')}</p> : null}
                 <button
                   className={styles.primary}
@@ -501,26 +488,6 @@ export function PostCreateScreen() {
           ) : null}
         </form>
       )}
-      <ConfirmDialog
-        open={leaving}
-        title={t('author.leave')}
-        confirmLabel={t('author.discard')}
-        cancelLabel={t('author.keep')}
-        destructive
-        onCancel={() => {
-          setLeaving(false);
-          if (blocker.state === 'blocked') blocker.reset();
-        }}
-        onConfirm={() => {
-          controller.current?.abort();
-          setLeaving(false);
-          if (blocker.state === 'blocked') blocker.proceed();
-          else {
-            allowedNavigation.current = true;
-            void navigate('/feed');
-          }
-        }}
-      />
     </section>
   );
 }

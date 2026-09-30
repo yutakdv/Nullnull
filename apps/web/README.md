@@ -25,6 +25,24 @@ npm run dev:mock                                      # MSW fixture
 
 `npm run dev:api`는 기존 로컬 작업 호환을 위한 `npm run dev`의 별칭이다.
 
+## 운영 빌드와 게시물 업로드
+
+`npm run build`는 모의 API를 제외한 운영 번들을 만든다. `npm run preview`는 `serve.mjs`로
+이 번들을 제공하며 `/feed`, `/live`, `/profile`, `/posts/new` 같은 직접 접근 경로도 지원한다.
+이 서버를 사용할 때는 `API_INTERNAL_BASE_URL`에 내부 API 주소를 설정해야 한다. 별도 정적
+호스팅에서는 화면 경로의 SPA fallback과 같은 origin의 `/api` 전달이 필요하다. 브라우저의
+API 주소는 현재 사이트의 `/api/v1`이며 로컬 개발 주소를 운영 번들에 넣지 않는다.
+
+사진 선택 시 `createPostImageUpload`로 업로드를 예약하고, 응답의 `UploadTicket`에 담긴
+주소·메서드·헤더로 사진을 보낸다. 저장소 요청에는 API 세션 cookie나 CSRF를 보내지 않는다.
+사진 전송 성공과 글·장소 입력이 확인되어야 게시 전 확인의 업로드 버튼을 사용할 수 있다.
+운영에서는 HTTPS, 실제 API 세션·CSRF, 저장소의 업로드 권한·CORS 설정이 필요하다.
+
+`dev:mock`에는 업로드 예약·게시 요청의 성공 handler가 없다. 사진 미리보기만으로 서버에
+사진이 저장됐다고 보지 않는다. `post-create.mock.spec.ts`의 업로드·게시 성공은 테스트용
+응답과 임시 업로드 서버로 검증한 결과다. 실제 배포 확인에서는 사진 예약 → 저장소 전송 →
+게시 생성 → 게시물 상세·피드 표시까지 확인해야 하며, mock E2E 통과로 대신하지 않는다.
+
 ## 라이브 화면
 
 `/live`는 카카오 지도와 `queryLiveAreas`의 권역 목록·검색을 함께 제공한다.

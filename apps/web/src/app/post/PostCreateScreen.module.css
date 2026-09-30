@@ -15,6 +15,9 @@
   white-space: nowrap;
 }
 .screen > header {
+  position: sticky;
+  z-index: 3;
+  top: 0;
   margin-inline: calc(var(--space-4) * -1);
 }
 
@@ -70,6 +73,7 @@
   padding: 0;
 }
 .card {
+  position: relative;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-card-lg);
   padding: var(--space-4);
@@ -203,15 +207,6 @@
 .reviewPlace:last-child {
   margin-bottom: var(--space-4);
 }
-.reviewActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.reviewActions button {
-  flex: 1 1 120px;
-  border: 0;
-}
 .screen .primary {
   background: var(--color-action-strong);
   color: var(--color-action-onPrimary);
@@ -270,6 +265,51 @@
 .fileLabel:focus-within {
   outline: 2px solid var(--color-action-primary);
   outline-offset: 3px;
+}
+.fileLabel[data-change]::after {
+  content: attr(data-change);
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: rgb(0 0 0 / 68%);
+  color: white;
+  font-size: var(--font-caption);
+  pointer-events: none;
+}
+.screen .removePhoto {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-5);
+  right: var(--space-5);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 68%);
+  color: white;
+}
+.uploadIssue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.screen .inlineAction {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-action-primary);
+  font-size: var(--font-caption);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .fields h2 {
   font-size: var(--font-body-base);
