@@ -65,28 +65,6 @@
   overflow-wrap: anywhere;
 }
 
-.titleEditor {
-  display: flex;
-  flex: 1 1 190px;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.titleInput {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-default);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: var(--font-title-md);
-  font-weight: 700;
-}
-
 .titleIconButton {
   display: inline-flex;
   flex: none;
@@ -102,20 +80,9 @@
   cursor: pointer;
 }
 
-.titleIconButton:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
 .titleEditButton {
   /* Keep the 44px touch target without making the 27px title row taller. */
   margin-block: calc((27px - var(--layout-touch-min)) / 2);
-}
-
-.titleError {
-  margin: calc(var(--space-2) * -1) 0 0;
-  color: var(--color-text-danger, var(--color-text-primary));
-  font-size: var(--font-caption);
 }
 
 .dday {
@@ -131,12 +98,6 @@
   font-size: var(--font-caption);
   font-weight: 700;
   line-height: 15px;
-}
-
-@media (max-width: 360px) {
-  .titleEditor {
-    flex-basis: 100%;
-  }
 }
 
 .meta {
@@ -705,9 +666,7 @@
 }
 
 @media (max-width: 240px) {
-  /* 200% zoom: the title row carries two 44px controls (rename, settings)
-     beside the D-day, which leaves the title no width at all on one line.
-     It wraps instead, the title keeping the first line. */
+  /* 200% zoom: keep the title clear of its edit control and date phase. */
   .viewHeadRow {
     flex-wrap: wrap;
   }

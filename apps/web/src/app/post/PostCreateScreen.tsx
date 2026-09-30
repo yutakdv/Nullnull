@@ -7,12 +7,7 @@ import {
   useCreatePost,
   useCreatePostImageUpload,
 } from '../../shared/api/post-authoring.js';
-import {
-  ConfirmDialog,
-  NavBar,
-  PlaceAttribution,
-  SearchField,
-} from '../../shared/ui/index.js';
+import { NavBar, PlaceAttribution, SearchField } from '../../shared/ui/index.js';
 import { imageChecksum, uploadPostImage, validatePostImage } from './authoring.js';
 import { PlaceSearchMore, searchFailed } from '../../shared/search/PlaceSearchMore.js';
 import styles from './PostCreateScreen.module.css';
@@ -30,6 +25,7 @@ export function PostCreateScreen() {
   const reserve = useCreatePostImageUpload();
   const publish = useCreatePost();
   const [file, setFile] = useState<File | null>(null);
+  const [step, setStep] = useState<0 | 1 | 2>(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -50,7 +46,6 @@ export function PostCreateScreen() {
     | 'rejected'
     | null
   >(null);
-  const [leaving, setLeaving] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const reservation = useRef<{ file: File; key: string; ticket?: Ticket } | null>(null);
@@ -60,9 +55,19 @@ export function PostCreateScreen() {
   const sending = useRef(false);
   const mounted = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
+  const currentStep = useRef<HTMLLIElement>(null);
   const hasTrip = trips.isSuccess && trips.data.items.length > 0;
   const locked = publish.isPending || uncertain;
-  const dirty = file !== null || title !== '' || body !== '';
+  const readyToReview = !!title.trim() && !!body.trim() && places.length > 0;
+  const stepLabels = [t('author.choose'), t('author.step.write'), t('author.nextReview')];
+  const noticeNode = notice ? (
+    <p className={step === 1 ? styles.notice : styles.note} role="alert">
+      {t(`author.${notice}`)}
+    </p>
+  ) : null;
+  useEffect(() => {
+    currentStep.current?.focus();
+  }, [step]);
 
   useEffect(() => {
     mounted.current = true;
@@ -80,14 +85,6 @@ export function PostCreateScreen() {
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
 
   async function upload(selected: File) {
     controller.current?.abort();
@@ -157,16 +154,7 @@ export function PostCreateScreen() {
   }
 
   async function submit() {
-    if (
-      sending.current ||
-      !hasTrip ||
-      uploading ||
-      !ticket ||
-      !title.trim() ||
-      !body.trim() ||
-      places.length === 0
-    )
-      return;
+    if (sending.current || !hasTrip || uploading || !ticket || !readyToReview) return;
     sending.current = true;
     setNotice(null);
     pendingPost.current ??= {
@@ -210,10 +198,13 @@ export function PostCreateScreen() {
     <section className={styles.screen} aria-labelledby="author-heading">
       <NavBar
         title={t('author.heading')}
-        backLabel={t('author.back')}
+        titleSize="large"
+        backLabel={step === 0 ? t('author.back') : t('author.previousStep')}
+        backDisabled={locked}
         onBack={() => {
-          if (publish.isPending) return;
-          if (dirty) setLeaving(true);
+          if (locked) return;
+          if (step === 2) setStep(1);
+          else if (step === 1) setStep(0);
           else void navigate('/feed');
         }}
       />
@@ -248,188 +239,255 @@ export function PostCreateScreen() {
           }}
           className={styles.form}
         >
-          <fieldset disabled={locked} className={styles.card}>
-            <legend>{t('author.photo')}</legend>
-            {preview ? (
-              <img className={styles.preview} src={preview} alt={alt} />
-            ) : (
-              <div className={styles.placeholder} aria-hidden="true">
-                +
-              </div>
-            )}
-            <label className={styles.fileLabel}>
-              {file ? t('author.change') : t('author.choose')}
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/jpeg,image/png"
-                aria-describedby="author-formats"
-                onChange={choose}
-              />
-            </label>
-            <p id="author-formats" className={styles.note}>
-              {t('author.formats')}
-            </p>
-            {file ? (
-              <button type="button" onClick={remove}>
-                {t('author.remove')}
-              </button>
-            ) : null}
-            {uploading ? (
-              <>
-                <progress max={100} value={progress} aria-label={t('author.uploading')} />
-                <p role="status">
-                  {t('author.uploading')} {progress}%
-                </p>
-                <button type="button" onClick={() => controller.current?.abort()}>
-                  {t('author.cancelUpload')}
-                </button>
-              </>
-            ) : ticket ? (
-              <p role="status">{t('author.uploaded')}</p>
-            ) : file ? (
-              <button
-                type="button"
-                onClick={() => {
-                  void upload(file);
-                }}
+          <ol className={styles.steps}>
+            {stepLabels.map((label, index) => (
+              <li
+                aria-current={step === index ? 'step' : undefined}
+                key={label}
+                ref={step === index ? currentStep : undefined}
+                tabIndex={step === index ? -1 : undefined}
               >
-                {t('author.retryUpload')}
-              </button>
-            ) : null}
-          </fieldset>
-          <fieldset disabled={locked} className={styles.fields}>
-            <label className={styles.textField}>
-              {t('author.title')}
-              <input
-                value={title}
-                maxLength={200}
-                required
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </label>
-            <label className={styles.textField}>
-              {t('author.caption')}
-              <textarea
-                value={body}
-                maxLength={20000}
-                required
-                rows={5}
-                onChange={(event) => setBody(event.target.value)}
-              />
-            </label>
-            <label className={styles.textField}>
-              {t('author.alt')}
-              <input
-                value={alt}
-                maxLength={500}
-                onChange={(event) => setAlt(event.target.value)}
-              />
-            </label>
-            <h2>{t('author.places')}</h2>
-            <SearchField
-              label={t('author.search')}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {/* A failed search. A failed later page keeps these results and
-                reports beside its own control (searchFailed). */}
-            {searchFailed(search) ? (
-              <p role="alert">
-                {t('author.searchFailed')}{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    void search.refetch();
-                  }}
+                {label}
+              </li>
+            ))}
+          </ol>
+          {step === 0 ? (
+            <>
+              <fieldset
+                aria-label={t('author.photo')}
+                disabled={locked}
+                className={styles.card}
+              >
+                <label
+                  className={styles.fileLabel}
+                  data-change={preview ? t('author.change') : undefined}
                 >
-                  {t('author.retry')}
-                </button>
-              </p>
-            ) : null}
-            {query.trim() && search.isSuccess && search.data.items.length === 0 ? (
-              <p role="status">{t('author.emptySearch')}</p>
-            ) : null}
-            <ul className={styles.places} ref={resultList}>
-              {search.data?.items.map((place) => (
-                <li key={place.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={places.some((p) => p.id === place.id)}
-                      disabled={
-                        places.length >= 50 && !places.some((p) => p.id === place.id)
-                      }
-                      onChange={(event) =>
-                        setPlaces((current) =>
-                          event.target.checked
-                            ? [...current, place]
-                            : current.filter((p) => p.id !== place.id),
-                        )
-                      }
+                  {preview ? (
+                    <img className={styles.preview} src={preview} alt={alt.trim()} />
+                  ) : (
+                    <span className={styles.placeholder} aria-hidden="true">
+                      +
+                    </span>
+                  )}
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    aria-label={file ? t('author.change') : t('author.choose')}
+                    aria-describedby="author-formats"
+                    onChange={choose}
+                  />
+                </label>
+                {file ? (
+                  <button
+                    className={styles.removePhoto}
+                    type="button"
+                    aria-label={t('author.remove')}
+                    onClick={remove}
+                  >
+                    ×
+                  </button>
+                ) : null}
+                <p id="author-formats" className={styles.note}>
+                  {t('author.formats')}
+                </p>
+                {uploading ? (
+                  <>
+                    <progress
+                      max={100}
+                      value={progress}
+                      aria-label={t('author.uploading')}
                     />
-                    {place.name}
-                  </label>
-                  <PlaceAttribution place={place} />
-                </li>
-              ))}
-            </ul>
-            <PlaceSearchMore list={resultList} search={search} />
-            {places.length ? (
-              <ul className={styles.places}>
-                {places.map((place) => (
-                  <li key={place.id}>
+                    <p className={styles.note} role="status">
+                      {t('author.uploading')} {progress}%
+                    </p>
+                    <button
+                      className={styles.inlineAction}
+                      type="button"
+                      onClick={() => controller.current?.abort()}
+                    >
+                      {t('author.cancelUpload')}
+                    </button>
+                  </>
+                ) : ticket ? (
+                  <p className={styles.note} role="status">
+                    {t('author.uploaded')}
+                  </p>
+                ) : null}
+                {notice ? (
+                  <div className={styles.uploadIssue}>
+                    {noticeNode}
+                    {file && !uploading && !ticket ? (
+                      <button
+                        className={styles.inlineAction}
+                        type="button"
+                        onClick={() => {
+                          void upload(file);
+                        }}
+                      >
+                        {t('author.retryUpload')}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </fieldset>
+              <div className={styles.reviewFooter}>
+                <button
+                  className={styles.primary}
+                  disabled={!file || locked}
+                  onClick={() => setStep(1)}
+                  type="button"
+                >
+                  {t('author.step.write')}
+                </button>
+              </div>
+            </>
+          ) : null}
+          {step === 1 ? (
+            <>
+              <fieldset disabled={locked} className={styles.fields}>
+                <label className={styles.textField}>
+                  {t('author.title')}
+                  <input
+                    value={title}
+                    maxLength={200}
+                    required
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                </label>
+                <label className={styles.textField}>
+                  {t('author.caption')}
+                  <textarea
+                    value={body}
+                    maxLength={20000}
+                    required
+                    rows={5}
+                    onChange={(event) => setBody(event.target.value)}
+                  />
+                </label>
+                <label className={styles.textField}>
+                  {t('author.alt')}
+                  <input
+                    value={alt}
+                    maxLength={500}
+                    onChange={(event) => setAlt(event.target.value)}
+                  />
+                </label>
+                <h2>{t('author.places')}</h2>
+                <SearchField
+                  label={t('author.search')}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                {/* A failed search. A failed later page keeps these results and
+                reports beside its own control (searchFailed). */}
+                {searchFailed(search) ? (
+                  <p role="alert">
+                    {t('author.searchFailed')}{' '}
                     <button
                       type="button"
-                      onClick={() =>
-                        setPlaces((current) => current.filter((p) => p.id !== place.id))
-                      }
+                      onClick={() => {
+                        void search.refetch();
+                      }}
                     >
-                      {place.name} ×
+                      {t('author.retry')}
                     </button>
-                    {/* The chip stands for the place while the post is written,
+                  </p>
+                ) : null}
+                {query.trim() && search.isSuccess && search.data.items.length === 0 ? (
+                  <p role="status">{t('author.emptySearch')}</p>
+                ) : null}
+                <ul className={styles.places} ref={resultList}>
+                  {search.data?.items.map((place) => (
+                    <li key={place.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={places.some((p) => p.id === place.id)}
+                          disabled={
+                            places.length >= 50 && !places.some((p) => p.id === place.id)
+                          }
+                          onChange={(event) =>
+                            setPlaces((current) =>
+                              event.target.checked
+                                ? [...current, place]
+                                : current.filter((p) => p.id !== place.id),
+                            )
+                          }
+                        />
+                        {place.name}
+                      </label>
+                      <PlaceAttribution place={place} />
+                    </li>
+                  ))}
+                </ul>
+                <PlaceSearchMore list={resultList} search={search} />
+                {places.length ? (
+                  <ul className={styles.places}>
+                    {places.map((place) => (
+                      <li key={place.id}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPlaces((current) =>
+                              current.filter((p) => p.id !== place.id),
+                            )
+                          }
+                        >
+                          {place.name} ×
+                        </button>
+                        {/* The chip stands for the place while the post is written,
                         so it carries the place's credit too — beside the
                         button, since a link cannot sit inside one. */}
+                        <PlaceAttribution compact place={place} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </fieldset>
+              <div className={styles.reviewFooter}>
+                {noticeNode}
+                <button
+                  className={styles.primary}
+                  disabled={!readyToReview || locked}
+                  onClick={() => setStep(2)}
+                  type="button"
+                >
+                  {t('author.nextReview')}
+                </button>
+              </div>
+            </>
+          ) : null}
+          {step === 2 ? (
+            <>
+              <div className={styles.reviewCard}>
+                {preview ? (
+                  <img className={styles.preview} src={preview} alt={alt.trim()} />
+                ) : null}
+                <h3>{title}</h3>
+                <p>{body}</p>
+                {places.map((place) => (
+                  <div className={styles.reviewPlace} key={place.id}>
+                    <span>{place.name}</span>
                     <PlaceAttribution compact place={place} />
-                  </li>
+                  </div>
                 ))}
-              </ul>
-            ) : null}
-          </fieldset>
-          {notice ? <p role="alert">{t(`author.${notice}`)}</p> : null}
-          <footer className={styles.footer}>
-            <p className={styles.note}>{t('author.publicNote')}</p>
-            <p className={styles.note}>{t('author.rights')}</p>
-            {publish.isPending ? <p role="status">{t('author.publishing')}</p> : null}
-            <button
-              className={styles.primary}
-              type="submit"
-              disabled={
-                uploading ||
-                publish.isPending ||
-                !ticket ||
-                !title.trim() ||
-                !body.trim() ||
-                places.length === 0
-              }
-            >
-              {uncertain ? t('author.retryPublish') : t('author.publish')}
-            </button>
-          </footer>
+              </div>
+              <footer className={styles.footer}>
+                {notice !== 'uploadFailed' ? noticeNode : null}
+                {publish.isPending ? <p role="status">{t('author.publishing')}</p> : null}
+                <button
+                  className={styles.primary}
+                  type="submit"
+                  disabled={publish.isPending || !ticket || !readyToReview}
+                >
+                  {uncertain ? t('author.retryPublish') : t('author.publish')}
+                </button>
+              </footer>
+            </>
+          ) : null}
         </form>
       )}
-      <ConfirmDialog
-        open={leaving}
-        title={t('author.leave')}
-        confirmLabel={t('author.discard')}
-        cancelLabel={t('author.keep')}
-        destructive
-        onCancel={() => setLeaving(false)}
-        onConfirm={() => {
-          controller.current?.abort();
-          void navigate('/feed');
-        }}
-      />
     </section>
   );
 }

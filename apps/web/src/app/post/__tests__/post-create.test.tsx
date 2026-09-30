@@ -53,6 +53,14 @@ beforeEach(() => {
   );
 });
 
+async function startWriting(user: ReturnType<typeof userEvent.setup>) {
+  await user.upload(
+    await screen.findByLabelText(copy['author.choose']),
+    new File(['image'], 'cover.png', { type: 'image/png' }),
+  );
+  await user.click(screen.getByRole('button', { name: copy['author.step.write'] }));
+}
+
 describe('FE-603-T5 a chosen place keeps its credit', () => {
   it('credits the checklist row it is chosen from', async () => {
     // The row and the chip both read `place`; the static scan sees one group.
@@ -61,6 +69,7 @@ describe('FE-603-T5 a chosen place keeps its credit', () => {
     if (!place || !credit) throw new Error('the search fixture lost its credited place');
     const user = userEvent.setup();
     mount();
+    await startWriting(user);
     await user.type(await screen.findByLabelText(copy['author.search']), place.name);
     const row = (await screen.findByRole('checkbox', { name: place.name })).closest(
       'li',
@@ -80,6 +89,7 @@ describe('FE-603-T5 a chosen place keeps its credit', () => {
     if (!place || !credit) throw new Error('the search fixture lost its credited place');
     const user = userEvent.setup();
     mount();
+    await startWriting(user);
     await user.type(await screen.findByLabelText(copy['author.search']), place.name);
     await user.click(await screen.findByRole('checkbox', { name: place.name }));
 
@@ -101,6 +111,7 @@ describe('#54 the place checklist continues past the first page', () => {
     const [next] = searchPages.next;
     const user = userEvent.setup();
     mount();
+    await startWriting(user);
     await user.type(await screen.findByLabelText(copy['author.search']), '서울');
     await user.click(
       await screen.findByRole('button', { name: copy['placeSearch.more'] }),
@@ -118,6 +129,7 @@ describe('FE-103-T19 a failed next page is not a failed search here', () => {
     const [a, b] = searchPages.first;
     const user = userEvent.setup();
     mount();
+    await startWriting(user);
     await user.type(await screen.findByLabelText(copy['author.search']), '서울');
     await user.click(
       await screen.findByRole('button', { name: copy['placeSearch.more'] }),
@@ -149,6 +161,7 @@ describe('FE-103-T21 restarting after a refused cursor is not a failed search he
     });
     const user = userEvent.setup();
     mount();
+    await startWriting(user);
     await user.type(await screen.findByLabelText(copy['author.search']), '서울');
     await user.click(
       await screen.findByRole('button', { name: copy['placeSearch.more'] }),
@@ -166,6 +179,49 @@ describe('FE-103-T21 restarting after a refused cursor is not a failed search he
 });
 
 describe('#312 authoring and trip prerequisite', () => {
+  it('FE-P1-104-T1 keeps the single-cover limit and returns one step at a time without losing the draft', async () => {
+    const user = userEvent.setup();
+    const router = mount();
+    const input = await screen.findByLabelText(copy['author.choose']);
+    expect(input).not.toHaveAttribute('multiple');
+    await startWriting(user);
+    await user.type(screen.getByLabelText(copy['author.title']), 'A calm walk');
+    await user.type(screen.getByLabelText(copy['author.caption']), 'A quiet afternoon');
+    await user.type(screen.getByLabelText(copy['author.search']), '경복궁');
+    await user.click(await screen.findByRole('checkbox', { name: '경복궁' }));
+    await user.click(screen.getByRole('button', { name: copy['author.nextReview'] }));
+    expect(screen.getByRole('button', { name: copy['author.publish'] })).toBeEnabled();
+    expect(screen.queryByText(copy['author.rights'])).toBeNull();
+    expect(screen.queryByText(copy['author.publicNote'])).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['author.change'] })).toBeNull();
+    expect(screen.queryByRole('button', { name: copy['author.step.write'] })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /rights|licence|동의/i })).toBeNull();
+    const back = screen.getByRole('button', { name: copy['author.previousStep'] });
+    expect(back.closest('header')).not.toBeNull();
+    await user.click(back);
+    expect(screen.getByLabelText(copy['author.title'])).toHaveValue('A calm walk');
+    expect(screen.getByLabelText(copy['author.caption'])).toHaveValue(
+      'A quiet afternoon',
+    );
+    await user.click(screen.getByRole('button', { name: copy['author.previousStep'] }));
+    expect(screen.getByLabelText(copy['author.change'])).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: copy['author.back'] }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/feed'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('FE-P1-104-T10 does not prompt before closing a tab with an unfinished post', async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.upload(
+      await screen.findByLabelText(copy['author.choose']),
+      new File(['image'], 'cover.png', { type: 'image/png' }),
+    );
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('keeps the feed visible but hides authoring when there is no itinerary', async () => {
     server.use(
       http.get(`${API_BASE}/trips`, () => HttpResponse.json(tripFixtures.pageEmpty)),
@@ -179,9 +235,10 @@ describe('#312 authoring and trip prerequisite', () => {
   });
   it('shows the authoring entry for an existing itinerary', async () => {
     mount('/feed');
-    expect(
-      await screen.findByRole('link', { name: copy['author.entry'] }),
-    ).toHaveAttribute('href', '/posts/new');
+    const entry = await screen.findByRole('link', { name: copy['author.entry'] });
+    expect(entry).toHaveAttribute('href', '/posts/new');
+    expect(entry.closest('header')).not.toBeNull();
+    expect(entry.querySelector('svg')).not.toBeNull();
   });
   it('guards direct access with a create-trip link, without upload inputs', async () => {
     server.use(
@@ -217,19 +274,22 @@ describe('#312 authoring and trip prerequisite', () => {
     );
     const user = userEvent.setup();
     const router = mount();
-    await user.upload(
-      await screen.findByLabelText(copy['author.choose']),
-      new File(['image'], 'cover.png', { type: 'image/png' }),
-    );
-    await screen.findByText(copy['author.uploaded']);
+    await startWriting(user);
     await user.type(screen.getByLabelText(copy['author.title']), 'A calm walk');
     await user.type(screen.getByLabelText(copy['author.caption']), 'A quiet afternoon');
-    expect(screen.getByRole('button', { name: copy['author.publish'] })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: copy['author.publish'] })).toBeNull();
     await user.type(screen.getByLabelText(copy['author.search']), '경복궁');
     await user.click(await screen.findByRole('checkbox', { name: '경복궁' }));
+    await user.click(screen.getByRole('button', { name: copy['author.nextReview'] }));
+    expect(screen.getByRole('button', { name: copy['author.publish'] })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: copy['author.publish'] }));
     await screen.findByText(copy['author.publishFailed']);
-    expect(screen.getByLabelText(copy['author.title'])).toBeDisabled();
+    expect(
+      screen.getByText(copy['author.publishFailed']).closest('footer'),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: copy['author.previousStep'] }),
+    ).toBeDisabled();
     await user.click(screen.getByRole('button', { name: copy['author.retryPublish'] }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(`/posts/${postFixtures.detail.id}`),
@@ -253,7 +313,33 @@ describe('#312 authoring and trip prerequisite', () => {
       new File(['image'], 'cover.png', { type: 'image/png' }),
     );
     await screen.findByText(copy['author.uploadFailed']);
+    expect(screen.getAllByText(copy['author.uploadFailed'])).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: copy['author.publish'] })).toBeNull();
+    await user.click(screen.getByRole('button', { name: copy['author.retryUpload'] }));
+    await screen.findByText(copy['author.uploaded']);
+    expect(uploadPostImage).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText(copy['author.change'])).toHaveAttribute('type', 'file');
+    const remove = screen.getByRole('button', { name: copy['author.remove'] });
+    expect(remove.textContent).toBe('×');
+    await user.click(remove);
+    expect(screen.getByLabelText(copy['author.choose'])).toHaveFocus();
+    expect(screen.queryByRole('button', { name: copy['author.remove'] })).toBeNull();
+  });
+  it('hides the photo-upload failure on review and keeps recovery on the photo step', async () => {
+    vi.mocked(uploadPostImage).mockRejectedValueOnce(new Error('network'));
+    const user = userEvent.setup();
+    mount();
+    await startWriting(user);
+    await screen.findByText(copy['author.uploadFailed']);
+    await user.type(screen.getByLabelText(copy['author.title']), 'A calm walk');
+    await user.type(screen.getByLabelText(copy['author.caption']), 'A quiet afternoon');
+    await user.type(screen.getByLabelText(copy['author.search']), '경복궁');
+    await user.click(await screen.findByRole('checkbox', { name: '경복궁' }));
+    await user.click(screen.getByRole('button', { name: copy['author.nextReview'] }));
+    expect(screen.queryByText(copy['author.uploadFailed'])).toBeNull();
     expect(screen.getByRole('button', { name: copy['author.publish'] })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: copy['author.previousStep'] }));
+    await user.click(screen.getByRole('button', { name: copy['author.previousStep'] }));
     await user.click(screen.getByRole('button', { name: copy['author.retryUpload'] }));
     await screen.findByText(copy['author.uploaded']);
     expect(uploadPostImage).toHaveBeenCalledTimes(2);

@@ -8,7 +8,12 @@ import {
   useOptimizationHistory,
   useTrips,
 } from '../../shared/api/index.js';
-import { ConfirmDialog, IconChevronRight, IconProfile } from '../../shared/ui/index.js';
+import {
+  ConfirmDialog,
+  IconChevronRight,
+  IconClose,
+  IconProfile,
+} from '../../shared/ui/index.js';
 import { formatTripPeriod } from '../../shared/i18n/trip-period.js';
 import { DeletionSection } from './DeletionSection.js';
 import { hasResult, rowState, runHref } from './history.js';
@@ -199,13 +204,7 @@ export function ProfileScreen() {
                   }}
                   type="button"
                 >
-                  {/* A glyph, with the trip's name carried by aria-label
-                      above. The full label as visible text made the button
-                      205–226px wide, which forced the page to scroll
-                      sideways at 200% zoom (WCAG 1.4.10) — the reflow spec
-                      caught it. Eleven other row controls in this app take
-                      the same shape. */}
-                  <span aria-hidden="true">✕</span>
+                  <IconClose size={28} />
                 </button>
               </li>
             ))}

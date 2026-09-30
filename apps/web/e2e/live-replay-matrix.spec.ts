@@ -19,6 +19,11 @@ import { overflow } from './overflow.js';
 // file is where the Live list and detail are measured there.
 test.use({ serviceWorkers: 'block' });
 
+const areaRows = (page: Page) =>
+  page
+    .getByRole('list', { name: /지금 권역 혼잡|Crowding by area now/ })
+    .locator('button[aria-expanded]');
+
 const fixture = (path: string) =>
   readFileSync(
     new URL(`../../../packages/contracts/fixtures/${path}`, import.meta.url),
@@ -125,9 +130,28 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
         await expect(state).toContainText(words.observed);
         await expect(state).not.toContainText('2026-09-20T05:00:00Z');
 
+        // The required CI matrix also holds the restored map/search/sheet
+        // layout at mobile widths, including the 200% zoom equivalent.
+        const mapBounds = await page
+          .getByRole('region', { name: /카카오 지도|Live map/ })
+          .boundingBox();
+        const searchBounds = await page
+          .getByRole('searchbox', { name: /Live 장소 검색|Search Live places/ })
+          .boundingBox();
+        expect(mapBounds).not.toBeNull();
+        expect(searchBounds).not.toBeNull();
+        expect(searchBounds!.y).toBeGreaterThanOrEqual(mapBounds!.y);
+        expect(searchBounds!.y).toBeLessThan(mapBounds!.y + mapBounds!.height);
+        const handle = page.getByTestId('live-sheet-drag-handle');
+        await handle.focus();
+        await page.keyboard.press('ArrowDown');
+        await expect(handle).toHaveAttribute('aria-expanded', 'false');
+        await page.keyboard.press('ArrowUp');
+        await expect(handle).toHaveAttribute('aria-expanded', 'true');
+
         // Every area row says the same in its own badge: the list is where a
         // traveller reads it, not only the header.
-        const rows = page.locator('button[aria-expanded]');
+        const rows = areaRows(page);
         await expect(rows).toHaveCount(
           (JSON.parse(AREA_RESULT[mode]) as { areas: unknown[] }).areas.length,
         );
@@ -143,11 +167,13 @@ for (const mode of ['LIVE', 'REPLAY'] as const) {
         await expect(area).toHaveAttribute('aria-expanded', 'true');
 
         // The state stays in view at the end of a list that scrolls.
-        const main = page.getByRole('main');
+        const sheetContent = page.getByTestId('live-sheet-content');
         expect(
-          await main.evaluate((element) => element.scrollHeight > element.clientHeight),
+          await sheetContent.evaluate(
+            (element) => element.scrollHeight > element.clientHeight,
+          ),
         ).toBe(true);
-        await main.evaluate((element) => {
+        await sheetContent.evaluate((element) => {
           element.scrollTop = element.scrollHeight;
         });
         await expect(state).toBeInViewport();
@@ -227,7 +253,7 @@ test('FE-401-T3 FE-403-T3 the Live list collapses motion under reduce', async ({
   const unexpected = await open(page, 'en-US');
   await page.goto('/live');
   // The list is really there before its motion is measured.
-  await expect(page.locator('button[aria-expanded]')).toHaveCount(
+  await expect(areaRows(page)).toHaveCount(
     (JSON.parse(AREA_RESULT.LIVE) as { areas: unknown[] }).areas.length,
   );
   expectInstant(await motionUnderReduce(page));
@@ -329,17 +355,15 @@ test('BA-091-T2 map OFF: the area list carries every area and its places, from t
   ).toContainText('Could not load the map');
   // Every area the answer holds is a row of the list.
   const areas = (JSON.parse(AREA_RESULT.LIVE) as { areas: { name: string }[] }).areas;
-  await expect(page.locator('button[aria-expanded]')).toHaveCount(areas.length);
+  await expect(areaRows(page)).toHaveCount(areas.length);
   for (const area of areas)
-    await expect(
-      page.locator('button[aria-expanded]', { hasText: area.name }),
-    ).toBeVisible();
+    await expect(areaRows(page).filter({ hasText: area.name })).toBeVisible();
   // Asked as a list: the approved list-only query, no viewport.
   const listOnly: unknown = JSON.parse(fixture('live/area-query.json'));
   expect(queries.length, 'no area query was sent').toBeGreaterThan(0);
   for (const query of queries) expect(query).toEqual(listOnly);
   // An area opens onto its places, each a named way to its detail.
-  await page.locator('button[aria-expanded]', { hasText: '광화문·덕수궁' }).click();
+  await areaRows(page).filter({ hasText: '광화문·덕수궁' }).click();
   const places = JSON.parse(AREA_PLACES) as { place: { name: string } }[];
   for (const item of places) {
     await expect(
@@ -554,7 +578,7 @@ for (const width of [360, 180] as const) {
       const state = page.getByTestId('live-persistent-state');
       await expect(state).toContainText(words.INCIDENT);
       await expect(state).not.toContainText(words.LIVE);
-      const rows = page.locator('button[aria-expanded]');
+      const rows = areaRows(page);
       await expect(rows).toHaveCount(
         (JSON.parse(AREA_RESULT.INCIDENT) as { areas: unknown[] }).areas.length,
       );

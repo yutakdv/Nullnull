@@ -2,12 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import type { components } from '@nullnull/api-client';
 import { useI18n } from '../../i18n/I18nProvider.js';
-import {
-  isProblem,
-  useReorderTripItems,
-  useTrip,
-  useUpdateTrip,
-} from '../../shared/api/index.js';
+import { isProblem, useReorderTripItems, useTrip } from '../../shared/api/index.js';
 import {
   Chip,
   ConfirmDialog,
@@ -17,13 +12,10 @@ import {
 } from '../../shared/ui/components/index.js';
 import {
   IconDateLock,
-  IconCheck,
-  IconClose,
   IconDragHandle,
   IconEdit,
   IconPinVisitFilled,
   IconReservation,
-  IconSettings,
   IconTimeLock,
 } from '../../shared/ui/icons/index.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
@@ -32,7 +24,6 @@ import { ItemTimeControl } from './ItemTimeControl.js';
 import { RemoveItemControl } from './RemoveItemControl.js';
 import { LockRow } from './LockRow.js';
 import { TripEditForm } from './TripEditForm.js';
-import { draftError, draftFrom, toPatch } from './trip-edit.js';
 import { useTripDragReorder } from './useTripDragReorder.js';
 import { schedulePatch, stageSchedule } from './schedule-draft.js';
 import styles from './TripScreen.module.css';
@@ -111,14 +102,8 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   const navigate = useNavigate();
   const { locale, t } = useI18n();
   const query = useTrip(tripId ?? null);
-  const updateTitle = useUpdateTrip(tripId ?? null);
   const saveSchedule = useReorderTripItems(tripId ?? null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const titleEditButton = useRef<HTMLButtonElement>(null);
-  const restoreTitleFocus = useRef(false);
   const editing = mode === 'edit';
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEdit | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -149,7 +134,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
       draft: serverDays,
     });
   }, [editing, trip, query.data?.etag, scheduleEdit?.tripId, serverDays]);
-  const activeEdit = editing && scheduleEdit?.tripId === tripId ? scheduleEdit : null;
+  const activeEdit = editing && scheduleEdit?.tripId === trip?.id ? scheduleEdit : null;
   const days = activeEdit?.draft ?? serverDays;
   const pendingOrder = activeEdit
     ? schedulePatch(activeEdit.initial, activeEdit.draft)
@@ -169,7 +154,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   const drag = useTripDragReorder({
     days,
     tripId: tripId ?? null,
-    etag: scheduleEdit?.etag ?? query.data?.etag ?? null,
+    etag: editing ? (activeEdit?.etag ?? null) : (query.data?.etag ?? null),
     selectedDay,
     onStageOrder: editing ? stageOrder : undefined,
   });
@@ -177,12 +162,6 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
     () => visibleDays(drag.days, selectedDay),
     [drag.days, selectedDay],
   );
-
-  useEffect(() => {
-    if (editingTitle || !restoreTitleFocus.current) return;
-    restoreTitleFocus.current = false;
-    titleEditButton.current?.focus();
-  }, [editingTitle]);
 
   // FE-306-T5, T6: where focus goes when the dates form opens and closes. The
   // view and /settings are one TripScreen that changes mode, and the settings
@@ -250,50 +229,11 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
   }
 
   const { nights, days: dayCount } = tripLength(trip.startDate, trip.endDate);
-  const countdown = daysUntil(trip.startDate, todayIn(trip.timezone));
+  const today = todayIn(trip.timezone);
+  const countdown = daysUntil(trip.startDate, today);
+  const ended = today > trip.endDate;
   const total = itemCount(days);
   const loadedTrip = trip;
-  const loadedEtag = query.data?.etag ?? null;
-  function beginTitleEdit() {
-    updateTitle.reset();
-    setTitleDraft(loadedTrip.title);
-    setTitleError(null);
-    setEditingTitle(true);
-  }
-
-  function cancelTitleEdit() {
-    updateTitle.reset();
-    setTitleError(null);
-    restoreTitleFocus.current = true;
-    setEditingTitle(false);
-  }
-
-  function saveTitle() {
-    const draft = { ...draftFrom(loadedTrip), title: titleDraft };
-    const localError = draftError(draft);
-    if (localError === 'title-empty' || localError === 'title-too-long') {
-      setTitleError(t(`trip.error.${localError}`));
-      return;
-    }
-    const patch = toPatch(draft, loadedTrip);
-    if (patch === null) {
-      cancelTitleEdit();
-      return;
-    }
-    updateTitle.mutate(
-      { patch, etag: loadedEtag },
-      {
-        onSuccess: () => {
-          setTitleError(null);
-          restoreTitleFocus.current = true;
-          setEditingTitle(false);
-        },
-        onError: () => {
-          setTitleError(t('trip.titleSaveFailed'));
-        },
-      },
-    );
-  }
 
   function closeScheduleEditor() {
     intentionalClose.current = true;
@@ -345,77 +285,13 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
       aria-labelledby="trip-heading"
     >
       <header className={styles.header}>
-        <div
-          className={`${styles.headRow} ${
-            mode === 'view' && !editingTitle ? styles.viewHeadRow : ''
-          }`}
-        >
-          <h1 className={editingTitle ? styles.srOnly : styles.title} id="trip-heading">
+        <div className={`${styles.headRow} ${mode === 'view' ? styles.viewHeadRow : ''}`}>
+          <h1 className={styles.title} id="trip-heading">
             {trip.title}
           </h1>
-          {editingTitle ? (
-            <div className={styles.titleEditor}>
-              <label className={styles.srOnly} htmlFor="trip-title-inline">
-                {t('trip.field.title')}
-              </label>
-              <input
-                aria-describedby={titleError ? 'trip-title-inline-error' : undefined}
-                aria-invalid={titleError ? true : undefined}
-                autoFocus
-                className={styles.titleInput}
-                id="trip-title-inline"
-                maxLength={100}
-                onChange={(event) => {
-                  setTitleDraft(event.target.value);
-                  setTitleError(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    saveTitle();
-                  }
-                  if (event.key === 'Escape') cancelTitleEdit();
-                }}
-                value={titleDraft}
-              />
-              <button
-                aria-label={t('trip.editSave')}
-                className={styles.titleIconButton}
-                disabled={updateTitle.isPending}
-                onClick={saveTitle}
-                type="button"
-              >
-                <IconCheck size={18} />
-              </button>
-              <button
-                aria-label={t('trip.editCancel')}
-                className={styles.titleIconButton}
-                disabled={updateTitle.isPending}
-                onClick={cancelTitleEdit}
-                type="button"
-              >
-                <IconClose size={18} />
-              </button>
-            </div>
-          ) : mode === 'view' ? (
-            <button
-              aria-label={t('trip.titleEdit')}
-              className={`${styles.titleIconButton} ${styles.titleEditButton}`}
-              onClick={beginTitleEdit}
-              ref={titleEditButton}
-              type="button"
-            >
-              <IconEdit size={18} />
-            </button>
-          ) : null}
-          {/* FE-306: the only way to the dates form at /settings (FR-TRP-05).
-              Beside the rename pencil because both change the trip itself, and
-              in the view only: routes.tsx keeps metadata out of the S07-2
-              schedule editor. No Figma node draws it; the hero's actions row
-              is Figma's two pills (462:3402), so it takes the pencil's form
-              rather than a third pill. Hidden while the title is being edited,
-              as the pencil is, so leaving cannot drop a typed name unasked. */}
-          {mode === 'view' && !editingTitle ? (
+          {/* Trip metadata has one edit entry. The schedule editor below stages
+              item order separately; /settings owns title, dates and planning. */}
+          {mode === 'view' ? (
             <Link
               aria-label={t('trip.settingsOpen')}
               className={`${styles.titleIconButton} ${styles.titleEditButton}`}
@@ -425,20 +301,15 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
               ref={settingsEntry}
               to={`/trip/${trip.id}/settings`}
             >
-              <IconSettings size={18} />
+              <IconEdit size={18} />
             </Link>
           ) : null}
-          {/* Once the trip is under way there is no countdown to show, so it
-              says which it is rather than falling back to D-0. */}
           <span className={styles.dday}>
-            {countdown === null ? t('trip.started') : t('trip.dday', { days: countdown })}
+            {countdown !== null
+              ? t('trip.dday', { days: countdown })
+              : t(ended ? 'trip.ended' : 'trip.started')}
           </span>
         </div>
-        {titleError ? (
-          <p className={styles.titleError} id="trip-title-inline-error" role="alert">
-            {titleError}
-          </p>
-        ) : null}
 
         <div className={styles.meta}>
           <p className={styles.metaText}>
@@ -636,7 +507,7 @@ export function TripScreen({ mode = 'view', surface = 'default' }: TripScreenPro
                     days={days}
                     drag={drag}
                     editing={editing}
-                    etag={query.data.etag}
+                    etag={editing ? (activeEdit?.etag ?? null) : query.data.etag}
                     item={item}
                     onAnnounce={setRemoved}
                     onStageOrder={editing ? stageOrder : undefined}

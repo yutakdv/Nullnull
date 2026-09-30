@@ -19,6 +19,7 @@ import {
 } from '../../shared/ui/index.js';
 import styles from './LiveScreen.module.css';
 import { KakaoLiveMap } from './KakaoLiveMap.js';
+import { LiveBottomSheet } from './LiveBottomSheet.js';
 import type { AppShellOutletContext } from '../AppShell.js';
 import { restoreFocusTo } from '../../shared/ui/components/focus-restore.js';
 import { readLiveReturn } from './live-return.js';
@@ -94,25 +95,10 @@ export function LiveScreen() {
 
   return (
     <section aria-labelledby="live-heading" className={styles.screen}>
+      <h1 className={styles.sr} id="live-heading">
+        {t('live.title')}
+      </h1>
       <header className={styles.header}>
-        <div className={styles.titleRow}>
-          <h1 id="live-heading">{t('live.title')}</h1>
-          {areas.data ? (
-            <div className={styles.persistentState} data-testid="live-persistent-state">
-              <StateLabel
-                observedAt={
-                  observedAt
-                    ? t('crowd.observedAt', {
-                        date: formatReferenceTime(observedAt, locale),
-                      })
-                    : null
-                }
-                qualityFlags={listFlags}
-                state={areas.data.mode}
-              />
-            </div>
-          ) : null}
-        </div>
         <SearchField
           id="live-search"
           label={t('live.searchLabel')}
@@ -120,6 +106,21 @@ export function LiveScreen() {
           placeholder={t('live.search')}
           value={query}
         />
+        {areas.data ? (
+          <div className={styles.source} data-testid="live-persistent-state">
+            <StateLabel
+              observedAt={
+                observedAt
+                  ? t('crowd.observedAt', {
+                      date: formatReferenceTime(observedAt, locale),
+                    })
+                  : null
+              }
+              qualityFlags={listFlags}
+              state={areas.data.mode}
+            />
+          </div>
+        ) : null}
 
         {query.trim().length > 0 ? (
           <div className={styles.searchPanel}>
@@ -203,7 +204,11 @@ export function LiveScreen() {
         </div>
       </div>
 
-      <section aria-label={t('live.sheet.title')} className={styles.listPanel}>
+      <LiveBottomSheet
+        collapseLabel={t('live.sheet.collapse')}
+        expandLabel={t('live.sheet.expand')}
+        title={t('live.sheet.title')}
+      >
         <div className={styles.sheetBody}>
           <div
             aria-label={t('live.view.label')}
@@ -371,7 +376,7 @@ export function LiveScreen() {
             </div>
           ) : null}
         </div>
-      </section>
+      </LiveBottomSheet>
     </section>
   );
 }

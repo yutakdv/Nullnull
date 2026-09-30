@@ -208,12 +208,12 @@ describe('FE-301-T1 the counts are right and distinct', () => {
 });
 
 describe('FE-301 trip title editing from the detail header', () => {
-  it('validates, saves, and keeps the renamed trip after reopening the detail', async () => {
+  it('edits the name in trip details and keeps it after reopening', async () => {
     const user = userEvent.setup();
     const firstView = renderTrip();
     await loaded();
 
-    await user.click(screen.getByRole('button', { name: 'Edit trip name' }));
+    await user.click(screen.getByRole('link', { name: copy['trip.settingsOpen'] }));
     const title = screen.getByLabelText(copy['trip.field.title']);
     await user.clear(title);
     await user.click(screen.getByRole('button', { name: copy['trip.editSave'] }));
@@ -225,7 +225,7 @@ describe('FE-301 trip title editing from the detail header', () => {
       await screen.findByRole('heading', { level: 1, name: 'Autumn Seoul' }),
     ).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit trip name' })).toHaveFocus();
+      expect(screen.getByRole('link', { name: copy['trip.settingsOpen'] })).toHaveFocus();
     });
 
     firstView.unmount();
@@ -233,6 +233,28 @@ describe('FE-301 trip title editing from the detail header', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Autumn Seoul' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('FE-301 trip date phase', () => {
+  it('shows a finished trip after its last date', async () => {
+    const pastTrip = {
+      ...trip,
+      startDate: '2020-01-01',
+      endDate: '2020-01-03',
+      days: trip.days.map((day, index) => {
+        const date = `2020-01-0${index + 1}`;
+        return { ...day, date, items: day.items.map((item) => ({ ...item, date })) };
+      }),
+    };
+    server.use(
+      http.get(`${API_BASE}/trips/:tripId`, () =>
+        HttpResponse.json(pastTrip, { headers: { ETag: '"3"' } }),
+      ),
+    );
+    renderTrip();
+    await loaded();
+    expect(screen.getByText('Trip finished')).toBeInTheDocument();
   });
 });
 

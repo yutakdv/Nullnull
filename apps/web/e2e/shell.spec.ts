@@ -210,14 +210,47 @@ test.describe('app shell', () => {
       .getByRole('button', { name: /검색|Search/ })
       .boundingBox();
     expect(after?.y).toBe(before?.y);
-    expect(
-      (searchBounds?.x ?? 0) - ((noticeBounds?.x ?? 0) + (noticeBounds?.width ?? 0)),
-    ).toBe(8);
-    expect((noticeBounds?.y ?? 0) + (noticeBounds?.height ?? 0) / 2).toBe(
-      (searchBounds?.y ?? 0) + (searchBounds?.height ?? 0) / 2,
+    expect((noticeBounds?.x ?? 0) + (noticeBounds?.width ?? 0)).toBe(
+      (searchBounds?.x ?? 0) + (searchBounds?.width ?? 0),
+    );
+    expect(noticeBounds?.y).toBeGreaterThanOrEqual(
+      (searchBounds?.y ?? 0) + (searchBounds?.height ?? 0),
     );
     await page.waitForTimeout(1_100);
     await expect(notice).toHaveCount(0);
+  });
+
+  test('FE-P1-104-T3 S03 opens post creation from the plus beside search', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await createRepresentativeTrip(page);
+    await page.goto('/feed');
+    const entry = page.getByRole('link', { name: /게시물 작성|Create post/ });
+    const search = page.getByRole('button', { name: /검색|Search/ });
+    await expect(entry.locator('svg')).toBeVisible();
+    await expect(page.locator('#feed-search-availability')).toHaveCount(0);
+    const entryBounds = await entry.boundingBox();
+    const searchBounds = await search.boundingBox();
+    expect(entryBounds?.width).toBeGreaterThanOrEqual(44);
+    expect(entryBounds?.height).toBeGreaterThanOrEqual(44);
+    expect(searchBounds?.width).toBeGreaterThanOrEqual(44);
+    expect(searchBounds?.height).toBeGreaterThanOrEqual(44);
+    const iconStyles = await Promise.all(
+      [entry, search].map((control) =>
+        control.evaluate((element) => ({
+          background: getComputedStyle(element).backgroundColor,
+          color: getComputedStyle(element).color,
+        })),
+      ),
+    );
+    expect(iconStyles[0]).toEqual(iconStyles[1]);
+    expect(
+      searchBounds!.x - (entryBounds!.x + entryBounds!.width),
+    ).toBeGreaterThanOrEqual(8);
+    await entry.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/posts\/new$/);
   });
 
   test('S03 reaches the home logo and representative-trip choices by keyboard', async ({
@@ -297,7 +330,7 @@ test.describe('app shell', () => {
       return range.getBoundingClientRect().right;
     });
     const editBounds = await hero
-      .getByRole('button', { name: /여행 이름 수정|Edit trip name/ })
+      .getByRole('link', { name: /여행 정보 수정|Edit trip details/ })
       .boundingBox();
     expect((editBounds?.x ?? 0) - titleTextRight).toBeLessThanOrEqual(8);
 
@@ -376,20 +409,24 @@ test.describe('app shell', () => {
     const tripPath = await createSeededTrip(page);
     await page.goto(tripPath);
 
-    const hero = page
-      .getByRole('heading', { level: 1 })
-      .locator('xpath=ancestor::header');
-    await hero.getByRole('button', { name: /여행 이름 수정|Edit trip name/ }).click();
-    await hero.getByRole('textbox').fill('가'.repeat(100));
-    await hero.getByRole('button', { name: /저장|Save/ }).click();
+    const editTrip = page.getByRole('link', { name: /여행 정보 수정|Edit trip details/ });
+    await expect(editTrip).toHaveCount(1);
+    await editTrip.click();
+    await page
+      .getByRole('textbox', { name: /여행 이름|Trip name/ })
+      .fill('가'.repeat(100));
+    await page.getByRole('button', { name: /저장|Save/ }).click();
     await expect(
       page.getByRole('heading', { level: 1, name: '가'.repeat(100) }),
     ).toBeVisible();
 
     await page.setViewportSize({ width: 180, height: 500 });
+    const hero = page
+      .getByRole('heading', { level: 1 })
+      .locator('xpath=ancestor::header');
     const headingBounds = await page.getByRole('heading', { level: 1 }).boundingBox();
     const editBounds = await hero
-      .getByRole('button', { name: /여행 이름 수정|Edit trip name/ })
+      .getByRole('link', { name: /여행 정보 수정|Edit trip details/ })
       .boundingBox();
     const ddayBounds = await hero.locator('[class*="dday"]').boundingBox();
 
@@ -411,6 +448,7 @@ test.describe('app shell', () => {
     const handle = source.getByRole('button', {
       name: /Move 인사동 by dragging|인사동 드래그/,
     });
+    await expect(handle).toBeEnabled();
     const target = page
       .getByRole('heading', { level: 2, name: /Day 2|2일차/ })
       .locator('xpath=..');
@@ -422,10 +460,11 @@ test.describe('app shell', () => {
     await page.mouse.down();
     await page.mouse.move((to?.x ?? 0) + 30, (to?.y ?? 0) + 60, { steps: 12 });
     await page.mouse.up();
-    await expect(target.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
+    const dayTwo = page.getByRole('region', { name: /Day 2|2일차/ });
+    await expect(dayTwo.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
     await page.getByRole('button', { name: /Save changes|변경사항 저장/ }).click();
     await expect(page).not.toHaveURL(/\/edit$/);
-    await expect(target.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
+    await expect(dayTwo.getByRole('heading', { level: 3, name: '인사동' })).toBeVisible();
   });
 
   test('FE-305 drag auto-scrolls the app content toward off-screen days', async ({
@@ -502,6 +541,41 @@ test.describe('app shell', () => {
     const firstTrip = trips.getByRole('link').first();
     await expect(firstTrip.locator('span').nth(1)).toHaveCSS('font-size', '16px');
     await expect(firstTrip.locator('svg')).toHaveCount(0);
+  });
+
+  test('FE-105-T3 FE-105-T4 S14 trip delete has a clear touch target and still opens confirmation by keyboard', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await createSeededTrip(page);
+    await page.goto('/profile');
+    const remove = page
+      .getByRole('region', { name: /내 여행 목록|My trips/ })
+      .getByRole('button', { name: /삭제|Delete/ })
+      .first();
+    const target = await remove.boundingBox();
+    const icon = await remove.locator('svg').boundingBox();
+    expect(target?.width).toBeGreaterThanOrEqual(48);
+    expect(target?.height).toBeGreaterThanOrEqual(48);
+    expect(icon?.width).toBe(28);
+    const textColors = await remove.evaluate((button) => ({
+      delete: getComputedStyle(button).color,
+      period: getComputedStyle(
+        button.parentElement!.querySelector('a > span > span:last-child')!,
+      ).color,
+    }));
+    expect(textColors.delete).toBe(textColors.period);
+    const deleteSurface = await remove.evaluate((button) => ({
+      background: getComputedStyle(button).backgroundColor,
+      radius: getComputedStyle(button).borderRadius,
+    }));
+    expect(deleteSurface).toEqual({ background: 'rgba(0, 0, 0, 0)', radius: '0px' });
+    await remove.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(remove).toBeFocused();
   });
 
   test('S14 aligns profile card headings to the 16px spacing grid', async ({ page }) => {

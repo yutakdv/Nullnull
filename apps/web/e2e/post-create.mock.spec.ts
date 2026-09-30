@@ -34,7 +34,7 @@ test.afterAll(async () => {
 
 const postId = '018f5b00-0000-7000-8000-000000000001';
 for (const locale of ['ko-KR', 'en-US'] as const) {
-  test(`#312 photo upload, keyboard publish, and retry in ${locale}`, async ({
+  test(`FE-P1-104-T2 FE-P1-104-T3 FE-P1-104-T5 FE-P1-104-T9 photo upload, keyboard publish, and retry in ${locale}`, async ({
     page,
   }) => {
     const ko = locale === 'ko-KR';
@@ -105,9 +105,52 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     );
     await page.goto('/feed');
     const entry = page.getByRole('link', { name: ko ? '게시물 작성' : 'Create post' });
+    const searchButton = page.getByRole('button', { name: ko ? '검색' : 'Search' });
+    const entryBox = await entry.boundingBox();
+    const searchBox = await searchButton.boundingBox();
+    expect(entryBox?.width).toBeGreaterThanOrEqual(44);
+    expect(entryBox?.height).toBeGreaterThanOrEqual(44);
+    expect(searchBox?.width).toBeGreaterThanOrEqual(44);
+    expect(searchBox?.height).toBeGreaterThanOrEqual(44);
+    expect(searchBox!.x - (entryBox!.x + entryBox!.width)).toBeGreaterThanOrEqual(8);
+    await expect(
+      page.getByText(ko ? '피드 검색 기능을 준비 중이에요' : 'Search is coming soon'),
+    ).toHaveCount(0);
     await entry.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/posts\/new$/);
+    const mainBottom =
+      (await page.locator('main').boundingBox())!.y +
+      (await page.locator('main').boundingBox())!.height;
+    const steps = page.locator('ol > li');
+    await expect(steps).toHaveCount(3);
+    expect(await steps.first().evaluate((item) => getComputedStyle(item).fontSize)).toBe(
+      '17px',
+    );
+    await expect(steps.first()).toHaveAttribute('aria-current', 'step');
+    await expect(
+      page.locator('section[aria-labelledby="author-heading"] > form > h2'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('section[aria-labelledby="author-heading"] legend'),
+    ).toHaveCount(0);
+    const photoNext = page.getByRole('button', { name: ko ? '글 작성' : 'Write post' });
+    const photoNextBox = await photoNext.boundingBox();
+    expect(photoNextBox!.y + photoNextBox!.height).toBeGreaterThan(mainBottom - 80);
+    const backStyle = await page
+      .getByRole('button', {
+        name: ko ? '피드로 돌아가기' : 'Back to feed',
+      })
+      .evaluate((button) => ({
+        background: getComputedStyle(button).backgroundColor,
+        color: getComputedStyle(button).color,
+      }));
+    expect(backStyle.background).toBe('rgba(0, 0, 0, 0)');
+    expect(backStyle.color).toBe(
+      await page
+        .locator('header [class*="title"]')
+        .evaluate((title) => getComputedStyle(title).color),
+    );
     const image = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZc8AAAAASUVORK5CYII=',
       'base64',
@@ -115,6 +158,26 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
     await page
       .locator('input[type=file]')
       .setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: image });
+    await expect(page.getByLabel(ko ? '사진 변경하기' : 'Change photo')).toHaveAttribute(
+      'type',
+      'file',
+    );
+    expect(
+      await page
+        .locator('label[class*="fileLabel"]')
+        .evaluate((label) => getComputedStyle(label, '::after').content),
+    ).toContain(ko ? '사진 변경하기' : 'Change photo');
+    const removePhoto = page.getByRole('button', {
+      name: ko ? '선택 취소' : 'Clear selection',
+    });
+    const removeBox = await removePhoto.boundingBox();
+    const previewBox = await page.locator('img[class*="preview"]').first().boundingBox();
+    expect(removeBox!.width).toBeGreaterThanOrEqual(44);
+    expect(removeBox!.height).toBeGreaterThanOrEqual(44);
+    expect(removeBox!.x).toBeGreaterThan(previewBox!.x + previewBox!.width / 2);
+    expect(removeBox!.y).toBeLessThan(previewBox!.y + 32);
+    await removePhoto.focus();
+    await expect(removePhoto).toBeFocused();
     await expect(
       page.getByText(
         ko
@@ -122,43 +185,120 @@ for (const locale of ['ko-KR', 'en-US'] as const) {
           : 'Upload complete. Your photo becomes public when you publish.',
       ),
     ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: ko ? '업로드' : 'Upload', exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: ko ? '글 작성' : 'Write post' }).click();
+    await expect(steps.nth(1)).toBeFocused();
     await page.getByLabel(ko ? '제목' : 'Title', { exact: true }).fill('Quiet afternoon');
     await page
       .getByLabel(ko ? '캡션' : 'Caption', { exact: true })
       .fill('A walk in Seoul.');
     await page.getByLabel(ko ? '장소 검색' : 'Search places').fill('경복궁');
+    const titleField = page.getByLabel(ko ? '제목' : 'Title', { exact: true });
+    const placeField = page.getByLabel(ko ? '장소 검색' : 'Search places');
+    const fieldStyles = await Promise.all(
+      [titleField, placeField.locator('..')].map((field) =>
+        field.evaluate((element) => ({
+          background: getComputedStyle(element).backgroundColor,
+          border: getComputedStyle(element).borderColor,
+          radius: getComputedStyle(element).borderRadius,
+        })),
+      ),
+    );
+    expect(fieldStyles[1]).toEqual(fieldStyles[0]);
+    await expect(placeField.locator('..').locator('svg')).toBeVisible();
     await page.getByRole('checkbox', { name: '경복궁' }).check();
-    const back = page.getByRole('button', {
-      name: ko ? '피드로 돌아가기' : 'Back to feed',
+    const stepBack = page.getByRole('button', {
+      name: ko ? '뒤로가기' : 'Back',
+      exact: true,
     });
-    await back.click();
-    const discard = page.getByRole('dialog');
-    await expect(discard).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(discard).not.toBeVisible();
-    await expect(back).toBeFocused();
+    await stepBack.focus();
+    await page.keyboard.press('Enter');
+    await expect(steps.first()).toBeFocused();
+    await page.getByRole('button', { name: ko ? '글 작성' : 'Write post' }).click();
     await expect(page.getByLabel(ko ? '제목' : 'Title', { exact: true })).toHaveValue(
       'Quiet afternoon',
     );
+    const review = page.getByRole('button', {
+      name: ko ? '게시 전 확인' : 'Review post',
+    });
+    const reviewBounds = await review.boundingBox();
+    expect(reviewBounds!.y + reviewBounds!.height).toBeGreaterThan(740);
+    await review.click();
+    await expect(steps.nth(2)).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Quiet afternoon' })).toBeVisible();
+    await expect(page.getByText('A walk in Seoul.')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: ko ? '사진 변경하기' : 'Change photo' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: ko ? '글 작성' : 'Write post' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText(
+        ko
+          ? '게시하면 피드에 바로 공개돼요.'
+          : 'Your post will be public in the feed immediately.',
+      ),
+    ).toHaveCount(0);
+    await stepBack.focus();
+    await page.keyboard.press('Enter');
+    await expect(steps.nth(1)).toBeFocused();
+    await expect(titleField).toHaveValue('Quiet afternoon');
+    const header = page.locator('section[aria-labelledby="author-heading"] > header');
+    const headerBefore = await header.boundingBox();
+    const headerBackBox = await stepBack.boundingBox();
+    expect(headerBackBox!.width).toBeGreaterThanOrEqual(44);
+    expect(headerBackBox!.height).toBeGreaterThanOrEqual(44);
+    expect(headerBackBox!.x - headerBefore!.x).toBeLessThan(16);
+    await page.locator('main').evaluate((main) => {
+      main.scrollTop = main.scrollHeight;
+    });
+    const headerAfter = await header.boundingBox();
+    expect(Math.abs(headerAfter!.y - headerBefore!.y)).toBeLessThan(1);
+    await review.click();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
     const publish = page.getByRole('button', {
-      name: ko ? '게시' : 'Publish',
+      name: ko ? '업로드' : 'Upload',
       exact: true,
     });
     await publish.focus();
+    const publishBox = await publish.boundingBox();
+    expect(publishBox!.y + publishBox!.height).toBeGreaterThan(mainBottom - 80);
     await page.keyboard.press('Enter');
     const retry = page.getByRole('button', {
       name: ko ? '같은 게시물 다시 시도' : 'Retry this post',
     });
     await expect(retry).toBeEnabled();
-    await expect(page.getByLabel(ko ? '제목' : 'Title', { exact: true })).toBeDisabled();
+    await expect(page.locator('footer [role="alert"]')).toBeVisible();
+    await expect(stepBack).toBeDisabled();
     await retry.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(new RegExp(`/posts/${postId}$`));
     expect(storageRequests).toEqual(['PUT']);
+    await page.goto('/feed');
+    await entry.click();
+    await page
+      .locator('input[type=file]')
+      .setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: image });
+    const exit = page.getByRole('button', {
+      name: ko ? '피드로 돌아가기' : 'Back to feed',
+    });
+    await exit.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/feed$/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await entry.click();
+    await page
+      .locator('input[type=file]')
+      .setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: image });
+    await page.evaluate(() => window.history.back());
+    await expect(page).toHaveURL(/\/feed$/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 }

@@ -62,6 +62,13 @@ describe('FE-306-T4 the trip view opens the dates form', () => {
     expect(screen.getByLabelText(copy['trip.field.endDate'])).toHaveValue(trip.endDate);
   });
 
+  it('offers one edit entry in the title row', async () => {
+    renderTrip();
+    const entry = await screen.findByRole('link', { name: copy['trip.settingsOpen'] });
+    expect(entry).toHaveAttribute('href', `/trip/${trip.id}/settings`);
+    expect(screen.queryByRole('button', { name: 'Edit trip name' })).toBeNull();
+  });
+
   it('keeps the form out of the S07-2 schedule editor', async () => {
     // routes.tsx: metadata editing must not be mixed into schedule edit, so
     // the control belongs to the view only.

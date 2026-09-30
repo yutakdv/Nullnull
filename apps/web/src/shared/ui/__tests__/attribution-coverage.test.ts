@@ -151,7 +151,7 @@ const COUNTS: Record<string, { sites: number; credits: number }> = {
   'app/live/LiveScreen.tsx :: selectedPlace.data': { sites: 0, credits: 1 },
   'app/optimize/OptimizeSetupScreen.tsx :: item.place': { sites: 1, credits: 1 },
   'app/optimize/ProposalCard.tsx :: places.places[]': { sites: 0, credits: 1 },
-  'app/post/PostCreateScreen.tsx :: place': { sites: 2, credits: 2 },
+  'app/post/PostCreateScreen.tsx :: place': { sites: 3, credits: 3 },
   'app/post/PostScreen.tsx :: place': { sites: 1, credits: 1 },
   'app/trip-create/ConfirmStopsStep.tsx :: stop.place': { sites: 2, credits: 1 },
   'app/trip-create/ImportPasteScreen.tsx :: item.place': { sites: 2, credits: 1 },
