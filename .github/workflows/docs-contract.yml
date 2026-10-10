@@ -95,7 +95,7 @@ jobs:
         # counted as a pass. The deploy/submission path runs the same script with
         # --require-verified, where absent evidence stops the release instead of being recorded.
         run: python3 scripts/check_actual_call_evidence.py build/reports/contest/actual-call.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
       - name: Lint Markdown
